@@ -8,6 +8,10 @@
 # rubocop:disable Layout/EmptyLineAfterGuardClause
 # rubocop:disable Layout/HeredocIndentation
 # rubocop:disable Layout/LineLength
+# rubocop:disable Style/StringLiteralsInInterpolation
+# rubocop:disable Style/TrailingCommaInArguments
+# rubocop:disable Style/TrailingCommaInArrayLiteral
+# rubocop:disable Style/TrailingCommaInHashLiteral
 
 # mini CLIs
 
@@ -18,10 +22,10 @@ require "open3"
 require "optparse"
 require "stringio"
 
-$logger = Logger.new($stderr, level: Logger::WARN) # rubocop:disable Style/GlobalVars
+Logger_ = Logger.new($stderr, level: Logger::WARN)
 
 def logger
-  $logger # rubocop:disable Style/GlobalVars
+  Logger_
 end
 
 class MyError < StandardError; end
@@ -29,6 +33,7 @@ class MyError < StandardError; end
 # ------------------------------------------------------------------------------
 # lib
 
+# @param [Boolean] expr
 def assert(expr)
   return if expr
   locs = caller_locations
@@ -46,7 +51,7 @@ end
 def debugger_try(frame, &log_cb)
   begin
     require "debug"
-  rescue LoadError => e
+  rescue LoadError
     return false
   end
   return false unless respond_to?(:debugger)
@@ -73,7 +78,7 @@ def str_snip(str, width = 100)
   "#{str[...width1]}...#{str[(str.length - width2)..]}"
 end
 
-if false # rubocop:disable Lint/LiteralAsCondition
+def _str_snip_test # rubocop:disable Metrics
   str_snip("123456789", 3) # width must be -1 or greater than 3 (ArgumentError)
   raise unless str_snip("123456789", 4) == "1..."
   raise unless str_snip("123456789", 5) == "1...9"
@@ -107,6 +112,90 @@ def command(name, opt_parser = nil, &block)
   $opt_parsers[name] = opt_parser.nil? ? Opt_parser_only_help : opt_parser
 end
 
+# @param [String] arg_spec
+# @param [String] usage
+# @return [Array<String>]
+def command_arg_parse(arg_spec, usage)
+  # TODO: show usage
+
+  # ARG1 [ARG2] [ARGF]
+  #     |-> in_optional_specs
+  ret = []
+  specs = arg_spec.split
+  in_optional_specs = false
+  specs.each_with_index do |spec, i|
+    case spec
+    when /^\[(\w+)\]$/
+      return ret if ARGV.empty? # rubocop:disable Lint/NonLocalExitFromIterator
+      in_optional_specs = true
+      if Regexp.last_match[1] == "ARGF"
+        assert(i == specs.length - 1)
+        return ret if ARGV.length in 0..1 # rubocop:disable Lint/NonLocalExitFromIterator
+        raise OptionParser::InvalidArgument, "excess argument(s): #{ARGV[1..]}"
+      end
+      ret.push(ARGV.shift)
+    when /^(\w+)$/
+      assert(Regexp.last_match[1] != "ARGF")
+      assert(!in_optional_specs)
+      raise OptionParser::MissingArgument, "#{spec}" if ARGV.empty?
+      ret.push(ARGV.shift)
+    else
+      raise "invalid spec: #{spec}"
+    end
+  end
+  raise OptionParser::InvalidArgument, "excess argument(s): #{ARGV}" unless ARGV.empty?
+  ret
+end
+
+=begin # rubocop:disable Style/BlockComments
+ARG1 [ARG2]        : [[]] missing argument: ARG1
+ARG1 [ARG2] [ARGF] : [[]] missing argument: ARG1
+ARG1 [ARG2]        : [["arg1"]] OK ARG1:"arg1" ARG2:nil ARGV:[]
+ARG1 [ARG2] [ARGF] : [["arg1"]] OK ARG1:"arg1" ARG2:nil ARGV:[]
+ARG1 [ARG2]        : [["arg1", "arg2"]] OK ARG1:"arg1" ARG2:"arg2" ARGV:[]
+ARG1 [ARG2] [ARGF] : [["arg1", "arg2"]] OK ARG1:"arg1" ARG2:"arg2" ARGV:[]
+ARG1 [ARG2]        : [["arg1", "arg2", "arg3"]] invalid argument: excess argument(s): ["arg3"]
+ARG1 [ARG2] [ARGF] : [["arg1", "arg2", "arg3"]] OK ARG1:"arg1" ARG2:"arg2" ARGV:["arg3"]
+ARG1 [ARG2]        : [["arg1", "arg2", "arg3", "arg4"]] invalid argument: excess argument(s): ["arg3", "arg4"]
+ARG1 [ARG2] [ARGF] : [["arg1", "arg2", "arg3", "arg4"]] invalid argument: excess argument(s): ["arg4"]
+ARG1 [ARG2]        : [["arg1", "arg2", "arg3", "arg4", "arg5"]] invalid argument: excess argument(s): ["arg3", "arg4", "arg5"]
+ARG1 [ARG2] [ARGF] : [["arg1", "arg2", "arg3", "arg4", "arg5"]] invalid argument: excess argument(s): ["arg4", "arg5"]
+=end
+def _test_command_arg_parse
+  argv_orig = ARGV
+
+  [
+    %w[],
+    %w[arg1],
+    %w[arg1 arg2],
+    %w[arg1 arg2 arg3],
+    %w[arg1 arg2 arg3 arg4],
+    %w[arg1 arg2 arg3 arg4 arg5],
+  ].each do |args|
+    ARGV.replace(args)
+    begin
+      arg1, arg2 = command_arg_parse("ARG1 [ARG2]", "usage")
+    rescue OptParse::ParseError => e
+      puts("ARG1 [ARG2]        : [#{args}] #{e}")
+    else
+      puts("ARG1 [ARG2]        : [#{args}] OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
+    end
+
+    ARGV.replace(args)
+    begin
+      arg1, arg2 = command_arg_parse("ARG1 [ARG2] [ARGF]", "usage")
+    rescue OptParse::ParseError => e
+      puts("ARG1 [ARG2] [ARGF] : [#{args}] #{e}")
+    else
+      puts("ARG1 [ARG2] [ARGF] : [#{args}] OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
+    end
+  end
+
+  ARGV.replace(argv_orig)
+end
+
+# _test_command_arg_parse
+
 # ------------------------------------------------------------------------------
 # command - 0sandbox @pub
 
@@ -120,10 +209,7 @@ command("0sandbox") do |opts_g|
 TEST_INPUT
   end
 
-  # unless ARGV.length == 1
-  #   warn("usage: 0sandbox FILE1 < FILE2")
-  #   exit(1)
-  # end
+  tmp = command_arg_parse("[ARGF]", "usage: 0sandbox < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
   # echo -en 'a \nb \r\nc ' | ruby ... -> line: "a \n" "b \r\n" "c " -rstrip-> "a" "b" "c"
   begin
@@ -150,12 +236,8 @@ z
 TEST_INPUT
   end
 
-  unless ARGV.length == 1
-    warn("usage: c-decrement-line FILE_L < FILE_C")
-    exit(1)
-  end
-  file = ARGV.shift
-  print(ARGF.read.gsub(/^#line (\d+) ("#{file}")$/) { "#line #{$1.to_i - 1} #{$2}" })
+  FILE_L = command_arg_parse("FILE_L", "usage: c-decrement-line FILE_L < FILE_C") # rubocop:disable Lint/ConstantDefinitionInBlock
+  print(ARGF.read.gsub(/^#line (\d+) ("#{FILE_L}")$/) { "#line #{$1.to_i - 1} #{$2}" })
   0
 end
 
@@ -172,6 +254,7 @@ command("cdb-files") do |opts_g|
 TEST_INPUT
   end
 
+  command_arg_parse("[ARGF]", "usage: cdb-files < FILE")
   json = JSON.parse(ARGF.read)
   out = json.map do |entry|
     File.join(entry["directory"], entry["file"])
@@ -189,18 +272,13 @@ command("copy-replace") do |opts_g|
 TEST_INPUT
   end
 
-  unless ARGV.length == 2
-    warn("usage: copy-replace FROM TO < FILE")
-    exit(1)
-  end
-  from = ARGV.shift
-  to = ARGV.shift
+  FROM, TO = command_arg_parse("FROM TO [ARGF]", "usage: copy-replace FROM TO < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
 
   begin
     while (line = ARGF.gets&.rstrip)
       puts(line)
-      puts(line.gsub(from, to)) if line.include?(from)
+      puts(line.gsub(FROM, TO)) if line.include?(FROM)
     end
   rescue Interrupt
     # Ignored
@@ -257,6 +335,7 @@ TEST_INPUT
   Date.today.to_datetime # 00:00:00
   Date.today.wday # weekday 0-6
 
+  command_arg_parse("", "usage: date-list")
   Date.today.downto(Date.today.prev_month) { |date| puts(date.strftime("%F %a")) }
 
   0
@@ -271,6 +350,7 @@ command("dns-resolve-hosts") do |opts_g|
 TEST_INPUT
   end
 
+  command_arg_parse("[ARGF]", "usage: dns-resolve-hosts < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
   begin
     txt = ARGF.read.scan(/^__RESOLVE_BEGIN__\r?\n([\s\S]*?)\r?\n__RESOLVE_END__$/)[0][0]
@@ -302,6 +382,7 @@ wsh      1983736  1.6  0.0 328792 22784 pts/4    S+   17:43   0:02 fish
 TEST_INPUT
   end
 
+  command_arg_parse("", "usage: kill-fish")
   ps = Open3.capture2("ps -Cfish u")
   columns = ps[0].split(/\r?\n/)[0].split(" ")
   raise unless columns[1] == "PID"
@@ -322,35 +403,54 @@ end
 
 # この複雑さはrubyでやるべきではなかった
 
-command("negate-network") do |opts_g|
+# dummy type definition for IDEs
+# @attr_reader [Boolean] _6
+class OptsNegateNetwork < Struct; end
+
+real_opts_class = Struct.new(
+  :ipv6,
+)
+
+# @type [OptsNegateNetwork]
+opts_negate_network = lambda do
+  real_opts_class.new(
+    ipv6: false,
+  )
+end[]
+
+opt_parser = OptionParser.new do |parser| # rubocop:disable
+  opts = opts_negate_network
+  # rubocop:disable Style/Semicolon
+  parser.on("-h", "--help", "print this help") { puts(parser.help); exit(0); }
+  parser.on("-6", "--ipv6", "use IPv6") { |arg| opts.ipv6 = arg; }
+  # rubocop:enable Style/Semicolon
+end
+
+command("negate-network", opt_parser) do |opts_g|
   if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
     $stdin = StringIO.new(<<TEST_INPUT)
 TEST_INPUT
   end
 
+  opts = opts_negate_network
+  MARKER = command_arg_parse("MARKER [ARGF]", "usage: negate-network [-6] MARKER < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
+  $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
+
   require "ipaddr"
 
-  af = Socket::AF_INET
-  addr_i_max = IPAddr.new("255.255.255.255", Socket::AF_INET).to_i
-  if ARGV[0] == "-6"
-    ARGV.shift
-    af = Socket::AF_INET6
-    addr_i_max = IPAddr.new("::/0", Socket::AF_INET6).to_range.end.to_i
-  end
-  unless ARGV.length == 1
-    warn("usage: c-decrement-line [-6] MARKER < FILE")
-    exit(1)
-  end
-  marker = ARGV.shift
+  af, addr_i_max = if opts.ipv6
+                     [Socket::AF_INET6, IPAddr.new("::/0", Socket::AF_INET6).to_range.end.to_i]
+                   else
+                     [Socket::AF_INET, IPAddr.new("255.255.255.255", Socket::AF_INET).to_i]
+                   end
 
-  $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
   begin
     exclude_networks = []
     while (line = ARGF.gets&.rstrip)
       if af == Socket::AF_INET
-        match_data = line.match(/^#{marker}\t([\d.]+\/\d+).*$/)
+        match_data = line.match(/^#{MARKER}\t([\d.]+\/\d+).*$/)
       else
-        match_data = line.match(/^#{marker}\t([\h:]+\/\d+).*$/)
+        match_data = line.match(/^#{MARKER}\t([\h:]+\/\d+).*$/)
       end
       next if match_data.nil?
       exclude_networks.push(IPAddr.new(match_data[1], af))
@@ -424,6 +524,7 @@ command("nl") do |opts_g|
     # $stdin = StringIO.new("nop me\n")
   end
 
+  command_arg_parse("[ARGF]", "usage: nl < FILE")
   /(?<!\n)\z/.match?("nl me!") # true
   /(?<!\n)\z/.match?("nop me\n") # false
   puts(ARGF.read.sub(/(?<!\n)\z/, "\n"))
@@ -444,6 +545,7 @@ command("nl-trim") do |opts_g|
     # $stdin = StringIO.new("nop me")
   end
 
+  command_arg_parse("[ARGF]", "usage: nl-trim < FILE")
   /\n+\z/.match?("trim me!\n\n") # true
   /\n+\z/.match?("trim me!\n") # true
   /\n+\z/.match?("nop me") # false
@@ -462,6 +564,7 @@ inotify wd:1 ino:394027a sdev:fd00001 mask:fc6 ignored_mask:0 fhandle-bytes:8 fh
 TEST_INPUT
   end
 
+  command_arg_parse("[ARGF]", "usage: notify-fdinfo-find < FILE")
   # -inum 60031610 -or -inum 60031610
   out = ARGF.read.split(/\r?\n/).map do |line|
     "-inum #{/^inotify wd:\h+ ino:(\h+) .+$/.match(line)[1].to_i(16)}"
@@ -483,6 +586,7 @@ should keep: "pandoc-api-version":[1,17,5,4]
 TEST_INPUT
   end
 
+  command_arg_parse("[ARGF]", "usage: pandoc-json-remove-table-align < FILE")
   # https://stackoverflow.com/questions/13340717/json-numbers-regular-expression
   number = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/
   puts(ARGF.read.sub("\"pandoc-api-version\":[", "\"pandoc-api-version\":[ ").gsub(/\[#{number}(,#{number})*\]/, "[]"))
@@ -494,7 +598,7 @@ end
 
 command("systemd-analyze-dot-only-n") do |opts_g|
   if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    ARGV.push("3")
+    ARGV[0] = "3"
     $stdin = StringIO.new(<<TEST_INPUT)
 digraph systemd {
 	"blockdev@dev-loop25.target"->"shutdown.target" [color="red"];
@@ -504,11 +608,8 @@ digraph systemd {
 TEST_INPUT
   end
 
-  unless ARGV.length == 1
-    warn("usage: systemd-analyze dot | systemd-analyze-dot-only-n N")
-    exit(1)
-  end
-  n = ARGV.shift.to_i(10)
+  N = command_arg_parse("[ARGF]", "usage: systemd-analyze-dot-only-n N < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
+  n = N.to_i(10)
 
   txt = ARGF.read
   pairs_unit_count = Hash.new(0)
@@ -553,6 +654,8 @@ command("z-meta-publish-self") do |opts_g|
     $stdin = StringIO.new(<<TEST_INPUT)
 TEST_INPUT
   end
+
+  command_arg_parse("", "usage: z-meta-publish-self")
 
   File.open(__FILE__) do |f|
     pub = true
@@ -629,16 +732,18 @@ end
 # ------------------------------------------------------------------------------
 # main
 
-# ARGV = %w[]                       # COMMAND not specified
-# ARGV = %w[-z]                     # invalid option: -z
-# ARGV = %w[   xxx]                 # no such COMMAND: xxx
-# ARGV = %w[-- xxx]                 # no such COMMAND: xxx
-# ARGV = %w[-v    0sandbox    -z]   # invalid option: -z
-# ARGV = %w[-v    0sandbox -- -z]   # invalid argument: -z
-# ARGV = %w[-v    0sandbox xxx]     # invalid argument: xxx
-# ARGV = %w[-v -- 0sandbox xxx]     # invalid argument: xxx
-# ARGV = %w[-v    0sandbox -- xxx]  # invalid argument: xxx
-# ARGV = %w[-v -- 0sandbox -- xxx]  # invalid argument: xxx
+# ARGV = %w[]                             # missing argument: COMMAND not specified
+# ARGV = %w[-z]                           # invalid option: -z
+# ARGV = %w[   xxx]                       # invalid argument: no such COMMAND: xxx
+# ARGV = %w[-- xxx]                       # invalid argument: no such COMMAND: xxx
+# ARGV = %w[-v    0sandbox    -z]         # invalid option: -z
+# ARGV = %w[-v    0sandbox -- -z]         # /home/wsh/bin/c.rb:216:in `gets': No such file or directory @ rb_sysopen - -z (Errno::ENOENT)
+# ARGV = %w[-v    0sandbox /dev/null]
+# ARGV = %w[-v -- 0sandbox /dev/null]
+# ARGV = %w[-v -- 0sandbox /dev/null foo]      # invalid argument: excess argument(s): ["foo"]
+# ARGV = %w[-v -- 0sandbox /dev/null foo bar]  # invalid argument: excess argument(s): ["foo", "bar"]
+# ARGV = %w[-v    0sandbox -- /dev/null]
+# ARGV = %w[-v -- 0sandbox -- /dev/null]
 # ARGV = %w[-v    0sandbox -h]
 # ARGV = %w[-v -- 0sandbox -h]
 
@@ -650,44 +755,25 @@ if $PROGRAM_NAME == __FILE__
   begin
     argv_global_rest = opt_parser.parse(argv_global)
     assert(argv_global_rest.empty?)
+
+    ARGV.shift(argv_global.length) # discard global options
+    ARGV.shift if ARGV[0] == "--"
+
+    raise OptionParser::MissingArgument, "COMMAND not specified" if ARGV.empty?
+
+    command_ = ARGV.shift
+    raise OptionParser::InvalidArgument, "no such COMMAND: #{command_}" unless $commands.key?(command_) # rubocop:disable Style/GlobalVars
   rescue OptionParser::ParseError => e
     warn("\e[31m#{e}\e[0m")
-    warn("#{__FILE__} --help to see usage")
-    exit(1)
-  end
-
-  ARGV.shift(argv_global.length) # discard global options
-  ARGV.shift if ARGV[0] == "--"
-
-  if ARGV.empty?
-    warn("\e[31mCOMMAND not specified\e[0m")
-    warn("#{__FILE__} --help to see usage")
-    exit(1)
-  end
-  command_ = ARGV.shift
-  unless $commands.key?(command_)
-    warn("\e[31mno such COMMAND: #{command_}\e[0m")
     warn("#{__FILE__} --help to see usage")
     exit(1)
   end
 
   # @type [OptionParser]
-  opt_parser = $opt_parsers[command_]
+  opt_parser = $opt_parsers[command_] # rubocop:disable Style/GlobalVars
   begin
     argv_command_rest = opt_parser.parse!
-    unless argv_command_rest.empty?
-      warn("\e[31minvalid argument: #{argv_command_rest.join(" ")}\e[0m")
-      warn("#{__FILE__} #{command_} --help to see usage")
-      exit(1)
-    end
-  rescue OptionParser::ParseError => e
-    warn("\e[31m#{e}\e[0m")
-    warn("#{__FILE__} #{command_} --help to see usage")
-    exit(1)
-  end
-
-  begin
-    exit($commands[command_].call(opts_g))
+    exit($commands[command_].call(opts_g)) # rubocop:disable Style/GlobalVars
   rescue OptionParser::ParseError => e
     warn("\e[31m#{e}\e[0m")
     warn("#{__FILE__} #{command_} --help to see usage")
