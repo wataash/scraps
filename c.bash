@@ -13,6 +13,7 @@ usage error -> exit 2
 https://git.savannah.gnu.org/cgit/bash.git/tree/shell.h?h=bash-5.2#n71 EX_USAGE - EX_SHERRBASE == 2 bash -c 'help --foo' -> 2
 https://salsa.debian.org/kernel-team/initramfs-tools/-/blob/v0.142/mkinitramfs#L36                  mkinitramfs --foo    -> 2
 https://go.googlesource.com/go/+/refs/tags/go1.20.1/src/cmd/go/main.go#235                          go foo               -> 2
+https://www.freedesktop.org/software/systemd/man/systemd.exec.html 2 EXIT_INVALIDARGUMENT
 DOC
 
 mkdir -p /tmp/c.bash.d/
@@ -36,14 +37,18 @@ if false; then
   # # $0          : /tmp/c
   # # realpath $0 : .../c.bash
 fi
-[ "$(basename "$(realpath "$0")")" = 'c.bash' ] && IN_BATS='no' || IN_BATS='yes'
+[ "$(basename "$(realpath "$0")")" = "c.bash" ] && C_BASH_DO_MAIN="yes" || C_BASH_DO_MAIN="no"
+[[ "$0" =~ ^.+'/bats-core/'.+$ ]] && C_BASH_IN_BATS="yes" || C_BASH_IN_BATS="no"
+# echo "$0 -> C_BASH_IN_BATS=$C_BASH_IN_BATS" >/dev/pts/0
 
-if [[ $IN_BATS = 'no' ]]; then
+#   C_BASH_DO_MAIN     yes                   no
+# C_BASH_IN_BATS  yes                        bats c.bash
+#                 no   c.bash / bash c.bash  source c.bash
+[[ $C_BASH_DO_MAIN == "yes" ]] && [[ $C_BASH_IN_BATS == "yes" ]] && unreachable
 
+if [[ $C_BASH_DO_MAIN == "yes" ]]; then
 set -eu
-
 PS4='+ \e[37m''cmd: \e[0m'
-
 fi
 
 # ------------------------------------------------------------------------------
@@ -329,6 +334,7 @@ log_setlevel $LOG_LEVEL
 
 not_yet() { false; }
 
+# de-lib: readlink -f "${BASH_SOURCE[0]}"
 self_real_path() {
   if false; then
     set +u
@@ -357,7 +363,7 @@ function str_join_by {
 }
 
 top_usage() {
-  shopt -s lastpipe
+  shopt -s lastpipe && set +m  # set +m for interactive shell
   for k in "${!_commands[@]}"; do
     echo "$k"
   done | sort | mapfile -t
@@ -374,9 +380,9 @@ unreachable() {
 # ------------------------------------------------------------------------------
 # bats setup
 
-[[ $IN_BATS == "yes" ]] && bats_require_minimum_version 1.8.0
+[[ $C_BASH_IN_BATS == "yes" ]] && bats_require_minimum_version 1.8.0
 
-[[ $IN_BATS == "yes" ]] && [ -z "$BATS_TEST_NUMBER" ] && {
+[[ $C_BASH_IN_BATS == "yes" ]] && [ -z "$BATS_TEST_NUMBER" ] && {
   [ -z "$BATS_SUITE_TEST_NUMBER" ] || echo -e "# \e[31m""BUG: BATS_SUITE_TEST_NUMBER defined: $BATS_SUITE_TEST_NUMBER\e[0m"
   [ -z "$BATS_TEST_NAME" ]         || echo -e "# \e[31m""BUG: BATS_TEST_NAME defined: $BATS_TEST_NAME\e[0m"
 } >&3
@@ -576,15 +582,7 @@ test_arg_parse() { #@test
 
 define_command 0template
 0template() {
-  local -r usage="usage: $PROG 0template [-h | --help]"
-  arg_parse "$usage" "" "$@"
-  echo 'code here'
-  exit 0
-}
-
-define_command 0template_arg
-0template_arg() {
-  local -r usage="usage: $PROG 0template_arg [-h | --help] ARG"
+  local -r usage="usage: $PROG 0template [-h | --help] ARG"
   local ARG="" && arg_parse "$usage" "ARG" "$@"
   echo "ARG: $ARG"
   exit 0
@@ -603,6 +601,65 @@ usage: $PROG 0template [-h | --help]
 EOS
 )
   # ...
+}
+
+# ------------------------------------------------------------------------------
+# command - apt_changelog @pub
+
+define_command apt_changelog
+apt_changelog() {
+  local -r usage="usage: $PROG apt_changelog [-h | --help] PKG..."
+  local -a PKG=() && arg_parse "$usage" "PKG..." "$@"
+  for pkg in $(IFS=$'\n'; sort <<<"${PKG[*]}"); do [ -f "/usr/share/doc/$pkg/changelog.Debian.gz" ] || continue ; echo ---------- ; echo "/usr/share/doc/$pkg/changelog.Debian.gz" ; zcat "/usr/share/doc/$pkg/changelog.Debian.gz" | head ; done >/tmp/c.bash.d/apt_changelog.changelog.Debian.gz.txt || true
+  for pkg in $(IFS=$'\n'; sort <<<"${PKG[*]}"); do [ -f "/usr/share/doc/$pkg/changelog.gz"        ] || continue ; echo ---------- ; echo "/usr/share/doc/$pkg/changelog.gz"        ; zcat "/usr/share/doc/$pkg/changelog.gz"        | head ; done >/tmp/c.bash.d/apt_changelog.changelog.gz.txt        || true
+  for pkg in $(IFS=$'\n'; sort <<<"${PKG[*]}"); do [ -f "/usr/share/doc/$pkg/NEWS.Debian.gz"      ] || continue ; echo ---------- ; echo "/usr/share/doc/$pkg/NEWS.Debian.gz"      ; zcat "/usr/share/doc/$pkg/NEWS.Debian.gz"      | head ; done >/tmp/c.bash.d/apt_changelog.NEWS.Debian.gz.txt      || true
+  for pkg in $(IFS=$'\n'; sort <<<"${PKG[*]}"); do [ -f "/usr/share/doc/$pkg/NEWS.gz"             ] || continue ; echo ---------- ; echo "/usr/share/doc/$pkg/NEWS.gz"             ; zcat "/usr/share/doc/$pkg/NEWS.gz"             | head ; done >/tmp/c.bash.d/apt_changelog.NEWS.gz.txt             || true
+  echo code /tmp/c.bash.d/apt_changelog.*.txt
+  exit 0
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_page_get_id @pub
+
+cfl_env_check() {
+  local ok="true"
+  [[ ${CONFLUENCE_URL+defined} = defined ]] || err 1 'environment variable CONFLUENCE_URL is not set' || ok="false"
+  [[ ${CONFLUENCE_USER+defined} = defined ]] || err 1 'environment variable CONFLUENCE_USER is not set' || ok="false"
+  [[ ${CONFLUENCE_PASS+defined} = defined ]] || err 1 'environment variable CONFLUENCE_PASS is not set' || ok="false"
+  [[ $ok == "true" ]] || exit 1
+  log_debug "remove trailing slash in CONFLUENCE_URL: $CONFLUENCE_URL -> ${CONFLUENCE_URL%/}"
+  CONFLUENCE_URL=${CONFLUENCE_URL%/}
+}
+
+define_command cfl_page_get_id
+cfl_page_get_id() {
+  local -r usage="usage: $PROG cfl_page_get_id [-h | --help] SPACE_KEY TITLE"
+  local SPACE_KEY="" TITLE="" && arg_parse "$usage" "SPACE_KEY TITLE" "$@"
+  cfl_env_check
+  local fd_xtrace
+  set -o pipefail
+  (
+    BASH_XTRACEFD=$fd_xtrace
+    set -x
+    curl -fSs -u "$CONFLUENCE_USER:$CONFLUENCE_PASS" -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE" | jq -r ".results[0].id" >/dev/stdout
+  ) {fd_xtrace}> >(bash "$(self_real_path)" replace_line "$CONFLUENCE_PASS" "\$CONFLUENCE_PASS" | sed -E 's/^(.{120}).*$/\1.../' >&2)
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_page_rm @pub
+
+define_command cfl_page_rm
+cfl_page_rm() {
+  local -r usage="usage: $PROG cfl_page_rm [-h | --help] ID"
+  local ID="" && arg_parse "$usage" "ID" "$@"
+  cfl_env_check
+  local fd_xtrace
+  set -o pipefail
+  (
+    BASH_XTRACEFD=$fd_xtrace
+    set -x
+    curl -fSs -u "$CONFLUENCE_USER:$CONFLUENCE_PASS" -X DELETE "$CONFLUENCE_URL/rest/api/content/$ID"
+  ) {fd_xtrace}> >(bash "$(self_real_path)" replace_line "$CONFLUENCE_PASS" "\$CONFLUENCE_PASS" | sed -E 's/^(.{120}).*$/\1.../' >&2)
 }
 
 # ------------------------------------------------------------------------------
@@ -645,7 +702,7 @@ discharging_checker() {
 
   # without this: notify-send: Cannot autolaunch D-Bus without X11 $DISPLAY
   # @ref:no-X11-DBUS_SESSION_BUS_ADDRESS
-  DBUS_SESSION_BUS_ADDRESS=$(grep -z DBUS_SESSION_BUS_ADDRESS /proc/"$(pgrep -u wsh gnome-session | head -1)"/environ | cut -d= -f2- | tr -d '\0\n')
+  DBUS_SESSION_BUS_ADDRESS=$(strings /proc/"$(pgrep -u wsh gnome-session | head -1)"/environ | grep -P -o "(?<=DBUS_SESSION_BUS_ADDRESS=).+")  # unix:path=/run/user/1000/bus
   export DBUS_SESSION_BUS_ADDRESS
 
   local interval=$BASE_INTERVAL
@@ -728,39 +785,35 @@ file_timestamp() {
 }
 
 # ------------------------------------------------------------------------------
+# command - git_status_repos @pub
+
+define_command git_status_repos
+git_status_repos() {
+  local -r usage="usage: $PROG git_status_repos [-h | --help]"
+  arg_parse "$usage" "" "$@"
+  for d in \
+      ~/qc/tesc/ \
+      ~/qjs/tesjs/ \
+      ~/qjs/tesjs/proj/kousu/ \
+      ~/qpy/tespy/ \
+      ~/qrb/tesrb/ \
+      ~/qrs/tesrs/ \
+  ; do
+    echo "---------- $d ----------"
+    cd "$d"
+    # https://unix.stackexchange.com/questions/155046/determine-if-git-working-directory-is-clean-from-a-script
+    git update-index -q --really-refresh
+    git diff-index --quiet HEAD && continue
+    git status -sb
+  done
+}
+
+# ------------------------------------------------------------------------------
 # command - gm @pub
 # grep mutli-line
 
 # c.bash gm -P -m1 "^define_command gm" "cat" < /home/wsh/sh/c.bash
 # c.bash gm -P -m1 "^define_command gm" "cat" < /home/wsh/sh/c.bash | sed '1d;$d'
-
-define_command gm
-gm() {
-  local -r usage="usage: ... | $PROG gm [-h | --help] -P -m1 PATTERN_BEGIN PATTERN_END [| sed '1d;\$d']"
-  local P="" m="" PATTERN_BEGIN="" PATTERN_END="" && arg_parse "$usage" "P m PATTERN_BEGIN PATTERN_END" "$@"
-  [[ $P != "-P" ]] && err 0 "error: \"$P\" != \"-P\" (in $*)" && echo "$usage" >&2 && exit 2
-  [[ $m != "-m1" ]] && err 0 "error: \"$m\" != \"-m1\" (in $*)" && echo "$usage" >&2 && exit 2
-  local txt
-  txt=$(cat)
-  set -x
-  grep -P -m1 -q "$PATTERN_BEGIN" <<< "$txt"
-  local -i lineno_begin
-  lineno_begin="$(grep -P -m1 -n "$PATTERN_BEGIN" <<< "$txt" | cut -d":" -f1)"
-  grep -P -m1 -q "$PATTERN_END" <<< "$txt"
-  # lineno_end="$(grep -P -m1 -n "$PATTERN_END" <<< "$txt" | cut -d":" -f1)"
-  set +x
-  local -i lineno_end
-  grep -P -n "$PATTERN_END" <<< "$txt" | cut -d":" -f1 | while IFS= read -r lineno_end; do  # IFS= : prevent removeing preceding spaces
-    log_debug "lineno_end: $lineno_end"
-    if (( lineno_end > lineno_begin )); then
-      sed -n "${lineno_begin},${lineno_end}p" <<< "$txt"
-      exit 0
-    fi
-  done
-  exit 1
-}
-
-# ------------------------------------------------------------------------------
 # command - gm_greedy @pub
 
 # c.bash gm_greedy -P "^define_command gm_greedy" "cat" < /home/wsh/sh/c.bash
@@ -783,6 +836,23 @@ gm_greedy() {
   fi
   sed -n "${lineno_begin},${lineno_end}p" <<< "$txt"
   exit 0
+}
+
+# ------------------------------------------------------------------------------
+# command - journalctl_ @pub
+
+: <<'DOC'
+# Ubuntu 20.04:
+echo -e '#!/bin/sh\n/home/wsh/sh/c.bash journalctl_ "$@"' > ~/bin/journalctl
+chmod +x ~/bin/journalctl
+journalctl -xb -f
+DOC
+
+define_command journalctl_
+journalctl_() {
+  # local -r usage="usage: $PROG journalctl_ [-h | --help]"
+  # arg_parse "$usage" "" "$@"
+  /usr/bin/journalctl "$@" | sed -E -e "s/^(--.+)/\1\x1b[0m/" -e "s/^--/\x1b[32m  /"
 }
 
 # ------------------------------------------------------------------------------
@@ -888,7 +958,10 @@ net_if_rename() {
 
   # 42: enx00005e005300: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
   #     link/ether 00:00:5e:00:53:00 brd ff:ff:ff:ff:ff:ff
-  shopt -s lastpipe
+  shopt -s lastpipe && set +m  # set +m for interactive shell
+
+
+
   ip a | grep -B1 "$MAC_ADDRESS" | grep -P -o '(?<=\d: )\w+(?=: <)' | read -r old_name
   set -x
   sudo ip link set "$old_name" down
@@ -949,7 +1022,20 @@ replace() {
   local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
   local txt
   # XXX: only one? replace(from, to, 1) ?
-  python -c "import sys; print(sys.stdin.read().replace(sys.argv[1], sys.argv[2]), end='')" "$FROM" "$TO"
+  python3 -c "import sys; print(sys.stdin.read().replace(sys.argv[1], sys.argv[2]), end='')" "$FROM" "$TO"
+}
+
+
+# ------------------------------------------------------------------------------
+# command - replace_line @pub
+
+define_command replace_line
+replace_line() {
+  local -r usage="usage: ... | $PROG replace_line [-h | --help] FROM TO"
+  local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
+  local txt
+  # XXX: only one? replace(from, to, 1) ?
+  python3 -c "import sys; [print(line.replace(sys.argv[1], sys.argv[2]), end='') for line in sys.stdin]" "$FROM" "$TO"
 }
 
 # ------------------------------------------------------------------------------
@@ -1198,6 +1284,39 @@ txt_begin_end() {
 }
 
 # ------------------------------------------------------------------------------
+# command - txt_eval @pub
+
+define_command txt_eval
+txt_eval() {
+  local -r usage="usage: [... |] $PROG txt_eval [-h | --help] [FILE]"
+  local FILE="" && arg_parse "$usage" "[FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+
+  local in_echo_eval="false"
+  txt_eval::process_line() {
+    [[ $line =~ ^"@echo_eval:end"$ ]] && in_echo_eval="false" && log_info "[in_echo_eval: true->false] $line" && return
+    if [[ $in_echo_eval == "true" ]]; then
+      log_info "[in_echo_eval] $line"
+      echo "$line"
+      eval "$line"
+      return
+    fi
+    [[ $line =~ ^"@echo_eval:begin"$ ]] && in_echo_eval="true" && log_info "[in_echo_eval: false->true] $line" && return
+    [[ $line =~ ^(.*)[[:space:]]*"# @echo_eval:this"$ ]]          && log_info "[@echo_eval:this]          $line" &&   echo "${BASH_REMATCH[1]}" && eval "${BASH_REMATCH[1]}"            && return
+    [[ $line =~ ^(.*)[[:space:]]*"# @echo_eval_may_fail:this"$ ]] && log_info "[@echo_eval_may_fail:this] $line" && { echo "${BASH_REMATCH[1]}" && eval "${BASH_REMATCH[1]}" || true; } && return
+    [[ $line =~ ^(.*)[[:space:]]*"# @eval:this"$ ]]               && log_info "[@eval:this]               $line" &&                                eval "${BASH_REMATCH[1]}"            && return
+    [[ $line =~ ^(.*)[[:space:]]*"# @eval_may_fail:this"$ ]]      && log_info "[@eval_may_fail:this]      $line" &&                              { eval "${BASH_REMATCH[1]}" || true; } && return
+    log_debug "[default] $line"
+    echo "$line"
+  }
+
+  local line
+  while IFS= read -r line; do txt_eval::process_line; done <"$FILE"  # IFS= : prevent removeing preceding spaces
+
+  exit 0
+}
+
+# ------------------------------------------------------------------------------
 # command - pty_qemu @pub
 
 # @ref:qemu-pty
@@ -1212,6 +1331,7 @@ usage:
 EOS
 )
   local QEMU_PID="" && arg_parse "$usage" "QEMU_PID" "$@"
+  local QEMU_PID_orig=$QEMU_PID
   [[ $QEMU_PID = 'netbsd' ]] && QEMU_PID=$(pgrep -f 'qemu-system-x86_64 .+/netbsd.qcow2')
 
   [[ $QEMU_PID =~ ^[0-9]+$ ]] || die 1 "invalid QEMU_PID: $QEMU_PID"
@@ -1229,6 +1349,12 @@ EOS
     nohup </dev/null >"$OUT_FILE" 2>&1 cat "$IN_PTY" & disown
     nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat -A 2>&1 | ts "%F %T" >"$OUT_FILE_TS" 2>&1 & disown
     nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat    2>&1 | ts "%F %T" >"$OUT_FILE_RAWTS" 2>&1 & disown
+    if [[ $QEMU_PID_orig != "$QEMU_PID" ]]; then
+      ln -fsv "$IN_PTY"         "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig"            # /tmp/c.bash.d/pty.qemu.netbsd
+      ln -fsv "$OUT_FILE"       "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig.out"        # /tmp/c.bash.d/pty.qemu.netbsd.out
+      ln -fsv "$OUT_FILE_TS"    "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig.out.ts"     # /tmp/c.bash.d/pty.qemu.netbsd.out.ts
+      ln -fsv "$OUT_FILE_RAWTS" "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig.out.rawts"  # /tmp/c.bash.d/pty.qemu.netbsd.out.rawts
+    fi
   fi
   ssh -t localhost "tail -F $OUT_FILE & socat -d -u STDIN,rawer OPEN:$IN_PTY"
 }
@@ -1319,7 +1445,7 @@ qemu_pty() {
 
 define_command xargs_delay
 xargs_delay() {
-  local -r usage="usage: ... | $PROG xargs_delay [-h | --help] [-L1] [-I III] COMMAND..."
+  local -r usage="usage: ... | $PROG xargs_delay [-h | --help] [-L1] [-I replace-str] COMMAND..."
   local -a COMMAND=() && arg_parse "$usage" "COMMAND..." "$@"
   local -a lines=()
   local -A line_latest_epochs=()
@@ -1339,8 +1465,8 @@ xargs_delay() {
     for line_ in "${lines[@]}"; do
       now=$(date "+%s.%N")
       log_debug "$line_: $now - ${line_latest_epochs[$line_]} = $(echo "$now - ${line_latest_epochs[$line_]}" | bc)"
-      if [[ $(echo "$now - ${line_latest_epochs[$line_]} > 1" | bc) = 1 ]]; then
-        log_info "$line_: one second elapsed since the last seen; fire: ${COMMAND[*]} $line_"
+      if [[ $(echo "$now - ${line_latest_epochs[$line_]} > 0.5" | bc) = 1 ]]; then
+        log_info "$line_: 0.5 seconds elapsed since the last seen; fire: ${COMMAND[*]} $line_"
         echo "$line_" | xargs "${COMMAND[@]}"
         unset "line_latest_epochs[$line_]"
       else
@@ -1352,6 +1478,18 @@ xargs_delay() {
   done
   echo 'code here'
   exit 0
+}
+
+# ------------------------------------------------------------------------------
+# command - z_meta_commands_list @pub
+
+define_command z_meta_commands_list
+z_meta_commands_list() {
+  local -r usage="usage: $PROG z_meta_commands_list [-h | --help]"
+  arg_parse "$usage" "" "$@"
+  for k in "${!_commands[@]}"; do
+    echo "$k"
+  done | sort
 }
 
 # ------------------------------------------------------------------------------
@@ -1423,76 +1561,47 @@ archives() {
 
 # shellcheck disable=SC2015  # Note that A && B || C is not if-then-else. C may run when A is true.
 # shellcheck disable=SC2154  # * is referenced but not assigned.
-test_help_usage() { #@test
-  run -0 --separate-stderr bash ~/sh/c.bash -h
-  [[ ${lines[0]} = 'usage:' ]] && [[ $stderr = '' ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr bash ~/sh/c.bash -h --
-  [[ ${lines[0]} = 'usage:' ]] && [[ $stderr = '' ]] || bats_run_debug_fail >&3
+test_main() { #@test
+  run -0 --separate-stderr bash ~/sh/c.bash -h                 && [[ $output =~ "usage:" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash ~/sh/c.bash -h --              && [[ $output =~ "usage:" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash                    && [[ $output == "" ]] && [[ $stderr =~ "command not specified".*"usage:" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash --                 && [[ $output == "" ]] && [[ $stderr =~ "command not specified".*"usage:" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash -x                 && [[ $output == "" ]] && [[ $stderr =~ ": illegal option -- x".*"usage:" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash -x --              && [[ $output == "" ]] && [[ $stderr =~ ": illegal option -- x".*"usage:" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash    no_such_command && [[ $output == "" ]] && [[ $stderr =~ "no such command: no_such_command".*"usage:" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash -- no_such_command && [[ $output == "" ]] && [[ $stderr =~ "no such command: no_such_command".*"usage:" ]] || bats_run_debug_fail >&3
 
-  run -2 --separate-stderr bash ~/sh/c.bash
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = $'\e[31m'$'command not specified\e[0m' ]] && [[ ${stderr_lines[1]} = 'usage:' ]] || bats_run_debug_fail >&3
-  run -2 --separate-stderr bash ~/sh/c.bash --
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = $'\e[31m'$'command not specified\e[0m' ]] && [[ ${stderr_lines[1]} = 'usage:' ]] || bats_run_debug_fail >&3
-
-  run -2 --separate-stderr bash ~/sh/c.bash -x
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = *': illegal option -- x' ]] && [[ ${stderr_lines[1]} = 'usage:' ]] || bats_run_debug_fail >&3
-  run -2 --separate-stderr bash ~/sh/c.bash -x --
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = *': illegal option -- x' ]] && [[ ${stderr_lines[1]} = 'usage:' ]] || bats_run_debug_fail >&3
-
-  run -2 --separate-stderr bash ~/sh/c.bash    no_such_command
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = $'\e[31m'$'no such command: no_such_command\e[0m' ]] && [[ ${stderr_lines[1]} = 'usage:' ]] || bats_run_debug_fail >&3
-  run -2 --separate-stderr bash ~/sh/c.bash -- no_such_command
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = $'\e[31m'$'no such command: no_such_command\e[0m' ]] && [[ ${stderr_lines[1]} = 'usage:' ]] || bats_run_debug_fail >&3
-
-  # 0template
-
-  run -0 --separate-stderr bash ~/sh/c.bash -v    0template
-  [[ $output = 'code here' ]] && [[ $stderr = '' ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr bash ~/sh/c.bash -v -- 0template
-  [[ $output = 'code here' ]] && [[ $stderr = '' ]] || bats_run_debug_fail >&3
-
-  run -0 --separate-stderr bash ~/sh/c.bash -v    0template -h
-  [[ $output = 'usage: c.bash 0template [-h | --help]' ]] && [[ $stderr = '' ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr bash ~/sh/c.bash -v -- 0template -h
-  [[ $output = 'usage: c.bash 0template [-h | --help]' ]] && [[ $stderr = '' ]] || bats_run_debug_fail >&3
-
-  run -2 --separate-stderr bash ~/sh/c.bash -v    0template -z
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = $'\e[31m'$'error: excess argument(s): -z\e[0m' ]] && [[ ${stderr_lines[1]} = 'usage: c.bash 0template [-h | --help]' ]] || bats_run_debug_fail >&3
-  run -2 --separate-stderr bash ~/sh/c.bash -v -- 0template -z
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = $'\e[31m'$'error: excess argument(s): -z\e[0m' ]] && [[ ${stderr_lines[1]} = 'usage: c.bash 0template [-h | --help]' ]] || bats_run_debug_fail >&3
-
-  # 0template_arg
-
-  run -2 --separate-stderr bash ~/sh/c.bash -v    0template_arg
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = $'\e[31m'$'error: required argument: \"ARG\" missing\e[0m' ]] && [[ ${stderr_lines[1]} = 'usage: c.bash 0template_arg [-h | --help] ARG' ]] || bats_run_debug_fail >&3
-
-  run -0 --separate-stderr bash ~/sh/c.bash -v    0template_arg -h
-  [[ $output = 'usage: c.bash 0template_arg [-h | --help] ARG' ]] && [[ $stderr = '' ]] || bats_run_debug_fail >&3
-
-  run -0 --separate-stderr bash ~/sh/c.bash -v    0template_arg arg1
-  [[ $output = 'ARG: arg1' ]] && [[ $stderr = '' ]] || bats_run_debug_fail >&3
-
-  run -2 --separate-stderr bash ~/sh/c.bash -v    0template_arg arg1 arg2 arg3
-  [[ $output = '' ]] && [[ ${stderr_lines[0]} = $'\e[31m'$'error: excess argument(s): arg2 arg3\e[0m' ]] && [[ ${stderr_lines[1]} = 'usage: c.bash 0template_arg [-h | --help] ARG' ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash -v    0template                && [[ $output == "" ]] && [[ $stderr =~ "error: required argument: \"ARG\" missing".*"usage:" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash -v -- 0template                && [[ $output == "" ]] && [[ $stderr =~ "error: required argument: \"ARG\" missing".*"usage:" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash ~/sh/c.bash -v    0template arg1           && [[ $output == "ARG: arg1" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash ~/sh/c.bash -v -- 0template arg1           && [[ $output == "ARG: arg1" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash -v    0template arg1 arg2      && [[ $output == "" ]] && [[ $stderr =~ "error: excess argument(s): arg2" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash -v -- 0template arg1 arg2      && [[ $output == "" ]] && [[ $stderr =~ "error: excess argument(s): arg2" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash -v    0template arg1 arg2 arg3 && [[ $output == "" ]] && [[ $stderr =~ "error: excess argument(s): arg2 arg3" ]] || bats_run_debug_fail >&3
+  run -2 --separate-stderr bash ~/sh/c.bash -v -- 0template arg1 arg2 arg3 && [[ $output == "" ]] && [[ $stderr =~ "error: excess argument(s): arg2 arg3" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash ~/sh/c.bash -v    0template -h             && [[ $output == "usage: c.bash 0template [-h | --help] ARG" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash ~/sh/c.bash -v -- 0template -h             && [[ $output == "usage: c.bash 0template [-h | --help] ARG" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash ~/sh/c.bash -v    0template -z             && [[ $output == "ARG: -z" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash ~/sh/c.bash -v -- 0template -z             && [[ $output == "ARG: -z" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
 }
 
 # ------------------------------------------------------------------------------
 # main
 
-[[ $IN_BATS == "yes" ]] && return 0
+[[ $C_BASH_DO_MAIN == "no" ]] && return 0
 
 if [[ ${HAVE_UTIL_LINUX_GETOPT+defined} != defined ]]; then
   if getopt --version 2>/dev/null | grep -q util-linux; then
-    HAVE_UTIL_LINUX_GETOPT='yes'
+    HAVE_UTIL_LINUX_GETOPT="yes"
   else
-    HAVE_UTIL_LINUX_GETOPT='no'
+    HAVE_UTIL_LINUX_GETOPT="no"
   fi
 fi
 
 OPT_q="false"
 OPT_v=0
 
-if not_yet && [ "$HAVE_UTIL_LINUX_GETOPT" = 'yes' ]; then
+if not_yet && [ "$HAVE_UTIL_LINUX_GETOPT" = "yes" ]; then
   # TODO:
   #   c.bash -v 0template -z
   #   prevent parsing -z !
