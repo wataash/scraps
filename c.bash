@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: Copyright (c) 2022-2023 Wataru Ashihara <wataash@wataash.com>
+# SPDX-FileCopyrightText: Copyright (c) 2022-2023 Wataru Ashihara <wataash0607@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
 # shellcheck disable=SC2317  # Command appears to be unreachable. Check usage (or ignore if invoked indirectly).
@@ -16,40 +16,125 @@ https://go.googlesource.com/go/+/refs/tags/go1.20.1/src/cmd/go/main.go#235      
 https://www.freedesktop.org/software/systemd/man/systemd.exec.html 2 EXIT_INVALIDARGUMENT
 DOC
 
-mkdir -p /tmp/c.bash.d/
+# TODO: /tmp/c.bash.d.$USER/ ? use XDG dir?
+# TODO: multi-process safety
+mkdir -pv /tmp/c.bash.d/
 
-if false; then
-  # bats ~/sh/c.bash
-  # #$0                /usr/local/libexec/bats-core/bats-exec-file
-  # #${BASH_SOURCE[@]} /tmp/bats-run-ajyNME/bats.657971.src /usr/local/libexec/bats-core/bats-exec-file /usr/local/libexec/bats-core/bats-exec-file
-  # #$0                /usr/local/libexec/bats-core/bats-exec-test
-  # #${BASH_SOURCE[@]} /tmp/bats-run-ajyNME/bats.657971.src /usr/local/lib/bats-core/preprocessing.bash /usr/local/libexec/bats-core/bats-exec-test
-  # #$0                /home/wsh/sh/c.bash
-  # #${BASH_SOURCE[@]} /home/wsh/sh/c.bash
-  {
-    echo "# \$0                $0"
-    echo "# \${BASH_SOURCE[0]} ${BASH_SOURCE[0]}"
-    echo "# \${BASH_SOURCE[*]} ${BASH_SOURCE[*]}"
-  } >&3
+# [todo_test_main]
+: <<'COMMENT'
+# cwd: /tmp/cwd/
+# /sh/c.bash
+# /bin/c.bash (in PATH, symlink to /sh/c.bash)
+# /tmp/s1     (#!/bin/bash \n source c.bash)
+# /tmp/s2     (#!/bin/bash \n source /bin/../bin/c.bash)
+# /tmp/s3     (#!/bin/bash \n source /sh/../sh/c.bash)
+# /tmp/e1     (#!/bin/bash \n exec c.bash)
+# /tmp/e2     (#!/bin/bash \n exec /bin/../bin/c.bash)
+# /tmp/e3     (#!/bin/bash \n exec /sh/../sh/c.bash)
 
-  # ln -s c.bash /tmp/c
-  # /tmp/c
-  # # $0          : /tmp/c
-  # # realpath $0 : .../c.bash
+mkdir -p /tmp/cwd/ && cd /tmp/cwd/
+sudo mkdir -p /sh/ && sudo cp ~/sh/c.bash /sh/c.bash && sudo chmod +x /sh/c.bash
+sudo ln -fs /sh/c.bash /bin/c.bash
+echo -e '#!/bin/bash\nsource c.bash'             >/tmp/s1 && chmod +x /tmp/s1
+echo -e '#!/bin/bash\nsource /bin/../bin/c.bash' >/tmp/s2 && chmod +x /tmp/s2
+echo -e '#!/bin/bash\nsource /sh/../sh/c.bash'   >/tmp/s3 && chmod +x /tmp/s3
+echo -e '#!/bin/bash\nexec   c.bash'             >/tmp/e1 && chmod +x /tmp/e1
+echo -e '#!/bin/bash\nexec   /bin/../bin/c.bash' >/tmp/e2 && chmod +x /tmp/e2
+echo -e '#!/bin/bash\nexec   /sh/../sh/c.bash'   >/tmp/e3 && chmod +x /tmp/e3
+
+# invocation                                  # $0                 | ${BASH_SOURCE[*]}          | $realpath $0              | $realpath ${BASH_SOURCE[0]}
+PATH=/bin c.bash                              # /bin/c.bash        | /bin/c.bash                | /sh/c.bash                | /sh/c.bash                  [c.bash]
+PATH=/bin bash c.bash                         # c.bash             | /bin/c.bash                | /tmp/cwd/c.bash (INVALID) | /sh/c.bash
+PATH=/bin /bin/../bin/c.bash                  # /bin/../bin/c.bash | /bin/../bin/c.bash         | /sh/c.bash                | /sh/c.bash                  [/bin/c.bash]
+PATH=/bin /sh/../sh/c.bash                    # /sh/../sh/c.bash   | /sh/../sh/c.bash           | /sh/c.bash                | /sh/c.bash                  [/sh/c.bash]
+PATH=/bin /tmp/e1                             # /bin/c.bash        | /bin/c.bash                | /sh/c.bash                | /sh/c.bash                  [c.bash]
+PATH=/bin /tmp/e2                             # /bin/../bin/c.bash | /bin/../bin/c.bash         | /sh/c.bash                | /sh/c.bash                  [/bin/c.bash]
+PATH=/bin /tmp/e3                             # /sh/../sh/c.bash   | /sh/../sh/c.bash           | /sh/c.bash                | /sh/c.bash                  [/sh/c.bash]
+PATH=/bin /tmp/s1                             # /tmp/s1            | /bin/c.bash /tmp/s1        | /tmp/s1                   | /sh/c.bash
+PATH=/bin /tmp/s2                             # /tmp/s2            | /bin/../bin/c.bash /tmp/s2 | /tmp/s2                   | /sh/c.bash
+PATH=/bin /tmp/s3                             # /tmp/s3            | /sh/../sh/c.bash /tmp/s3   | /tmp/s3                   | /sh/c.bash
+PATH=/bin bash -s -- </sh/c.bash              # bash               |                            | /tmp/cwd/bash (INVALID)   | [err_arr], realpath: '': No such file or directory
+PATH=/bin bash -c "source c.bash"             # bash               | /bin/c.bash                | /tmp/cwd/bash (INVALID)   | /sh/c.bash
+PATH=/bin bash -c "source /bin/../bin/c.bash" # bash               | /bin/../bin/c.bash         | /tmp/cwd/bash (INVALID)   | /sh/c.bash
+PATH=/bin bash -c "source /sh/../sh/c.bash"   # bash               | /sh/../sh/c.bash           | /tmp/cwd/bash (INVALID)   | /sh/c.bash
+PATH=/bin bash -c "exec c.bash"               # /bin/c.bash        | /bin/c.bash                | /sh/c.bash                | /sh/c.bash                  [c.bash]
+PATH=/bin bash -c "exec /bin/../bin/c.bash"   # /bin/../bin/c.bash | /bin/../bin/c.bash         | /sh/c.bash                | /sh/c.bash                  [/bin/c.bash]
+PATH=/bin bash -c "exec /sh/../sh/c.bash"     # /sh/../sh/c.bash   | /sh/../sh/c.bash           | /sh/c.bash                | /sh/c.bash                  [/sh/c.bash]
+
+# with/without "bash": no effect if $0 is absolute path:
+(PATH=/bin; cmd=(/bin/../bin/c.bash); [[ $("${cmd[@]}") == "$(bash "${cmd[@]}")" ]] || echo "err: ${cmd[@]}")
+(PATH=/bin; cmd=(/sh/../sh/c.bash  ); [[ $("${cmd[@]}") == "$(bash "${cmd[@]}")" ]] || echo "err: ${cmd[@]}")
+(PATH=/bin; cmd=(/tmp/e1           ); [[ $("${cmd[@]}") == "$(bash "${cmd[@]}")" ]] || echo "err: ${cmd[@]}")
+(PATH=/bin; cmd=(/tmp/e2           ); [[ $("${cmd[@]}") == "$(bash "${cmd[@]}")" ]] || echo "err: ${cmd[@]}")
+(PATH=/bin; cmd=(/tmp/e3           ); [[ $("${cmd[@]}") == "$(bash "${cmd[@]}")" ]] || echo "err: ${cmd[@]}")
+(PATH=/bin; cmd=(/tmp/s1           ); [[ $("${cmd[@]}") == "$(bash "${cmd[@]}")" ]] || echo "err: ${cmd[@]}")
+(PATH=/bin; cmd=(/tmp/s2           ); [[ $("${cmd[@]}") == "$(bash "${cmd[@]}")" ]] || echo "err: ${cmd[@]}")
+(PATH=/bin; cmd=(/tmp/s3           ); [[ $("${cmd[@]}") == "$(bash "${cmd[@]}")" ]] || echo "err: ${cmd[@]}")
+
+[err_arr]: bash: line 42: BASH_SOURCE: bad array subscript
+COMMENT
+false && printf "# %-18s | %-26s | %-25s | %s\n" "$0" "${BASH_SOURCE[*]}" "$(realpath "$0")" "$(realpath "${BASH_SOURCE[0]}")" && exit 0
+
+: <<'COMMENT'
+bats ~/sh/c.bash
+
+# $0                                          | ${BASH_SOURCE[*]}
+# /usr/local/libexec/bats-core/bats-exec-file | /tmp/bats-run-ZiMPSb/bats.1465734.src /usr/local/libexec/bats-core/bats-exec-file /usr/local/libexec/bats-core/bats-exec-file
+# /usr/local/libexec/bats-core/bats-exec-test | /tmp/bats-run-ZiMPSb/bats.1465734.src /usr/local/lib/bats-core/preprocessing.bash /usr/local/libexec/bats-core/bats-exec-test
+COMMENT
+false && {
+  printf "# %s | %s\n" "$0" "${BASH_SOURCE[*]}" >&3
+  d="$0"                 ; [[ "$d" == "$(realpath "$d")" ]] || { echo "BUG at line $LINENO" >&3; exit 1; }
+  d="${BASH_SOURCE[-1]}" ; [[ "$d" == "$(realpath "$d")" ]] || { echo "BUG at line $LINENO" >&3; exit 1; }
+}
+
+#                    | C_BASH_DO_MAIN yes                   | C_BASH_DO_MAIN no
+# -------------------+--------------------------------------+------------------
+# C_BASH_IN_BATS yes |                                      | bats c.bash
+# -------------------+--------------------------------------+--------------
+# C_BASH_IN_BATS no  | c.bash                               | source c.bash
+#                    | bash c.bash                          | bash -c "source /home/wsh/sh/c.bash"
+#                    | bash <c.bash                         |
+if [[ "${#BASH_SOURCE[@]}" == 0 ]]; then
+  # bash <c.bash
+  C_BASH_DO_MAIN="yes"
+elif [[ "${#BASH_SOURCE[@]}" == 1 ]]; then
+  C_BASH_DO_MAIN="yes"  # c.bash / bash c.bash
+  [[ -v BASH_EXECUTION_STRING ]] && C_BASH_DO_MAIN="no"  # bash -c "source /home/wsh/sh/c.bash"
+  # likely [[ $(realpath "${BASH_SOURCE[-1]}") == "/home/wsh/sh/c.bash" ]]
+elif [[ "${#BASH_SOURCE[@]}" == 2 ]]; then
+  # source c.bash
+  C_BASH_DO_MAIN="no"
+elif [[ "${#BASH_SOURCE[@]}" == 3 ]]; then
+  # bats c.bash
+  # source a -> source c.bash
+  C_BASH_DO_MAIN="no"
+else
+  # source a -> source b -> ... source c.bash
+  C_BASH_DO_MAIN="no"
 fi
-[ "$(basename "$(realpath "$0")")" = "c.bash" ] && C_BASH_DO_MAIN="yes" || C_BASH_DO_MAIN="no"
+
 [[ "$0" =~ ^.+'/bats-core/'.+$ ]] && C_BASH_IN_BATS="yes" || C_BASH_IN_BATS="no"
 # echo "$0 -> C_BASH_IN_BATS=$C_BASH_IN_BATS" >/dev/pts/0
 
-#   C_BASH_DO_MAIN     yes                   no
-# C_BASH_IN_BATS  yes                        bats c.bash
-#                 no   c.bash / bash c.bash  source c.bash
 [[ $C_BASH_DO_MAIN == "yes" ]] && [[ $C_BASH_IN_BATS == "yes" ]] && unreachable
 
 if [[ $C_BASH_DO_MAIN == "yes" ]]; then
 set -eu
-PS4='+ \e[37m''cmd: \e[0m'
+PS4='+ \e[37m''$LINENO: \e[0m'
 fi
+
+# de-lib: readlink -f "${BASH_SOURCE[0]}"
+self_real_path() {
+  readlink -f "${BASH_SOURCE[0]}"  # ref: https://github.com/bats-core/bats-core/blob/v1.10.0/bin/bats#L52
+}
+
+pre_main() { :; }
+_pre_main() {
+  [[ -v C_BASH_IN_PRE_MAIN ]] && return  # prevent infinite recursion when executed self with cmd()
+  export C_BASH_IN_PRE_MAIN=1
+  pre_main
+}
 
 # ------------------------------------------------------------------------------
 # lib
@@ -101,27 +186,27 @@ array_copy() {
 # shellcheck disable=SC2015  # Note that A && B || C is not if-then-else. C may run when A is true.
 # shellcheck disable=SC2154  # output is referenced but not assigned
 test_array_copy() { #@test
-  local -a dst_array       && array_copy::by_elems "dst_array" "a" "b" >&3 && [[ $output == "" ]] && [[ $stderr == "" ]] && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a dst_array=(x)   && array_copy::by_elems "dst_array" "a" "b" >&3 && [[ $output == "" ]] && [[ $stderr == "" ]] && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a nameref         && array_copy::by_elems "nameref"   "a" "b" >&3 && [[ $output == "" ]] && [[ $stderr == "" ]] && [[ ${nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a nameref=(x)     && array_copy::by_elems "nameref"   "a" "b" >&3 && [[ $output == "" ]] && [[ $stderr == "" ]] && [[ ${nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a dst_array       && array_copy::by_elems "dst_array" "a" "b" && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a dst_array=(x)   && array_copy::by_elems "dst_array" "a" "b" && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a nameref         && array_copy::by_elems "nameref"   "a" "b" && [[ ${nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a nameref=(x)     && array_copy::by_elems "nameref"   "a" "b" && [[ ${nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
 
   # shellcheck disable=SC2076  # Remove quotes from right-hand side of =~ to match as a regex rather than literally
-  run -1 --separate-stderr array_copy "arr" "arr" && [[ $output = "" ]] && [[ $stderr =~ "array_copy(): src_array == dst_array == \"arr\"" ]] || bats_run_debug_fail >&3
+  run -1 --separate-stderr array_copy "arr" "arr" && [[ $output == "" ]] && [[ $stderr =~ "array_copy(): src_array == dst_array == \"arr\"" ]] || bats_run_debug_fail >&3
 
-  local -a __nameref=(a b) _nameref  && array_copy "__nameref" "_nameref" >&3 && [[ ${__nameref[*]} == "a b" ]] && [[ ${_nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a __nameref=(a b) _nameref  && array_copy "__nameref" "_nameref"  >&3 && [[ ${__nameref[*]} == "a b" ]] && [[ ${_nameref[*]}  == "a b" ]] || bats_run_debug_fail >&3
   local -a __nameref=(a b) dst_array && array_copy "__nameref" "dst_array" >&3 && [[ ${__nameref[*]} == "a b" ]] && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a __nameref=(a b) nameref   && array_copy "__nameref" "nameref" >&3 && [[ ${__nameref[*]} == "a b" ]] && [[ ${nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a _nameref=(a b)  __nameref && array_copy "_nameref"  "__nameref" >&3 && [[ ${_nameref[*]} == "a b" ]] && [[ ${__nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a _nameref=(a b)  dst_array && array_copy "_nameref"  "dst_array" >&3 && [[ ${_nameref[*]} == "a b" ]] && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a _nameref=(a b)  nameref   && array_copy "_nameref"  "nameref" >&3 && [[ ${_nameref[*]} == "a b" ]] && [[ ${nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a nameref=(a b)   __nameref && array_copy "nameref"   "__nameref" >&3 && [[ ${nameref[*]} == "a b" ]] && [[ ${__nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a nameref=(a b)   _nameref  && array_copy "nameref"   "_nameref" >&3 && [[ ${nameref[*]} == "a b" ]] && [[ ${_nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a nameref=(a b)   dst_array && array_copy "nameref"   "dst_array" >&3 && [[ ${nameref[*]} == "a b" ]] && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a __nameref=(a b) nameref   && array_copy "__nameref" "nameref"   >&3 && [[ ${__nameref[*]} == "a b" ]] && [[ ${nameref[*]}   == "a b" ]] || bats_run_debug_fail >&3
+  local -a _nameref=(a b)  __nameref && array_copy "_nameref"  "__nameref" >&3 && [[ ${_nameref[*]}  == "a b" ]] && [[ ${__nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a _nameref=(a b)  dst_array && array_copy "_nameref"  "dst_array" >&3 && [[ ${_nameref[*]}  == "a b" ]] && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a _nameref=(a b)  nameref   && array_copy "_nameref"  "nameref"   >&3 && [[ ${_nameref[*]}  == "a b" ]] && [[ ${nameref[*]}   == "a b" ]] || bats_run_debug_fail >&3
+  local -a nameref=(a b)   __nameref && array_copy "nameref"   "__nameref" >&3 && [[ ${nameref[*]}   == "a b" ]] && [[ ${__nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a nameref=(a b)   _nameref  && array_copy "nameref"   "_nameref"  >&3 && [[ ${nameref[*]}   == "a b" ]] && [[ ${_nameref[*]}  == "a b" ]] || bats_run_debug_fail >&3
+  local -a nameref=(a b)   dst_array && array_copy "nameref"   "dst_array" >&3 && [[ ${nameref[*]}   == "a b" ]] && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
   local -a src_array=(a b) __nameref && array_copy "src_array" "__nameref" >&3 && [[ ${src_array[*]} == "a b" ]] && [[ ${__nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a src_array=(a b) _nameref  && array_copy "src_array" "_nameref" >&3 && [[ ${src_array[*]} == "a b" ]] && [[ ${_nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a src_array=(a b) _nameref  && array_copy "src_array" "_nameref"  >&3 && [[ ${src_array[*]} == "a b" ]] && [[ ${_nameref[*]}  == "a b" ]] || bats_run_debug_fail >&3
   local -a src_array=(a b) dst_array && array_copy "src_array" "dst_array" >&3 && [[ ${src_array[*]} == "a b" ]] && [[ ${dst_array[*]} == "a b" ]] || bats_run_debug_fail >&3
-  local -a src_array=(a b) nameref   && array_copy "src_array" "nameref" >&3 && [[ ${src_array[*]} == "a b" ]] && [[ ${nameref[*]} == "a b" ]] || bats_run_debug_fail >&3
+  local -a src_array=(a b) nameref   && array_copy "src_array" "nameref"   >&3 && [[ ${src_array[*]} == "a b" ]] && [[ ${nameref[*]}   == "a b" ]] || bats_run_debug_fail >&3
 }
 
 # array_subtract "result_array" "left_array" "right_array"
@@ -238,6 +323,10 @@ bats_run_debug_fail() {
   false
 }
 
+cmd() {
+  bash "$(self_real_path)" "${global_flags[@]}" "$@"
+}
+
 # line, funcname of this line
 #
 # de-lib: "$LINENO ${FUNCNAME[0]}"
@@ -277,9 +366,9 @@ echo_array_name() {
 
 test_echo_array_name() { #@test
   local -a arr=(a b)
-  run -0 --separate-stderr echo_array_name "arr"     && [[ $stderr == "" ]] && [[ $output == $'$arr:\n$1: a\n$2: b' ]] || bats_run_debug_fail >&3
+  run -0 echo_array_name "arr"     && [[ $output == $'$arr:\n$1: a\n$2: b' ]] || bats_run_debug_fail >&3
   local -a nameref=(a b)
-  run -0 --separate-stderr echo_array_name "nameref" && [[ $stderr == "" ]] && [[ $output == $'$nameref:\n$1: a\n$2: b' ]] || bats_run_debug_fail >&3
+  run -0 echo_array_name "nameref" && [[ $output == $'$nameref:\n$1: a\n$2: b' ]] || bats_run_debug_fail >&3
 }
 
 echo_popup() {
@@ -314,45 +403,44 @@ LOG_DEBUG=7    # /* debug-level messages */
 log_setlevel() {
   LOG_LEVEL=$1
 
-  log_error() { :;}
-  log_warning() { :;}
-  log_info() { :;}
-  log_debug() { :;}
+  log_error() { ( BASH_XTRACEFD=$fd_devnull : ) {fd_devnull}>/dev/null; }
+  log_warning() { ( BASH_XTRACEFD=$fd_devnull : ) {fd_devnull}>/dev/null; }
+  log_info() { ( BASH_XTRACEFD=$fd_devnull : ) {fd_devnull}>/dev/null; }
+  log_debug() { ( BASH_XTRACEFD=$fd_devnull : ) {fd_devnull}>/dev/null; }
 
-  (( LOG_LEVEL >= LOG_ERR )) || return 0
-  log_error() { printf '\e[31m[E] %s: %s\e[0m\n' "$(caller1)" "$*" >&2; }
-  (( LOG_LEVEL >= LOG_WARNING )) || return 0
-  log_warning() { printf '\e[33m[W] %s: %s\e[0m\n' "$(caller1)" "$*" >&2; }
-  (( LOG_LEVEL >= LOG_INFO )) || return 0
-  log_info() { printf '\e[34m[I] %s: %s\e[0m\n' "$(caller1)" "$*" >&2; }
-  (( LOG_LEVEL >= LOG_DEBUG )) || return 0
-  log_debug() { printf '\e[37m[D] %s: %s\e[0m\n' "$(caller1)" "$*" >&2; }
+  ((LOG_LEVEL < LOG_ERR)) && return 0
+  log_error() { ( BASH_XTRACEFD=$fd_devnull set +x; printf '\e[31m[E] %s: %s\e[0m\n' "$(caller1)" "$*" >&2 ) {fd_devnull}>/dev/null; }
+  ((LOG_LEVEL < LOG_WARNING)) && return 0
+  log_warning() { ( BASH_XTRACEFD=$fd_devnull set +x; printf '\e[33m[W] %s: %s\e[0m\n' "$(caller1)" "$*" >&2 ) {fd_devnull}>/dev/null; }
+  ((LOG_LEVEL < LOG_INFO)) && return 0
+  log_info() { ( BASH_XTRACEFD=$fd_devnull set +x; printf '\e[34m[I] %s: %s\e[0m\n' "$(caller1)" "$*" >&2 ) {fd_devnull}>/dev/null; }
+  ((LOG_LEVEL < LOG_DEBUG)) && return 0
+  log_debug() { ( BASH_XTRACEFD=$fd_devnull set +x; printf '\e[37m[D] %s: %s\e[0m\n' "$(caller1)" "$*" >&2 ) {fd_devnull}>/dev/null; }
 }
 
 LOG_LEVEL=$LOG_WARNING
 log_setlevel $LOG_LEVEL
 
-not_yet() { false; }
+# set -x
+# log_error "error"
+# log_warning "warning"
+# log_info "info"
+# log_debug "debug"
+# #( BASH_XTRACEFD=$fd_devnull set +x; log_error "error" ) {fd_devnull}>/dev/null
+# #( BASH_XTRACEFD=$fd_devnull set +x; log_warning "warning" ) {fd_devnull}>/dev/null
+# #( BASH_XTRACEFD=$fd_devnull set +x; log_info "info" ) {fd_devnull}>/dev/null
+# #( BASH_XTRACEFD=$fd_devnull set +x; log_debug "debug" ) {fd_devnull}>/dev/null
+# exit 42
 
-# de-lib: readlink -f "${BASH_SOURCE[0]}"
-self_real_path() {
-  if false; then
-    set +u
-    echo --
-    # /home/wsh/bin/c.bash -> /home/wsh/sh/c.bash
-    # cd /home/wsh/bin/ ;                       ./c.bash ;                 bash c.bash ;  bash ./c.bash
-    # cd /home/wsh/sh/  ;                       ./c.bash ;                 bash c.bash ;  bash ./c.bash
-    echo "0:              $0"                 # /home/wsh/{bin,sh}/c.bash  c.bash         ./c.bash
-    echo "BASH_SOURCE[0]: ${BASH_SOURCE[0]}"  # /home/wsh/{bin,sh}/c.bash  c.bash         ./c.bash
-    echo "BASH_SOURCE[1]: ${BASH_SOURCE[1]}"  # /home/wsh/{bin,sh}/c.bash  c.bash         ./c.bash
-    echo "BASH_SOURCE[2]: ${BASH_SOURCE[2]}"  #
-    realpath "${BASH_SOURCE[0]}"  # /home/wsh/sh/c.bash
-    readlink -f "${BASH_SOURCE[0]}"  # /home/wsh/sh/c.bash
-    exit 42
-  fi
-  # ref: /usr/local/bin/bats
-  readlink -f "${BASH_SOURCE[0]}"
+net_connected_4() {
+  curl -s --no-progress-meter -4 http://www.gstatic.com/generate_204
 }
+
+net_connected_6() {
+  curl -s --no-progress-meter -6 http://www.gstatic.com/generate_204
+}
+
+not_yet() { false; }
 
 # https://stackoverflow.com/questions/1527049/how-can-i-join-elements-of-an-array-in-bash
 function str_join_by {
@@ -363,7 +451,7 @@ function str_join_by {
 }
 
 top_usage() {
-  shopt -s lastpipe && set +m  # set +m for interactive shell
+  shopt -s lastpipe && set +m  # set +m for interactive shell  TODO: restore -m
   for k in "${!_commands[@]}"; do
     echo "$k"
   done | sort | mapfile -t
@@ -407,7 +495,14 @@ arg_parse() {
   local -r names=$1 && shift
 
   local -a names2
-  IFS=" " read -ra names2 <<<"$(arg_parse::_parse_names "${BASH_LINENO[1]} ${FUNCNAME[2]}" "$names")"
+  # FUNCNAME:
+  #   arg_parse 0template main
+  #   arg_parse 0template       (bash -s 0template arg1 </home/wsh/sh/c.bash)
+  if [[ ${FUNCNAME[-1]} == "main" ]]; then
+    IFS=" " read -ra names2 <<<"$(arg_parse::_parse_names "${BASH_LINENO[1]} ${FUNCNAME[2]}" "$names")"
+  else
+    IFS=" " read -ra names2 <<<"$(arg_parse::_parse_names "${BASH_LINENO[0]} ${FUNCNAME[1]}" "$names")"
+  fi
   local -r kind=${names2[0]}
   names2=("${names2[@]:1}")
 
@@ -434,7 +529,7 @@ arg_parse() {
       names2=("${names2[@]:1}")
       [[ $name = "%%" ]] && unreachable
       # TODO: assert_variable_local "$caller" "$name"
-      (( $# == 0 )) && return 0
+      (($# == 0)) && return 0
       printf -v "$name" '%s' "$1" && shift
     done
     [[ $# != 0 ]] && err 0 "error: excess argument(s): $*" && echo "$usage" >&2 && exit 2
@@ -456,7 +551,7 @@ arg_parse() {
       name=${names2[0]}
       names2=("${names2[@]:1}")
       # TODO: assert_variable_local "$caller" "$name"
-      (( $# == 0 )) && return 0
+      (($# == 0)) && return 0
       [[ $name = "%%" ]] && break
       printf -v "$name" '%s' "$1" && shift
     done
@@ -527,45 +622,45 @@ arg_parse::_parse_names() {
 # shellcheck disable=SC2015  # Note that A && B || C is not if-then-else. C may run when A is true.
 # shellcheck disable=SC2076  # Remove quotes from right-hand side of =~ to match as a regex rather than literally
 test_arg_parse() { #@test
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" ""          && [[ $stderr = "" ]] && [[ $output = "NO_ARGV  %% "          ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1"      && [[ $stderr = "" ]] && [[ $output = "NO_ARGV ARG1 %% "      ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1]"    && [[ $stderr = "" ]] && [[ $output = "NO_ARGV  %% ARG1"      ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARGV..."   && [[ $stderr = "" ]] && [[ $output = "HAS_ARGV  %% ARGV"     ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARGV...]" && [[ $stderr = "" ]] && [[ $output = "MAY_ARGV  %%  %% ARGV" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" ""          && [[ $stderr == "" ]] && [[ $output == "NO_ARGV  %% "          ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1"      && [[ $stderr == "" ]] && [[ $output == "NO_ARGV ARG1 %% "      ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1]"    && [[ $stderr == "" ]] && [[ $output == "NO_ARGV  %% ARG1"      ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARGV..."   && [[ $stderr == "" ]] && [[ $output == "HAS_ARGV  %% ARGV"     ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARGV...]" && [[ $stderr == "" ]] && [[ $output == "MAY_ARGV  %%  %% ARGV" ]] || bats_run_debug_fail >&3
 
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 ARG2"        && [[ $stderr = "" ]] && [[ $output = "NO_ARGV ARG1 ARG2 %% "     ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 [ARG2]"      && [[ $stderr = "" ]] && [[ $output = "NO_ARGV ARG1 %% ARG2"      ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 ARGV..."     && [[ $stderr = "" ]] && [[ $output = "HAS_ARGV ARG1 %% ARGV"     ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 [ARGV...]"   && [[ $stderr = "" ]] && [[ $output = "MAY_ARGV ARG1 %%  %% ARGV" ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] [ARG2]"    && [[ $stderr = "" ]] && [[ $output = "NO_ARGV  %% ARG1 ARG2"     ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] [ARGV...]" && [[ $stderr = "" ]] && [[ $output = "MAY_ARGV  %% ARG1 %% ARGV" ]] || bats_run_debug_fail >&3
-  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] ARG2"      && [[ $output = "" ]] && [[ $stderr =~ ": cannot give non-optional name: \"ARG2\" after optional name(s): \"ARG1\" (in: [ARG1] ARG2)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
-  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] ARGV..."   && [[ $output = "" ]] && [[ $stderr =~ ": cannot give non-optional name: \"ARGV...\" after optional name(s): \"ARG1\" (in: [ARG1] ARGV...)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
-  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARGV... any"      && [[ $output = "" ]] && [[ $stderr =~ ": variadic name: \"ARGV...\" must be the last (in: ARGV... any)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
-  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARGV...] any"    && [[ $output = "" ]] && [[ $stderr =~ ": variadic name: \"[ARGV...]\" must be the last (in: [ARGV...] any)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 ARG2"        && [[ $stderr == "" ]] && [[ $output == "NO_ARGV ARG1 ARG2 %% "     ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 [ARG2]"      && [[ $stderr == "" ]] && [[ $output == "NO_ARGV ARG1 %% ARG2"      ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 ARGV..."     && [[ $stderr == "" ]] && [[ $output == "HAS_ARGV ARG1 %% ARGV"     ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 [ARGV...]"   && [[ $stderr == "" ]] && [[ $output == "MAY_ARGV ARG1 %%  %% ARGV" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] [ARG2]"    && [[ $stderr == "" ]] && [[ $output == "NO_ARGV  %% ARG1 ARG2"     ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] [ARGV...]" && [[ $stderr == "" ]] && [[ $output == "MAY_ARGV  %% ARG1 %% ARGV" ]] || bats_run_debug_fail >&3
+  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] ARG2"      && [[ $output == "" ]] && [[ $stderr =~ ": cannot give non-optional name: \"ARG2\" after optional name(s): \"ARG1\" (in: [ARG1] ARG2)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
+  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] ARGV..."   && [[ $output == "" ]] && [[ $stderr =~ ": cannot give non-optional name: \"ARGV...\" after optional name(s): \"ARG1\" (in: [ARG1] ARGV...)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
+  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARGV... any"      && [[ $output == "" ]] && [[ $stderr =~ ": variadic name: \"ARGV...\" must be the last (in: ARGV... any)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
+  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARGV...] any"    && [[ $output == "" ]] && [[ $stderr =~ ": variadic name: \"[ARGV...]\" must be the last (in: [ARGV...] any)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
 
-  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 [ARG2] ARGV..."   && [[ $output = "" ]] && [[ $stderr =~ ": cannot give non-optional name: \"ARGV...\" after optional name(s): \"ARG2\" (in: ARG1 [ARG2] ARGV...)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
-  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] [ARG2] ARGV..." && [[ $output = "" ]] && [[ $stderr =~ ": cannot give non-optional name: \"ARGV...\" after optional name(s): \"ARG1 ARG2\" (in: [ARG1] [ARG2] ARGV...)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
-  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 [ARG2] [ARGV...]" && [[ $stderr = "" ]] && [[ $output = "MAY_ARGV ARG1 %% ARG2 %% ARGV" ]] || bats_run_debug_fail >&3
+  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 [ARG2] ARGV..."   && [[ $output == "" ]] && [[ $stderr =~ ": cannot give non-optional name: \"ARGV...\" after optional name(s): \"ARG2\" (in: ARG1 [ARG2] ARGV...)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
+  run -1 --separate-stderr arg_parse::_parse_names "$(caller0)" "[ARG1] [ARG2] ARGV..." && [[ $output == "" ]] && [[ $stderr =~ ": cannot give non-optional name: \"ARGV...\" after optional name(s): \"ARG1 ARG2\" (in: [ARG1] [ARG2] ARGV...)"$'\e[0m'$ ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr arg_parse::_parse_names "$(caller0)" "ARG1 [ARG2] [ARGV...]" && [[ $stderr == "" ]] && [[ $output == "MAY_ARGV ARG1 %% ARG2 %% ARGV" ]] || bats_run_debug_fail >&3
 
   local usage="usage: $PROG 0template [-h | --help] ???"
 
   # NO_ARGV
-  set -- "arg1" "arg2" && local ARG1="" ARG2="" &&   arg_parse "$usage" "ARG1 ARG2"   "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = "arg2" ]]                                                                                           || bats_run_debug_fail >&3
-  set -- "arg1"        && run -2 --separate-stderr   arg_parse "$usage" "ARG1 ARG2"   "$@"          && [[ $output = "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG2" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
-  set --               && run -2 --separate-stderr   arg_parse "$usage" "ARG1 ARG2"   "$@"          && [[ $output = "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG1" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
-  set -- "arg1" "arg2" && local ARG1="" ARG2="" &&   arg_parse "$usage" "ARG1 [ARG2]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = "arg2" ]]                                                                                           || bats_run_debug_fail >&3
-  set -- "arg1"        && local ARG1="" ARG2="" &&   arg_parse "$usage" "ARG1 [ARG2]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = ""     ]]                                                                                           || bats_run_debug_fail >&3
-  set --               && run -2 --separate-stderr   arg_parse "$usage" "ARG1 [ARG2]" "$@"          && [[ $output = "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG1" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
+  set -- "arg1" "arg2" && local ARG1="" ARG2="" &&   arg_parse "$usage" "ARG1 ARG2"   "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]]                                                                                          || bats_run_debug_fail >&3
+  set -- "arg1"        && run -2 --separate-stderr   arg_parse "$usage" "ARG1 ARG2"   "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG2" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
+  set --               && run -2 --separate-stderr   arg_parse "$usage" "ARG1 ARG2"   "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG1" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
+  set -- "arg1" "arg2" && local ARG1="" ARG2="" &&   arg_parse "$usage" "ARG1 [ARG2]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]]                                                                                          || bats_run_debug_fail >&3
+  set -- "arg1"        && local ARG1="" ARG2="" &&   arg_parse "$usage" "ARG1 [ARG2]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]]                                                                                          || bats_run_debug_fail >&3
+  set --               && run -2 --separate-stderr   arg_parse "$usage" "ARG1 [ARG2]" "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG1" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
 
   # HAS_ARGV
-  set -- "arg1" "arg2" "argv1" "argv2" && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = "arg2" ]] && [[ ${#ARGV[@]} = 2 ]] && [[ ${ARGV[*]} = "argv1 argv2" ]]                                 || bats_run_debug_fail >&3
-  set -- "arg1" "arg2" "argv1"         && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = "arg2" ]] && [[ ${#ARGV[@]} = 1 ]] && [[ ${ARGV[*]} = "argv1"       ]]                                 || bats_run_debug_fail >&3
-  set -- "arg1" "arg2"                 && run -2 --separate-stderr                     arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@"          && [[ $output = "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARGV..." missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
-  set -- "arg1"                        && run -2 --separate-stderr                     arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@"          && [[ $output = "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG2" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]]    || bats_run_debug_fail >&3
-  set -- "arg1" ""                     && run -2 --separate-stderr                     arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@"          && [[ $output = "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARGV..." missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
-  set -- "arg1" "" ""                  && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = ""     ]] && [[ ${#ARGV[@]} = 1 ]] && [[ ${ARGV[*]} = ""            ]]                                 || bats_run_debug_fail >&3
-  set -- "arg1" "" "" ""               && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = ""     ]] && [[ ${#ARGV[@]} = 2 ]] && [[ ${ARGV[*]} = " "           ]]                                 || bats_run_debug_fail >&3
+  set -- "arg1" "arg2" "argv1" "argv2" && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == 2 ]] && [[ ${ARGV[*]} == "argv1 argv2" ]]                              || bats_run_debug_fail >&3
+  set -- "arg1" "arg2" "argv1"         && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == 1 ]] && [[ ${ARGV[*]} == "argv1"       ]]                              || bats_run_debug_fail >&3
+  set -- "arg1" "arg2"                 && run -2 --separate-stderr                     arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARGV..." missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
+  set -- "arg1"                        && run -2 --separate-stderr                     arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG2" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]]    || bats_run_debug_fail >&3
+  set -- "arg1" ""                     && run -2 --separate-stderr                     arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARGV..." missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
+  set -- "arg1" "" ""                  && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == 1 ]] && [[ ${ARGV[*]} == ""            ]]                              || bats_run_debug_fail >&3
+  set -- "arg1" "" "" ""               && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == 2 ]] && [[ ${ARGV[*]} == " "           ]]                              || bats_run_debug_fail >&3
 
   # MAY_ARGV
   set -- "arg1" "arg2" "argv1" "argv2" && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = "arg2" ]] && [[ ${#ARGV[@]} = 2 ]] && [[ ${ARGV[*]} = "argv1 argv2" ]] || bats_run_debug_fail >&3
@@ -581,7 +676,7 @@ test_arg_parse() { #@test
 # command - 0template @pub
 
 define_command 0template
-0template() {
+cmd::0template() {
   local -r usage="usage: $PROG 0template [-h | --help] ARG"
   local ARG="" && arg_parse "$usage" "ARG" "$@"
   echo "ARG: $ARG"
@@ -607,7 +702,7 @@ EOS
 # command - apt_changelog @pub
 
 define_command apt_changelog
-apt_changelog() {
+cmd::apt_changelog() {
   local -r usage="usage: $PROG apt_changelog [-h | --help] PKG..."
   local -a PKG=() && arg_parse "$usage" "PKG..." "$@"
   for pkg in $(IFS=$'\n'; sort <<<"${PKG[*]}"); do [ -f "/usr/share/doc/$pkg/changelog.Debian.gz" ] || continue ; echo ---------- ; echo "/usr/share/doc/$pkg/changelog.Debian.gz" ; zcat "/usr/share/doc/$pkg/changelog.Debian.gz" | head ; done >/tmp/c.bash.d/apt_changelog.changelog.Debian.gz.txt || true
@@ -619,7 +714,21 @@ apt_changelog() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_page_get_id @pub
+# command - cfl_page_get_content @pub
+
+cmd::cfl_curl() {
+  cfl_env_check
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  (
+    BASH_XTRACEFD=$fd_xtrace
+    set -x
+    LD_LIBRARY_PATH=$HOME/opt/curl8/lib/ /home/wsh/opt/curl8/bin/curl --fail-with-body -Ss -u "$CONFLUENCE_USER:$CONFLUENCE_PASS" "$@" >/tmp/c.bash.d/cfl_curl.out || die 1 "cfl_curl failed; body: $(cat /tmp/c.bash.d/cfl_curl.out)"
+  ) {fd_xtrace}> >(node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.env.CONFLUENCE_PASS, "$CONFLUENCE_PASS".replaceAll("$", "$$$$")) + "\n")' | sed -E 's/^(.{160}).*$/\1.../' >&2)
+  cat /tmp/c.bash.d/cfl_curl.out
+}
+false && pre_main() {
+  cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/1"
+}
 
 cfl_env_check() {
   local ok="true"
@@ -627,39 +736,107 @@ cfl_env_check() {
   [[ ${CONFLUENCE_USER+defined} = defined ]] || err 1 'environment variable CONFLUENCE_USER is not set' || ok="false"
   [[ ${CONFLUENCE_PASS+defined} = defined ]] || err 1 'environment variable CONFLUENCE_PASS is not set' || ok="false"
   [[ $ok == "true" ]] || exit 1
-  log_debug "remove trailing slash in CONFLUENCE_URL: $CONFLUENCE_URL -> ${CONFLUENCE_URL%/}"
-  CONFLUENCE_URL=${CONFLUENCE_URL%/}
+  [[ $CONFLUENCE_URL != "${CONFLUENCE_URL%/}" ]] && {
+    log_debug "remove trailing slash in CONFLUENCE_URL: $CONFLUENCE_URL -> ${CONFLUENCE_URL%/}"
+    CONFLUENCE_URL=${CONFLUENCE_URL%/}
+  }
+  return 0
 }
 
+# echo:
+# title
+# storage
+define_command cfl_page_get_content
+cmd::cfl_page_get_content() {
+  local -r usage="usage: $PROG cfl_page_get_content [-h | --help] ID"
+  local ID="" && arg_parse "$usage" "ID" "$@"
+  [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
+  cfl_env_check
+  (set -o pipefail; cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID?expand=body.storage" | jq -e >/tmp/c.bash.d/cfl_page_get_content.json)
+  jq -er </tmp/c.bash.d/cfl_page_get_content.json ".title"
+  jq -er </tmp/c.bash.d/cfl_page_get_content.json ".body.storage.value"
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_page_get_id @pub
+
 define_command cfl_page_get_id
-cfl_page_get_id() {
+cmd::cfl_page_get_id() {
   local -r usage="usage: $PROG cfl_page_get_id [-h | --help] SPACE_KEY TITLE"
   local SPACE_KEY="" TITLE="" && arg_parse "$usage" "SPACE_KEY TITLE" "$@"
   cfl_env_check
-  local fd_xtrace
-  set -o pipefail
-  (
-    BASH_XTRACEFD=$fd_xtrace
-    set -x
-    curl -fSs -u "$CONFLUENCE_USER:$CONFLUENCE_PASS" -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE" | jq -r ".results[0].id" >/dev/stdout
-  ) {fd_xtrace}> >(bash "$(self_real_path)" replace_line "$CONFLUENCE_PASS" "\$CONFLUENCE_PASS" | sed -E 's/^(.{120}).*$/\1.../' >&2)
+  (set -o pipefail; set -x; cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE" | jq -er ".results[0].id" >/dev/stdout)
 }
 
 # ------------------------------------------------------------------------------
 # command - cfl_page_rm @pub
 
 define_command cfl_page_rm
-cfl_page_rm() {
+cmd::cfl_page_rm() {
   local -r usage="usage: $PROG cfl_page_rm [-h | --help] ID"
   local ID="" && arg_parse "$usage" "ID" "$@"
   cfl_env_check
-  local fd_xtrace
-  set -o pipefail
-  (
-    BASH_XTRACEFD=$fd_xtrace
-    set -x
-    curl -fSs -u "$CONFLUENCE_USER:$CONFLUENCE_PASS" -X DELETE "$CONFLUENCE_URL/rest/api/content/$ID"
-  ) {fd_xtrace}> >(bash "$(self_real_path)" replace_line "$CONFLUENCE_PASS" "\$CONFLUENCE_PASS" | sed -E 's/^(.{120}).*$/\1.../' >&2)
+  (set -x cmd::cfl_curl -X DELETE "$CONFLUENCE_URL/rest/api/content/$ID")
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_page_update @pub
+
+define_command cfl_page_update
+cmd::cfl_page_update() {
+  local -r usage="usage: $PROG cfl_page_update [-h | --help] ID TITLE [FILE]"
+  local ID="" TITLE="" FILE="" && arg_parse "$usage" "ID TITLE [FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+  [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
+  cfl_env_check
+  cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID" | jq -e >/tmp/c.bash.d/cfl_page_update.1.json
+  local -i ver
+  ver=$(jq -er ".version.number" /tmp/c.bash.d/cfl_page_update.1.json)
+  ((ver++))
+  jo -p -d. -- version.number="$ver" title="$TITLE" type=page body.storage.value=@"$FILE" body.storage.representation=storage >/tmp/c.bash.d/cfl_page_update.put.json
+  cmd::cfl_curl -X PUT -H "Content-Type: application/json" -d @/tmp/c.bash.d/cfl_page_update.put.json "$CONFLUENCE_URL/rest/api/content/$ID" | jq -e >/tmp/c.bash.d/cfl_page_update.2.json
+}
+
+# ------------------------------------------------------------------------------
+# command - cmd_intercept @pub
+
+: <<'DOC'
+echo -e '#!/bin/sh\n/home/wsh/sh/c.bash -vv cmd_intercept bash "$@"' >~/bin/bash_
+chmod +x ~/bin/bash_
+
+echo -e '#!/bin/sh\n/home/wsh/sh/c.bash -vv cmd_intercept /home/wsh/opt/gdb/bin/gdb "$@"' >/home/wsh/bin/gdb_
+chmod +x /home/wsh/bin/gdb_
+
+tail -F /tmp/c.bash.d/cmd_intercept.log
+bash_
+DOC
+
+define_command cmd_intercept
+cmd::cmd_intercept() {
+  local -r usage="usage: $PROG cmd_intercept [-h | --help] CMD..."
+  local -a CMD=() && arg_parse "$usage" "CMD..." "$@"
+
+  # cleanup background processses (&)
+  # https://stackoverflow.com/questions/360201/how-do-i-kill-background-processes-jobs-when-my-shell-script-exits
+  # trap "echo 'cmd_intercept: EXIT...' >&2 && pstree -p \$\$ >&2 && jobs -p | xargs -r --verbose kill >&2" EXIT  # doesn't kill subshell's children
+  # trap "echo 'cmd_intercept: EXIT... ' >&2 && pstree -p \$\$ >&2 && kill 0 >&2" EXIT  # fish: Job 2, 'c.bash -vv cmd_intercept bash' terminated by signal SIGTERM (Polite quit request)
+  trap "echo 'cmd_intercept: EXIT... ' >&2 && pstree -p \$\$ | grep -P --color '(?<=(sed|ail)\()\d+(?=\))' >&2 && pstree -p \$\$ | grep -Po '(?<=(sed|ail)\()\d+(?=\))' | xargs -r --verbose kill >&2" EXIT
+
+  # TODO: get each pty for stdin/stdout/stderr if pty
+
+  echo -n >/tmp/c.bash.d/cmd_intercept.log.in
+  echo -n >/tmp/c.bash.d/cmd_intercept.log.out && tail -F /tmp/c.bash.d/cmd_intercept.log.out &
+  echo -n >/tmp/c.bash.d/cmd_intercept.log.err && tail -F /tmp/c.bash.d/cmd_intercept.log.err >&2 &
+
+  {
+    log_info "intercept: ${CMD[*]}" 2>&1
+    tail -F /tmp/c.bash.d/cmd_intercept.log.in  | sed -Eu -e 's/^/\x1b[37m''in: /' -e 's/$/\x1b[0m/' &
+    tail -F /tmp/c.bash.d/cmd_intercept.log.out &
+    tail -F /tmp/c.bash.d/cmd_intercept.log.err | sed -Eu -e 's/^/\x1b[31m''err: /' -e 's/$/\x1b[0m/' &
+  } >/tmp/c.bash.d/cmd_intercept.log
+
+  tee -a /tmp/c.bash.d/cmd_intercept.log.in | "${CMD[@]}" >/tmp/c.bash.d/cmd_intercept.log.out 2>/tmp/c.bash.d/cmd_intercept.log.err
+  log_info "EOS"
 }
 
 # ------------------------------------------------------------------------------
@@ -695,7 +872,7 @@ cfl_page_rm() {
 #  History (rate):
 #    ...
 define_command discharging_checker
-discharging_checker() {
+cmd::discharging_checker() {
   local -r usage="usage: $PROG discharging_checker [-h | --help]"
   arg_parse "$usage" "" "$@"
   local -ir BASE_INTERVAL=240  # 4min, 8min, 16min, 32min, 64min, ...
@@ -733,7 +910,7 @@ discharging_checker() {
       echo "recheck in $interval seconds..."
     else
       # charging
-      (( interval > BASE_INTERVAL )) && echo 'charging'
+      ((interval > BASE_INTERVAL)) && echo 'charging'
       interval=$BASE_INTERVAL
     fi
     energy_prev=$energy_curr
@@ -763,10 +940,28 @@ EOF
 fi
 
 # ------------------------------------------------------------------------------
+# command - file_sync_watch @pub
+
+define_command file_sync_watch
+cmd::file_sync_watch() {
+  local -r usage="usage: $PROG file_sync_watch [-h | --help] HOST FILE..."
+  local HOST="" && local -a FILE=() && arg_parse "$usage" "HOST FILE..." "$@"
+  local -a files_abs=()
+  for f in "${FILE[@]}"; do
+    files_abs+=("$(realpath "$f")")
+  done
+  (
+    set -x
+    inotifywait -m -r -e modify -e move -e create -e delete --format='%w%f' "${files_abs[@]}" | cmd xargs_delay -I% --verbose rsync -va % "$HOST":%
+  )
+  unreachable
+}
+
+# ------------------------------------------------------------------------------
 # command - file_timestamp @pub
 
 define_command file_timestamp
-file_timestamp() {
+cmd::file_timestamp() {
   local -r usage="usage: $PROG file_timestamp [-h | --help] FILE"
   local FILE="" && arg_parse "$usage" "FILE" "$@"
 
@@ -788,7 +983,7 @@ file_timestamp() {
 # command - git_status_repos @pub
 
 define_command git_status_repos
-git_status_repos() {
+cmd::git_status_repos() {
   local -r usage="usage: $PROG git_status_repos [-h | --help]"
   arg_parse "$usage" "" "$@"
   for d in \
@@ -809,18 +1004,17 @@ git_status_repos() {
 }
 
 # ------------------------------------------------------------------------------
-# command - gm @pub
-# grep mutli-line
+# command - grep_multiline (gm) @pub
 
-# c.bash gm -P -m1 "^define_command gm" "cat" < /home/wsh/sh/c.bash
-# c.bash gm -P -m1 "^define_command gm" "cat" < /home/wsh/sh/c.bash | sed '1d;$d'
-# command - gm_greedy @pub
+# c.bash gm -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash
+# c.bash gm -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash | sed '1d;$d'
+# command - grep_multiline_greedy (gm_greedy) @pub
 
-# c.bash gm_greedy -P "^define_command gm_greedy" "cat" < /home/wsh/sh/c.bash
+# c.bash gm_greedy -P "^define_command grep_multiline_greedy" "cat" < /home/wsh/sh/c.bash
 
-define_command gm_greedy
-gm_greedy() {
-  local -r usage="usage: ... | $PROG gm_greedy [-h | --help] -P PATTERN_BEGIN PATTERN_END [| sed '1d;\$d']"
+define_command grep_multiline_greedy
+cmd::grep_multiline_greedy() {
+  local -r usage="usage: ... | $PROG grep_multiline_greedy (gm_greedy) [-h | --help] -P PATTERN_BEGIN PATTERN_END [| sed '1d;\$d']"
   local P="" PATTERN_BEGIN="" PATTERN_END="" && arg_parse "$usage" "P PATTERN_BEGIN PATTERN_END" "$@"
   [[ $P != "-P" ]] && err 0 "error: \"$P\" != \"-P\" (in $*)" && echo "$usage" >&2 && exit 2
   local txt
@@ -831,26 +1025,29 @@ gm_greedy() {
   lineno_begin="$(grep -P -m1 -n "$PATTERN_BEGIN" <<< "$txt" | cut -d":" -f1)"
   grep -P -q "$PATTERN_END" <<< "$txt"
   lineno_end="$(grep -P -n "$PATTERN_END" <<< "$txt" | cut -d":" -f1 | tail -1)"
-  if (( lineno_end <= lineno_begin )); then
+  if ((lineno_end <= lineno_begin)); then
     exit 1
   fi
   sed -n "${lineno_begin},${lineno_end}p" <<< "$txt"
   exit 0
 }
 
+define_command gm_greedy
+cmd::gm_greedy() { cmd::grep_multiline_greedy "$@"; }
+
 # ------------------------------------------------------------------------------
-# command - journalctl_ @pub
+# command - journalctl @pub
 
 : <<'DOC'
 # Ubuntu 20.04:
-echo -e '#!/bin/sh\n/home/wsh/sh/c.bash journalctl_ "$@"' > ~/bin/journalctl
+echo -e '#!/bin/sh\n/home/wsh/sh/c.bash journalctl "$@"' > ~/bin/journalctl
 chmod +x ~/bin/journalctl
 journalctl -xb -f
 DOC
 
-define_command journalctl_
-journalctl_() {
-  # local -r usage="usage: $PROG journalctl_ [-h | --help]"
+define_command journalctl
+cmd::journalctl() {
+  # local -r usage="usage: $PROG journalctl [-h | --help]"
   # arg_parse "$usage" "" "$@"
   /usr/bin/journalctl "$@" | sed -E -e "s/^(--.+)/\1\x1b[0m/" -e "s/^--/\x1b[32m  /"
 }
@@ -859,7 +1056,7 @@ journalctl_() {
 # command - kill_clangd @pub
 
 define_command kill_clangd
-kill_clangd() {
+cmd::kill_clangd() {
   local -r usage="usage: $PROG kill_clangd [-h | --help]"
   arg_parse "$usage" "" "$@"
   # ps じゃなくて1秒間隔のCPU使用率が見れるプログラムに置き換えたい @ref:linux-ps-pcpu
@@ -875,63 +1072,278 @@ ps -C ion.clangd.main -o pid=,pcpu=
 EOS
   local -r processes=$(ps -C ion.clangd.main -o pid=,pcpu=)
 
-  local line
-  oIFS=$IFS
-  IFS=$'\n'
-  for line in $processes; do
-    log_debug "$line"
-    local fields
-    # read -ar -> fields: unbound variable
-    IFS=" " read -ra fields <<<"$line"
-    local pid=${fields[0]}
-    local pcpu=${fields[1]}
-    echo "$pcpu > 110" | bc | grep -q '1' || continue
-    echo "kill $pid"
-    kill "$pid"
-  done
-  IFS=$oIFS
-
-  local line
-  oIFS=$IFS
-  IFS=$'\n'
-  for _ in {1..4}; do
-    local alive_pids=()
+  (
+    IFS=$'\n'
+    local line
     for line in $processes; do
+      log_debug "$line"
       local fields
+      # read -ar -> fields: unbound variable
       IFS=" " read -ra fields <<<"$line"
       local pid=${fields[0]}
       local pcpu=${fields[1]}
       echo "$pcpu > 110" | bc | grep -q '1' || continue
-      log_debug "kill -0 $pid"
-      kill -0 "$pid" && alive_pids+=("$pid")
+      echo "kill $pid"
+      kill "$pid"
     done
-    [[ ${#alive_pids[@]} = 0 ]] && return 0
-    log_info "alive: ${alive_pids[*]}"
-    sleep 1
-  done
-  IFS=$oIFS
+  )
 
-  local line
-  oIFS=$IFS
-  IFS=$'\n'
-  for line in $processes; do
-    local fields
-    IFS=" " read -ra fields <<<"$line"
-    pid=${fields[0]}
-    echo "kill -9 $pid"
-    kill -9 "$pid"
+  (
+    IFS=$'\n'
+    local line
+    for _ in {1..4}; do
+      local alive_pids=()
+      for line in $processes; do
+        local fields
+        IFS=" " read -ra fields <<<"$line"
+        local pid=${fields[0]}
+        local pcpu=${fields[1]}
+        echo "$pcpu > 110" | bc | grep -q '1' || continue
+        log_debug "kill -0 $pid"
+        kill -0 "$pid" && alive_pids+=("$pid")
+      done
+      [[ ${#alive_pids[@]} = 0 ]] && return 0
+      log_info "alive: ${alive_pids[*]}"
+      sleep 1
+    done
+  )
+
+  (
+    IFS=$'\n'
+    local line
+    for line in $processes; do
+      local fields
+      IFS=" " read -ra fields <<<"$line"
+      pid=${fields[0]}
+      echo "kill -9 $pid"
+      kill -9 "$pid"
+    done
+  )
+}
+
+# ------------------------------------------------------------------------------
+# command - kill_code_md_ext @pub
+
+define_command kill_code_md_ext
+cmd::kill_code_md_ext() {
+  local -r usage="usage: $PROG kill_code_md_ext [-h | --help]"
+  arg_parse "$usage" "" "$@"
+  # ps じゃなくて1秒間隔のCPU使用率が見れるプログラムに置き換えたい @ref:linux-ps-pcpu
+  : <<'EOS'
+ps -e -H $(: --headers) u -ww | grep -E '[U]SER|[m]arkdown-language-features'
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+wsh        91143 90.5  0.1 1177280496 81564 ?    Rl   13:53   7:26         /usr/share/code/code --ms-enable-electron-run-as-node /usr/share/code/resources/app/extensions/markdown-language-features/server/dist/node/workerMain --node-ipc --clientProcessId=79492
+EOS
+  local -i rc=1
+  # shellcheck disable=SC2009  # Consider using pgrep instead of grepping ps output
+  ps -e -H $(: --headers) u -ww | grep -E '[m]arkdown-language-features' | while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
+    log_debug $'\n'"$line"
+    local pcpu=$(awk '{print $3}' <<<"$line")
+    echo "$pcpu >= 10.0" | bc | grep -q '1' || continue
+    rc=0
+    echo "$line"
+    local pid=$(awk '{print $2}' <<<"$line")
+    (set -x; kill "$pid")
   done
-  IFS=$oIFS
+  exit "$rc"
 }
 
 # ------------------------------------------------------------------------------
 # command - linux_dmesg_time0 @pub
 
 define_command linux_dmesg_time0
-linux_dmesg_time0() {
+cmd::linux_dmesg_time0() {
   local -r usage="usage: dmesg | $PROG linux_dmesg_time0 [-h | --help]"
   arg_parse "$usage" "" "$@"
   sed -E s'/\[[0-9 ]{4}[0-9]\.[0-9]{6}\]/[    0.000000]/'
+}
+
+# ------------------------------------------------------------------------------
+# command - linux_kern_config @pub
+
+define_command linux_kern_config
+cmd::linux_kern_config() {
+  local -r usage="usage: $PROG linux_kern_config [-h | --help] [TARGET...]"
+  local -a TARGET=() && arg_parse "$usage" "[TARGET...]" "$@"
+  [[ ${#TARGET[@]} = 0 ]] && TARGET=(vmlinux modules compile_commands.json bindeb-pkg)
+  KBUILD_OUTPUT=$(cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT)
+  export KBUILD_OUTPUT
+  [[ $KBUILD_OUTPUT == "/home/wsh/qc/linux/focal-build-d" ]] && log_info "cd /home/wsh/qc/linux/focal-d" && cd /home/wsh/qc/linux/focal-d
+  [[ $KBUILD_OUTPUT == "/home/wsh/qc/linux/focal-build-r" ]] && log_info "cd /home/wsh/qc/linux/focal-r" && cd /home/wsh/qc/linux/focal-r
+
+  # make defconfig   # based on arch/x86/configs/x86_64_defconfig; creates $KBUILD_OUTPUT/.config
+  cp -v /boot/config-5.19.0-43-generic $KBUILD_OUTPUT/.config
+  cp -v /boot/config-5.19.0-43-generic $KBUILD_OUTPUT/.config-5.19.0-43-generic
+  (set -x; make olddefconfig)  # V=1
+  cp -v $KBUILD_OUTPUT/.config $KBUILD_OUTPUT/.config.olddefconfig
+
+  log_info "code --diff $KBUILD_OUTPUT/.config-5.19.0-43-generic             $KBUILD_OUTPUT/.config.olddefconfig        : 5.19.0-43-generic -> 5.19.17"
+  fish -c  "code --diff $KBUILD_OUTPUT/.config-5.19.0-43-generic             $KBUILD_OUTPUT/.config.olddefconfig"
+
+  log_info "code --diff $KBUILD_OUTPUT-old/.config.olddefconfig              $KBUILD_OUTPUT/.config.olddefconfig        : (optional) check rebase-updates"
+  fish -c  "code --diff $KBUILD_OUTPUT-old/.config.olddefconfig              $KBUILD_OUTPUT/.config.olddefconfig"
+
+  log_info "fish ~/doc/t/linux_kernel_config.md.fish : should be no diff"
+  fish ~/doc/t/linux_kernel_config.md.fish
+
+  log_info "code --diff $KBUILD_OUTPUT/.config.olddefconfig                  $KBUILD_OUTPUT/.config                     : カスタムのcheck"
+  fish -c  "code --diff $KBUILD_OUTPUT/.config.olddefconfig                  $KBUILD_OUTPUT/.config"
+
+  cp -v $KBUILD_OUTPUT/.config $KBUILD_OUTPUT/.config.olddefconfig-hacked
+  log_info "code --diff $KBUILD_OUTPUT-old/.config.olddefconfig-hacked       $KBUILD_OUTPUT/.config.olddefconfig-hacked : check rebase-updates"
+  fish -c  "code --diff $KBUILD_OUTPUT-old/.config.olddefconfig-hacked       $KBUILD_OUTPUT/.config.olddefconfig-hacked"
+
+  [[ $KBUILD_OUTPUT == "/home/wsh/qc/linux/focal-build-r" ]] && {
+    log_info "code --diff ~/qc/linux/focal-build-d/.config                   $KBUILD_OUTPUT/.config.olddefconfig-hacked : debug vs release; BUG | GENERIC_BUG | GENERIC_BUG_RELATIVE_POINTERS | ACPI_PRMT | JUMP_LABEL | DEBUG_BUGVERBOSE"
+    fish -c  "code --diff ~/qc/linux/focal-build-d/.config                   $KBUILD_OUTPUT/.config.olddefconfig-hacked"
+  }
+}
+
+cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT() {
+  [[ ${KBUILD_OUTPUT+defined} = defined ]] || case $PWD in
+    "/home/wsh/qc/linux/focal-d"*)       export KBUILD_OUTPUT=/home/wsh/qc/linux/focal-build-d;;
+    "/home/wsh/qc/linux/focal-build-d"*) export KBUILD_OUTPUT=/home/wsh/qc/linux/focal-build-d;;
+    "/home/wsh/qc/linux/focal-r"*)       export KBUILD_OUTPUT=/home/wsh/qc/linux/focal-build-r;;
+    "/home/wsh/qc/linux/focal-build-r"*) export KBUILD_OUTPUT=/home/wsh/qc/linux/focal-build-r;;
+    *) die 1 "environment variable KBUILD_OUTPUT is not set / unknown PWD";;
+  esac
+  [[ ${KBUILD_OUTPUT+defined} = defined ]] || die 1 "environment variable KBUILD_OUTPUT is not set"
+  case $KBUILD_OUTPUT in
+    "/home/wsh/qc/linux/focal-build-d") log_info "debug";;
+    "/home/wsh/qc/linux/focal-build-r") log_warning "release";;
+    *) die 1 "unknown KBUILD_OUTPUT: $KBUILD_OUTPUT";;
+  esac
+  echo "$KBUILD_OUTPUT"
+}
+
+# ------------------------------------------------------------------------------
+# command - linux_kern_initramfs @pub
+
+: <<'DOC'
+https://hernandigiorgi.com/how-to-create-an-initramfs-after-you-compile-a-linux-kernel/
+https://www.busybox.net/downloads/binaries/
+DOC
+
+define_command linux_kern_initramfs
+cmd::linux_kern_initramfs() {
+  local -r usage="usage: $PROG linux_kern_initramfs [-h | --help]"
+  arg_parse "$usage" "" "$@"
+  KBUILD_OUTPUT=$(cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT)
+  export KBUILD_OUTPUT
+
+  mkdir -pv "$KBUILD_OUTPUT/z_initramfs/initramfs_root/bin/"
+  mkdir -pv "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/"
+  mkdir -pv "$KBUILD_OUTPUT/z_initramfs/initramfs_root/proc/"
+  mkdir -pv "$KBUILD_OUTPUT/z_initramfs/initramfs_root/sys/"
+  mkdir -pv "$KBUILD_OUTPUT/z_initramfs/initramfs_root/tmp/"
+
+  # https://www.busybox.net/downloads/binaries/
+  [[ -f $KBUILD_OUTPUT/z_initramfs/initramfs_root/bin/busybox ]] || (set -x; curl "https://www.busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox" -o "$KBUILD_OUTPUT/z_initramfs/initramfs_root/bin/busybox")
+  chmod +x "$KBUILD_OUTPUT/z_initramfs/initramfs_root/bin/busybox"
+
+  cat <<'EOS' >"$KBUILD_OUTPUT/z_initramfs/initramfs_root/init"
+#!/bin/busybox sh
+/bin/busybox --install /bin
+mount -t  devtmpfs  devtmpfs  /dev
+mount -t  proc      proc      /proc
+mount -t  sysfs     sysfs     /sys
+mount -t  debugfs   none      /sys/kernel/debug
+mount -t  tmpfs     tmpfs     /tmp
+# modprobe e1000
+setsid cttyhack sh  # ? busybox(1)
+exec /bin/sh
+EOS
+  chmod +x "$KBUILD_OUTPUT/z_initramfs/initramfs_root/init"
+
+  if [[ $KBUILD_OUTPUT == "/home/wsh/qc/linux/focal-build-d" ]]; then
+    (set -x; rsync -av --delete --max-delete=10 --prune-empty-dirs --exclude="/debian/" --exclude="/z_initramfs/" --include="*/" --include="*.ko" --exclude="*" "$KBUILD_OUTPUT/" "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/")
+    du -h -d1     "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/"  # 2.8G
+    # --strip-debug: INSTALL_MOD_STRIP=1 make -n V=1 modules_install の真似; --strip-debug でないとダメっぽい @ref:linux-kernel-module-strip-debug
+    (set -x; find "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/" -name "*.ko" -exec strip --strip-debug "{}" ";")
+    du -h -d1     "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/"  # 378M; --strip だともっと小さい
+    false && { # debug
+      # rm -frv $KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/
+      mkdir -p $KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/lib/
+      cp "$KBUILD_OUTPUT/lib/crc4.ko"                    "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/lib/"
+      cp /home/wsh/qc/linux/z_module_tes_d/module_tes.ko "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/"  # @ref:linux-kernel-module-tes
+      strip --strip-debug "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/lib/crc4.ko"    # 61Ki -> 5.5Ki
+      strip --strip-debug "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/module_tes.ko"  # 60Ki -> 4.6Ki
+    }
+  fi
+  if [[ $KBUILD_OUTPUT == "/home/wsh/qc/linux/focal-build-r" ]]; then
+    # --delete?
+    rsync -va -h --progress "$KBUILD_OUTPUT/debian/linux-image/lib/modules/5.19.17+/" "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/"
+    false && du -h -d2 "$KBUILD_OUTPUT/debian/linux-image/lib/modules/5.19.17+/"  # 497M
+  fi
+
+  # ↑ の代わりにmodules最小限だけ入れる (aborted)
+  false && {
+    mkdir -pv "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/drivers/net/ethernet/intel/e1000/"
+    mkdir -pv "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/drivers/gpu/drm/bochs/"
+    cp -v "$KBUILD_OUTPUT/drivers/net/ethernet/intel/e1000/e1000.ko" "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/drivers/net/ethernet/intel/e1000/"
+    cp -v "$KBUILD_OUTPUT/drivers/gpu/drm/bochs/bochs-drm.ko"        "$KBUILD_OUTPUT/z_initramfs/initramfs_root/lib/modules/5.19.17+/kernel/drivers/gpu/drm/bochs/"
+    # あと modules.dep.bin 入れて、依存 .ko 入れないとか
+    # $KBUILD_OUTPUT/debian/linux-image/lib/modules/5.19.17+/modules.dep
+    #   これは scripts/depmod.sh で作れるのかな？
+    # 他にもなんか必要だったりして
+    # やっぱmkinitramfsデバッグして使えるようにするか…
+  }
+
+  cd "$KBUILD_OUTPUT/z_initramfs/initramfs_root/"
+  (set -x; find . | cpio -o $(: -v) --format=newc | gzip >../initramfs)
+
+  log_info "lsinitramfs -l $KBUILD_OUTPUT/z_initramfs/initramfs | head/tail"
+  lsinitramfs -l $KBUILD_OUTPUT/z_initramfs/initramfs | head
+  echo ...
+  lsinitramfs -l $KBUILD_OUTPUT/z_initramfs/initramfs | tail
+}
+
+# ------------------------------------------------------------------------------
+# command - linux_kern_make @pub
+
+# TODO: -d CONFIG_DEBUG_INFO_BTF でビルド時間短くなるかやってみる
+
+define_command linux_kern_make
+cmd::linux_kern_make() {
+  local -r usage="usage: $PROG linux_kern_make [-h | --help] [TARGET...]"
+  local -a TARGET=() && arg_parse "$usage" "[TARGET...]" "$@"
+  [[ ${#TARGET[@]} = 0 ]] && TARGET=(vmlinux modules compile_commands.json bindeb-pkg)
+  KBUILD_OUTPUT=$(cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT)
+  export KBUILD_OUTPUT
+  # TODO: on fail: log: debug!: cp -v $KBUILD_OUTPUT/compile_commands.json.bear /home/wsh/qc/linux/focal-d/compile_commands.json
+  set -o pipefail
+  set -x
+  for target in "${TARGET[@]}"; do
+    case $target in
+      vmlinux)               command time make vmlinux               -j16 |& tee -a "$KBUILD_OUTPUT/make_vmlinux.log"               || make vmlinux               V=1 -j8 || make vmlinux               V=1 -j4 || make vmlinux               V=1 -j2 || bear --output "$KBUILD_OUTPUT/compile_commands.json.bear" -- make vmlinux               V=1 -j1 ;;  # 2m26s 3m30s
+      modules)               command time make modules               -j16 |& tee -a "$KBUILD_OUTPUT/make_modules.log"               || make modules               V=1 -j8 || make modules               V=1 -j4 || make modules               V=1 -j2 || bear --output "$KBUILD_OUTPUT/compile_commands.json.bear" -- make modules               V=1 -j1 ;;  # 12m20s 15m08s
+      compile_commands.json) command time make compile_commands.json -j16 |& tee -a "$KBUILD_OUTPUT/make_compile_commands.json.log" || make compile_commands.json V=1 -j8 || make compile_commands.json V=1 -j4 || make compile_commands.json V=1 -j2 || bear --output "$KBUILD_OUTPUT/compile_commands.json.bear" -- make compile_commands.json V=1 -j1 ;;  # 10s 10s
+      bindeb-pkg)            command time make bindeb-pkg            -j16 |& tee -a "$KBUILD_OUTPUT/make_bindeb-pkg.log"            || make bindeb-pkg            V=1 -j8 || make bindeb-pkg            V=1 -j4 || make bindeb-pkg            V=1 -j2 || bear --output "$KBUILD_OUTPUT/compile_commands.json.bear" -- make bindeb-pkg            V=1 -j1 ;;  # 5m27s 4m11s
+      *) die 1 "unknown target: $target";;
+    esac
+  done
+}
+
+# ------------------------------------------------------------------------------
+# command - linux_kern_make_summary @pub
+
+define_command linux_kern_make_summary
+cmd::linux_kern_make_summary() {
+  local -r usage="usage: $PROG linux_kern_make_summary [-h | --help]"
+  arg_parse "$usage" "" "$@"
+  KBUILD_OUTPUT=$(cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT)
+  export KBUILD_OUTPUT
+
+  # shellcheck disable=SC2045  # Iterating over ls output is fragile. Use globs
+  for f in $(ls -tr "$KBUILD_OUTPUT/make"*".log"); do
+    printf "%-45s" "$(basename $f)"; tail -n2 "$f" | python3 ~/qpy/tespy/tespy/txt/time_fmt.py | ruby -e 'puts(ARGF.read.sub(/(?<!\n)\z/, "?:??\n"))'
+  done
+  echo
+
+  local last_log
+  # shellcheck disable=SC2012  # Use find instead of ls to better handle non-alphanumeric filenames
+  last_log=$(ls -t "$KBUILD_OUTPUT/make"*".log" | head -1)
+  printf "\e[32m""last_log: %s\e[0m\n\n%s\n\n\e[32m""last_log: %s\e[0m" "$last_log" "$(tail -40 <"$last_log")" "$last_log"
 }
 
 # ------------------------------------------------------------------------------
@@ -942,26 +1354,23 @@ linux_dmesg_time0() {
 # some commands...
 # variable_diff_2
 
-variable_diff_1() {
+cmd::variable_diff_1() {
   declare -p > /tmp/c.bash.d/variable_diff.1
 }
 
-variable_diff_2() {
+cmd::variable_diff_2() {
   declare -p > /tmp/c.bash.d/variable_diff.2
   delta /tmp/c.bash.d/variable_diff.1 /tmp/c.bash.d/variable_diff.2
 }
 
 define_command net_if_rename
-net_if_rename() {
+cmd::net_if_rename() {
   local -r usage="usage: $PROG net_if_rename [-h | --help] MAC_ADDRESS NEW_NAME"
   local MAC_ADDRESS="" NEW_NAME="" && arg_parse "$usage" "MAC_ADDRESS NEW_NAME" "$@"
 
   # 42: enx00005e005300: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
   #     link/ether 00:00:5e:00:53:00 brd ff:ff:ff:ff:ff:ff
-  shopt -s lastpipe && set +m  # set +m for interactive shell
-
-
-
+  shopt -s lastpipe && set +m  # set +m for interactive shell  TODO: restore -m
   ip a | grep -B1 "$MAC_ADDRESS" | grep -P -o '(?<=\d: )\w+(?=: <)' | read -r old_name
   set -x
   sudo ip link set "$old_name" down
@@ -970,16 +1379,155 @@ net_if_rename() {
 }
 
 # ------------------------------------------------------------------------------
+# command - md_code_b64 @pub
+
+: <<'DOC'
+```sh
+code
+``` -> @__code_block__:YGBgc2gKY29kZQpgYGA=
+DOC
+
+define_command md_code_b64
+cmd::md_code_b64() {
+  local -r usage="usage: $PROG md_code_b64 [-h | --help]"
+  arg_parse "$usage" "" "$@"
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  node -e '
+    let txt = fs.readFileSync("/dev/stdin", "utf8");
+    for (const match of txt.matchAll(/^```(\w+)?[\s\S]+?^```$/gm)) {
+      txt = txt.replace(match[0], `@__code_block__:${Buffer.from(match[0]).toString("base64")}`);
+    }
+    process.stdout.write(txt);'
+}
+
+test_md_code_b64() { #@test
+  # `echo | run` seems not to work!
+  echo -n $''                                       >/tmp/c.bash.d/test.in && echo -n $''                                                                               >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64 </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'a'                                      >/tmp/c.bash.d/test.in && echo -n $'a'                                                                              >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64 </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'a\n'                                    >/tmp/c.bash.d/test.in && echo -n $'a\n'                                                                            >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64 </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'a\n\n'                                  >/tmp/c.bash.d/test.in && echo -n $'a\n\n'                                                                          >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64 </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'```sh\ncode\n```'                       >/tmp/c.bash.d/test.in && echo -n $'@__code_block__:YGBgc2gKY29kZQpgYGA='                                           >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64 </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'```sh\ncode\n```\n'                     >/tmp/c.bash.d/test.in && echo -n $'@__code_block__:YGBgc2gKY29kZQpgYGA=\n'                                         >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64 </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'```sh\ncode\n```\n\n```sh\ncode\n```'   >/tmp/c.bash.d/test.in && echo -n $'@__code_block__:YGBgc2gKY29kZQpgYGA=\n\n@__code_block__:YGBgc2gKY29kZQpgYGA='   >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64 </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'```sh\ncode\n```\n\n```sh\ncode\n```\n' >/tmp/c.bash.d/test.in && echo -n $'@__code_block__:YGBgc2gKY29kZQpgYGA=\n\n@__code_block__:YGBgc2gKY29kZQpgYGA=\n' >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64 </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+}
+
+# ------------------------------------------------------------------------------
+# command - md_code_b64d @pub
+
+define_command md_code_b64d
+cmd::md_code_b64d() {
+  local -r usage="usage: $PROG md_code_b64d [-h | --help]"
+  arg_parse "$usage" "" "$@"
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  node -e '
+    let txt = fs.readFileSync("/dev/stdin", "utf8");
+    for (const match of txt.matchAll(/^@__code_block__:(.+)$/gm)) {
+      txt = txt.replace(match[0], Buffer.from(match[1], "base64").toString("utf8").replaceAll("$", "$$$$"));
+    }
+    process.stdout.write(txt);'
+}
+
+test_md_code_b64d() { #@test
+  echo -n $''                                                                               >/tmp/c.bash.d/test.in && echo -n $''                                       >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64d </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'a'                                                                              >/tmp/c.bash.d/test.in && echo -n $'a'                                      >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64d </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'a\n'                                                                            >/tmp/c.bash.d/test.in && echo -n $'a\n'                                    >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64d </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'a\n\n'                                                                          >/tmp/c.bash.d/test.in && echo -n $'a\n\n'                                  >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64d </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'@__code_block__:YGBgc2gKY29kZQpgYGA='                                           >/tmp/c.bash.d/test.in && echo -n $'```sh\ncode\n```'                       >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64d </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'@__code_block__:YGBgc2gKY29kZQpgYGA=\n'                                         >/tmp/c.bash.d/test.in && echo -n $'```sh\ncode\n```\n'                     >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64d </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'@__code_block__:YGBgc2gKY29kZQpgYGA=\n\n@__code_block__:YGBgc2gKY29kZQpgYGA='   >/tmp/c.bash.d/test.in && echo -n $'```sh\ncode\n```\n\n```sh\ncode\n```'   >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64d </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'@__code_block__:YGBgc2gKY29kZQpgYGA=\n\n@__code_block__:YGBgc2gKY29kZQpgYGA=\n' >/tmp/c.bash.d/test.in && echo -n $'```sh\ncode\n```\n\n```sh\ncode\n```\n' >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_code_b64d </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+}
+
+# ------------------------------------------------------------------------------
+# command - md_sec @pub
+
+define_command md_sec
+cmd::md_sec() {
+  local -r usage="usage: $PROG md_sec [-h | --help] SECTION"
+  local SECTION="" && arg_parse "$usage" "SECTION" "$@"
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  cmd md_code_b64 | node -e '
+    const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
+    let txt = fs.readFileSync("/dev/stdin", "utf8") + "\0";
+    const match = txt.match(new RegExp(`^(## ${regExpEscape(process.argv[1])}$[\\s\\S]*?)(?=(\r?\n## |\0))`, "m"));
+    if (match !== null) process.stdout.write(match[1]);' "$SECTION" | cmd md_code_b64d
+}
+
+test_md_sec() { #@test
+  # /\0/
+  echo -n $'## foo\n\nbar'               >/tmp/c.bash.d/test.in && echo -n $'## foo\n\nbar'     >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_sec foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo\n\nbar\n'             >/tmp/c.bash.d/test.in && echo -n $'## foo\n\nbar\n'   >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_sec foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo\n\nbar\n\n'           >/tmp/c.bash.d/test.in && echo -n $'## foo\n\nbar\n\n' >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_sec foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  # /\r?\n## /
+  echo -n $'## foo\n\nbar\n## baz\n'     >/tmp/c.bash.d/test.in && echo -n $'## foo\n\nbar'     >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_sec foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo\n\nbar\n\n## baz\n'   >/tmp/c.bash.d/test.in && echo -n $'## foo\n\nbar\n'   >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_sec foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo\n\nbar\n\n\n## baz\n' >/tmp/c.bash.d/test.in && echo -n $'## foo\n\nbar\n\n' >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_sec foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+
+  echo -n $'## baz\n\n## foo\n\nbar\n' >/tmp/c.bash.d/test.in && echo -n $'## foo\n\nbar\n'   >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_sec foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## not_foo\n\nbar\n'       >/tmp/c.bash.d/test.in && echo -n $''                  >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_sec foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo_not\n\nbar\n'       >/tmp/c.bash.d/test.in && echo -n $''                  >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_sec foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+}
+
+# ------------------------------------------------------------------------------
+# command - md_secsp @pub
+# sections starting with the specified prefix
+
+define_command md_secsp
+cmd::md_secsp() {
+  local -r usage="usage: $PROG md_secsp [-h | --help] SECTION_PREFIX"
+  local SECTION_PREFIX="" && arg_parse "$usage" "SECTION_PREFIX" "$@"
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  cmd md_code_b64 | node -e '
+    const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
+    const txt = fs.readFileSync("/dev/stdin", "utf8") + "\0eof\0";
+    let txt2 = "";
+    let lastSectionIsMatch = false;
+    for (const match of txt.matchAll(new RegExp(`(^## ${regExpEscape(process.argv[1])}[\\s\\S]*?)(?=(^## |eof\0))`, "gm"))) {
+      if (match[1].at(-1) === "\0") {
+        // ## SECTION_PREFIX section ... \0 (eof \0 EOF)
+        txt2 += match[1].slice(0, -1); // remove \0
+        lastSectionIsMatch = true;
+      } else {
+        txt2 += match[1];
+      }
+    }
+    if (lastSectionIsMatch) process.stdout.write(txt2);
+    else process.stdout.write(txt2.slice(0, -1));
+  ' "$SECTION_PREFIX" | cmd md_code_b64d
+}
+
+test_md_secsp() { #@test
+  # last match
+  echo -n $'## foo\n## foo1\n## foo2'                                 >/tmp/c.bash.d/test.in && echo -n $'## foo\n## foo1\n## foo2'         >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo\n## foo1\n## foo2\n'                               >/tmp/c.bash.d/test.in && echo -n $'## foo\n## foo1\n## foo2\n'       >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo\n## foo1\n## foo2\n\n'                             >/tmp/c.bash.d/test.in && echo -n $'## foo\n## foo1\n## foo2\n\n'     >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  # last not match
+  echo -n $'## foo\n## foo1\n## foo2\n## bar\n'                       >/tmp/c.bash.d/test.in && echo -n $'## foo\n## foo1\n## foo2'         >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo\n## foo1\n## foo2\n\n## bar\n'                     >/tmp/c.bash.d/test.in && echo -n $'## foo\n## foo1\n## foo2\n'       >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo\n## foo1\n## foo2\n\n\n## bar\n'                   >/tmp/c.bash.d/test.in && echo -n $'## foo\n## foo1\n## foo2\n\n'     >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+
+  # intersection
+  echo -n $'## foo1\n## foo2'                                 >/tmp/c.bash.d/test.in && echo -n $'## foo1\n## foo2'         >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo1\n\n## foo2\n'                             >/tmp/c.bash.d/test.in && echo -n $'## foo1\n\n## foo2\n'     >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo1\n\n\n## foo2\n\n'                         >/tmp/c.bash.d/test.in && echo -n $'## foo1\n\n\n## foo2\n\n' >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  # intersection (with excluded section)
+  echo -n $'## foo1\n## bar1\n## foo2\n## bar2'               >/tmp/c.bash.d/test.in && echo -n $'## foo1\n## foo2'         >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo1\n\n## bar1\n\n## foo2\n\n## bar2\n'       >/tmp/c.bash.d/test.in && echo -n $'## foo1\n\n## foo2\n'     >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+  echo -n $'## foo1\n\n\n## bar1\n\n## foo2\n\n\n## bar2\n\n' >/tmp/c.bash.d/test.in && echo -n $'## foo1\n\n\n## foo2\n\n' >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
+}
+
+# ------------------------------------------------------------------------------
 # command - netbsd_makefile_expand_vars @pub
 
 define_command netbsd_makefile_expand_vars
-netbsd_makefile_expand_vars() {
+cmd::netbsd_makefile_expand_vars() {
   local -r usage="usage: $PROG netbsd_makefile_expand_vars [-h | --help] MAKE_COMMAND <Makefile"
   local MAKE_COMMAND="" && arg_parse "$usage" "MAKE_COMMAND" "$@"
 
   local -A pairs_name_value
   local line
-  while IFS= read -r line; do  # IFS= : prevent removeing preceding spaces
+  while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
     local line2=$line
     # e.g. ${VAR_0}
     while [[ "$line2" =~ \$\{([_0-9A-Za-z]+)\} ]]; do
@@ -1011,40 +1559,12 @@ netbsd_makefile_expand_vars() {
 }
 
 # ------------------------------------------------------------------------------
-# command - replace @pub
-
-# c.bash replace "$(c.bash gm -P -m1 "^define_command gm" "cat" < /home/wsh/sh/c.bash)" "hi there" < /home/wsh/sh/c.bash > /tmp/c.bash.d/replace.test.bash
-# delta /home/wsh/sh/c.bash /tmp/c.bash.d/replace.test.bash
-
-define_command replace
-replace() {
-  local -r usage="usage: ... | $PROG replace [-h | --help] FROM TO"
-  local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
-  local txt
-  # XXX: only one? replace(from, to, 1) ?
-  python3 -c "import sys; print(sys.stdin.read().replace(sys.argv[1], sys.argv[2]), end='')" "$FROM" "$TO"
-}
-
-
-# ------------------------------------------------------------------------------
-# command - replace_line @pub
-
-define_command replace_line
-replace_line() {
-  local -r usage="usage: ... | $PROG replace_line [-h | --help] FROM TO"
-  local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
-  local txt
-  # XXX: only one? replace(from, to, 1) ?
-  python3 -c "import sys; [print(line.replace(sys.argv[1], sys.argv[2]), end='') for line in sys.stdin]" "$FROM" "$TO"
-}
-
-# ------------------------------------------------------------------------------
 # command - smux @pub
 
 # @ref:socat-pty-exec-mux
 
 define_command smux
-smux() {
+cmd::smux() {
   local -r usage=$(cat <<EOS
 usage:
   $PROG smux [-h | --help]
@@ -1120,10 +1640,10 @@ end
 EOS
 
 define_command spotify_code_to_token
-spotify_code_to_token() {
+cmd::spotify_code_to_token() {
   local -r usage="usage: $PROG spotify_code_to_token [-h | --help] REDIRECT_URI CODE"
   local REDIRECT_URI="" CODE="" && arg_parse "$usage" "REDIRECT_URI CODE" "$@"
-  [[ ${SPOTIFY_APP_AUTH+defined} = defined ]] || die 1 'environment variable SPOTIFY_APP_AUTH is not set'
+  [[ ${SPOTIFY_APP_AUTH+defined} = defined ]] || die 1 "environment variable SPOTIFY_APP_AUTH is not set"
   curl -fSs -X POST -H "Authorization: Basic $SPOTIFY_APP_AUTH" -d code="$CODE" -d redirect_uri="$REDIRECT_URI" -d grant_type=authorization_code "https://accounts.spotify.com/api/token" >/tmp/c.bash.d/spotify_code_to_token.json
   # jq < /tmp/c.bash.d/spotify_code_to_token.json
   log_debug "$(jq < /tmp/c.bash.d/spotify_code_to_token.json)"
@@ -1140,7 +1660,7 @@ spotify_code_to_token() {
 # -> http://localhost:15350/?code={CODE}
 
 define_command spotify_http_server
-spotify_http_server() {
+cmd::spotify_http_server() {
   local -r usage="usage: $PROG spotify_http_server [-h | --help] [PORT]"
   local PORT="" && arg_parse "$usage" "[PORT]" "$@"
   # s  p  o  t  i  f  y
@@ -1175,10 +1695,10 @@ EOS
 # command - spotify_say_song @pub
 
 define_command spotify_say_song
-spotify_say_song() {
+cmd::spotify_say_song() {
   local -r usage="usage: $PROG spotify_say_song [-h | --help]"
   arg_parse "$usage" "" "$@"
-  [[ ${SPOTIFY_TOKEN+defined} = defined ]] || die 1 'environment variable SPOTIFY_TOKEN is not set'
+  [[ ${SPOTIFY_TOKEN+defined} = defined ]] || die 1 "environment variable SPOTIFY_TOKEN is not set"
 
   local rest_secs
   local artist_prev="" album_prev="" name_prev=""
@@ -1194,7 +1714,7 @@ spotify_say_song() {
     log_debug "$artist - $album - $name"
 
     local say_name_begin say_name_secs
-    spotify_say_song::say() {
+    cmd::spotify_say_song::say() {
       if [[ $artist != "$artist_prev" ]]; then
         echo "artist" | espeak -v f2
         # echo "$artist" | kakasi -i utf8 -JH | timeout 2 espeak -s120 -v ja+f3 &
@@ -1227,7 +1747,7 @@ spotify_say_song() {
       say_name_secs=$(echo "$(date +%s.%N) - $say_name_begin" | bc)
     }
 
-    spotify_say_song::say
+    cmd::spotify_say_song::say
     artist_prev=$artist && album_prev=$album && name_prev=$name
 
     curl -fSs -X "GET" "https://api.spotify.com/v1/me/player/currently-playing" -H "Accept: application/json" -H "Content-Type: application/json" -H "Authorization: Bearer $SPOTIFY_TOKEN" > /tmp/c.bash.d/spotify_say_song.json
@@ -1235,12 +1755,12 @@ spotify_say_song() {
     rest_secs=$(jq -e < /tmp/c.bash.d/spotify_say_song.json "(.item.duration_ms - .progress_ms) / 1000")
 
     # re-say just before the end of the song
-    if (( $(echo "$say_name_secs < $rest_secs - 1" | bc) )); then
+    if (($(echo "$say_name_secs < $rest_secs - 1" | bc))); then
       local sleep_secs
       sleep_secs=$(echo "$rest_secs - 1 - $say_name_secs" | bc)
       log_debug "sleep $sleep_secs (then re-say)"
       sleep "$sleep_secs"
-      spotify_say_song::say
+      cmd::spotify_say_song::say
       continue
     fi
 
@@ -1252,48 +1772,179 @@ spotify_say_song() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_begin_end @pub
+# command - strace_prettify @pub
+
+: <<'DOC'
+@beg:strace_prettify:tcase
+710895 execve("/home/wsh/bin/bazel", ["bazel", "build", "-j", "1", "package", "--config", "oss_linux"], 0x7fff0476dda0 /* 50 vars */) = 0
+710895 clone(child_stack=0xc000070000, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS, tls=0xc000060090) = 710896
+710896 gettid( <unfinished ...>
+@end:strace_prettify:tcase
+↓
+[PID:1] execve("/home/wsh/bin/bazel", ["bazel", "build", "-j", "1", "package", "--config", "oss_linux"], 0x7fff0476dda0 /* 50 vars */) = 0
+[PID:1] clone(child_stack=0xc000070000, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS, tls=0xc000060090) = [PID:2]
+[PID:2] gettid( <unfinished ...>
+
+c.bash bef "strace_prettify:tcase" /home/wsh/sh/c.bash | c.bash strace_prettify
+DOC
+
+define_command strace_prettify
+cmd::strace_prettify() {
+  local -r usage="usage: $PROG strace_prettify [-h | --help] [FILE]"
+  local FILE="" && arg_parse "$usage" "[FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+  cat "$FILE" >/tmp/c.bash.d/strace_prettify.in.txt
+  local -i i=0
+  grep -P -o "^\d+(?= )" /tmp/c.bash.d/strace_prettify.in.txt | uniq | while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
+    ((i++)) || true  # > If the value of the expression is non-zero, the return status is 0; otherwise the return status is 1.
+    sed -i -E "s/\b$line\b/[PID:$i]/g" /tmp/c.bash.d/strace_prettify.in.txt
+  done
+  cat /tmp/c.bash.d/strace_prettify.in.txt
+}
+
+# ------------------------------------------------------------------------------
+# command - txt_begin_end (be) @pub
 #
 # prints:
-# c.bash:begin:NAME
+# @beg:NAME
 # HERE
-# c.bash:end:NAME
+# @end:NAME
+#
+# c.bash -v be NAME </home/wsh/sh/c.bash  # HERE
+# c.bash -v be NONEXISTENT </home/wsh/sh/c.bash  # no output
+# c.bash -v bef NAME </home/wsh/sh/c.bash  # HERE
+# c.bash -v bef NONEXISTENT </home/wsh/sh/c.bash  # TypeError
 
 define_command txt_begin_end
-txt_begin_end() {
-  local -r usage="usage: [... |] $PROG txt_begin_end [-h | --help] NAME [FILE]"
+cmd::txt_begin_end() {
+  local -r usage="usage: [... |] $PROG txt_begin_end (be) [-h | --help] NAME [FILE]"
   local NAME="" FILE="" && arg_parse "$usage" "NAME [FILE]" "$@"
   [[ $FILE == "" ]] && FILE="/dev/stdin"
 
   local in_section="false"
-  txt_begin_end::process_line() {
+  cmd::txt_begin_end::process_line() {
     if [[ $in_section == "false" ]]; then
-      log_debug "$line"
-      [[ $line =~ ^.*"c.bash:begin:$NAME".*$ ]] && in_section="true" && log_info "[in_section: false->true] $line" || true
+      log_debug "    $line"
+      # shellcheck disable=SC2015  # Note that A && B || C is not if-then-else. C may run when A is true
+      [[ $line =~ ^.*"@beg:$NAME"$         || $line =~ ^.*"@beg:$NAME "         ]] && in_section="true" && log_info "[->*] $line" || true
+      [[ $line =~ ^.*"c.bash:begin:$NAME"$ || $line =~ ^.*"c.bash:begin:$NAME " ]] && in_section="true" && log_info "[->*] $line" || true
     else
-      log_debug "[in_section] $line"
-      [[ $line =~ ^.*"c.bash:end:$NAME".*$ ]] && in_section="false" && log_info "[in_section: true->false] $line" && return
+      log_debug "[*] $line"
+      [[ $line =~ ^.*"@end:$NAME"$         || $line =~ ^.*"@end:$NAME "         ]] && in_section="false" && log_info "[*->] $line" && return 1
+      [[ $line =~ ^.*"c.bash:end:$NAME"$   || $line =~ ^.*"c.bash:end:$NAME "   ]] && in_section="false" && log_info "[*->] $line" && return 1
       echo "$line"
     fi
   }
 
   local line
-  while IFS= read -r line; do txt_begin_end::process_line; done <"$FILE"  # IFS= : prevent removeing preceding spaces
+  while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
+    cmd::txt_begin_end::process_line || exit 0
+  done <"$FILE"
 
   exit 0
 }
+
+# alias
+define_command be
+cmd::be() { cmd::txt_begin_end "$@"; }
+
+# ------------------------------------------------------------------------------
+# command - txt_begin_end_fast (bef) @pub
+
+define_command txt_begin_end_fast
+cmd::txt_begin_end_fast() {
+  local -r usage="usage: [... |] $PROG txt_begin_end_fast (bef) [-h | --help] NAME [FILE]"
+  local NAME="" FILE="" && arg_parse "$usage" "NAME [FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").match(new RegExp(`@beg:${process.argv[1]}\\b.*\r?\n([\\s\\S]*?\r?\n)^.*@end:${process.argv[1]}\\b`, "m"))[1]); // TODO: escape argv[1]' "$NAME" <"$FILE"
+}
+
+# alias
+define_command bef
+cmd::bef() { cmd::txt_begin_end_fast "$@"; }
+
+# ------------------------------------------------------------------------------
+# command - txt_begin_end_v (bev) @pub
+#
+# excludes (like grep -v):
+# @beg:NAMEV  from here
+# ...
+# @end:NAMEV    to here
+#
+# c.bash -v bev NAMEV </home/wsh/sh/c.bash >/tmp/a
+# diff -u /home/wsh/sh/c.bash /tmp/a
+# c.bash -v bev NONEXISTENT </home/wsh/sh/c.bash >/tmp/a
+# diff -u /home/wsh/sh/c.bash /tmp/a  # no diff
+
+define_command txt_begin_end_v
+cmd::txt_begin_end_v() {
+  local -r usage="usage: [... |] $PROG txt_begin_end_v (bev) [-h | --help] NAME [FILE]"
+  local NAME="" FILE="" && arg_parse "$usage" "NAME [FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+
+  local in_section="false"
+  cmd::txt_begin_end_v::process_line() {
+    if [[ $in_section == "true" ]]; then
+      log_debug "[-v] $line"
+      # shellcheck disable=SC2015  # Note that A && B || C is not if-then-else. C may run when A is true
+      [[ $line =~ ^.*"@end:$NAME"$           || $line =~ ^.*"@end:$NAME "           ]] && in_section="false" && log_info "[-v ->] $line" || true
+      [[ $line =~ ^.*"c.bash:end_v:$NAME"$   || $line =~ ^.*"c.bash:end_v:$NAME "   ]] && in_section="false" && log_info "[-v ->] $line" || true
+    else
+      log_debug "     $line"
+      [[ $line =~ ^.*"@beg:$NAME"$           || $line =~ ^.*"@beg:$NAME "           ]] && in_section="true" && log_info "[-> -v] $line" && return
+      [[ $line =~ ^.*"c.bash:begin_v:$NAME"$ || $line =~ ^.*"c.bash:begin_v:$NAME " ]] && in_section="true" && log_info "[-> -v] $line" && return
+      echo "$line"
+    fi
+  }
+
+  local line
+  while IFS= read -r line; do cmd::txt_begin_end_v::process_line; done <"$FILE"  # `IFS=`: prevent removing leading/preceding spaces
+
+  exit 0
+}
+
+# alias
+define_command bev
+cmd::bev() { cmd::txt_begin_end_v "$@"; }
+
+# ------------------------------------------------------------------------------
+# command - txt_begin_end_v_fast (bevf) @pub
+#
+# excludes (like grep -v):
+# @beg:NAMEV  from here
+# ...
+# @end:NAMEV    to here
+#
+# c.bash -v bevf NAMEV </home/wsh/sh/c.bash >/tmp/a
+# diff -u /home/wsh/sh/c.bash /tmp/a
+# c.bash -v bevf NONEXISTENT </home/wsh/sh/c.bash >/tmp/a
+# diff -u /home/wsh/sh/c.bash /tmp/a  # no diff
+
+define_command txt_begin_end_v_fast
+cmd::txt_begin_end_v_fast() {
+  local -r usage="usage: [... |] $PROG txt_begin_end_v_fast (bevf) [-h | --help] NAME [FILE]"
+  local NAME="" FILE="" && arg_parse "$usage" "NAME [FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(new RegExp(`^.*@beg:${process.argv[1]}\\b.*\r?\n[\\s\\S]*?@end:${process.argv[1]}\\b.*(\r?\n|$)`, "gm"), ""))' "$NAME" <"$FILE"
+}
+
+# alias
+define_command bevf
+cmd::bevf() { cmd::txt_begin_end_v_fast "$@"; }
 
 # ------------------------------------------------------------------------------
 # command - txt_eval @pub
 
 define_command txt_eval
-txt_eval() {
+cmd::txt_eval() {
   local -r usage="usage: [... |] $PROG txt_eval [-h | --help] [FILE]"
   local FILE="" && arg_parse "$usage" "[FILE]" "$@"
   [[ $FILE == "" ]] && FILE="/dev/stdin"
 
   local in_echo_eval="false"
-  txt_eval::process_line() {
+  cmd::txt_eval::process_line() {
     [[ $line =~ ^"@echo_eval:end"$ ]] && in_echo_eval="false" && log_info "[in_echo_eval: true->false] $line" && return
     if [[ $in_echo_eval == "true" ]]; then
       log_info "[in_echo_eval] $line"
@@ -1311,10 +1962,94 @@ txt_eval() {
   }
 
   local line
-  while IFS= read -r line; do txt_eval::process_line; done <"$FILE"  # IFS= : prevent removeing preceding spaces
+  while IFS= read -r line; do cmd::txt_eval::process_line; done <"$FILE"  # `IFS=`: prevent removing leading/preceding spaces
 
   exit 0
 }
+
+# ------------------------------------------------------------------------------
+# command - txt_replace (rep) @pub
+
+# c.bash rep "$(c.bash grep_multiline -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash)" "hi there" < /home/wsh/sh/c.bash > /tmp/c.bash.d/rep.test.bash
+# delta /home/wsh/sh/c.bash /tmp/c.bash.d/rep.test.bash
+
+define_command txt_replace
+cmd::txt_replace() {
+  local -r usage="usage: ... | $PROG txt_replace (rep) [-h | --help] FROM TO"
+  local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
+  local txt
+  # replaces only one
+  # time node -e 'console.log(fs.readFileSync("/dev/stdin", "utf8").replace(process.argv[1], process.argv[2].replaceAll("$", "$$$$")))' foo bar
+  # time python3 -c "import sys; print(sys.stdin.read().replace(sys.argv[1], sys.argv[2], 1), end='')" "$FROM" "$TO"
+  python3 -c "import sys; print(sys.stdin.read().replace(sys.argv[1], sys.argv[2], 1), end='')" "$FROM" "$TO"
+}
+
+# alias
+define_command rep
+cmd::rep() { cmd::txt_replace "$@"; }
+
+# compatibility
+define_command replace
+cmd::replace() { cmd::txt_replace "$@"; }
+
+# ------------------------------------------------------------------------------
+# command - txt_replace_all (repa) @pub
+
+define_command txt_replace_all
+cmd::txt_replace_all() {
+  local -r usage="usage: ... | $PROG txt_replace_all (repa) [-h | --help] FROM TO"
+  local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
+  local txt
+  # node -e 'console.log(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.argv[1], process.argv[2].replaceAll("$", "$$$$")))' foo bar
+  python3 -c "import sys; print(sys.stdin.read().replace(sys.argv[1], sys.argv[2]), end='')" "$FROM" "$TO"
+}
+
+# alias
+define_command repa
+cmd::repa() { cmd::txt_replace_all "$@"; }
+
+# compatibility
+define_command replace_all
+cmd::replace_all() { cmd::txt_replace_all "$@"; }
+
+# ------------------------------------------------------------------------------
+# command - txt_replace_line (repl) @pub
+
+define_command txt_replace_line
+cmd::txt_replace_line() {
+  local -r usage="usage: ... | $PROG txt_replace_line (repl) [-h | --help] FROM TO"
+  local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
+  local txt
+  python3 -c "import sys; [print(line.replace(sys.argv[1], sys.argv[2], 1), end='') for line in sys.stdin]" "$FROM" "$TO"  # not tested
+}
+
+# alias
+define_command repl
+cmd::repl() { cmd::txt_replace_line "$@"; }
+
+# compatibility
+define_command replace_line
+cmd::replace_line() { cmd::txt_replace_line "$@"; }
+
+# ------------------------------------------------------------------------------
+# command - txt_replace_line_all (repla) @pub
+
+define_command txt_replace_line_all
+cmd::txt_replace_line_all() {
+  local -r usage="usage: ... | $PROG txt_replace_line_all (repla) [-h | --help] FROM TO"
+  local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
+  local txt
+  # node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.argv[1], process.argv[2].replaceAll("$", "$$$$")))' "$FROM" "$TO"  # not tested
+  python3 -c "import sys; [print(line.replace(sys.argv[1], sys.argv[2]), end='') for line in sys.stdin]" "$FROM" "$TO"
+}
+
+# alias
+define_command repla
+cmd::repla() { cmd::txt_replace_line_all "$@"; }
+
+# compatibility
+define_command replace_line_all
+cmd::replace_line_all() { cmd::txt_replace_line_all "$@"; }
 
 # ------------------------------------------------------------------------------
 # command - pty_qemu @pub
@@ -1322,7 +2057,7 @@ txt_eval() {
 # @ref:qemu-pty
 
 define_command pty_qemu
-pty_qemu() {
+cmd::pty_qemu() {
   local -r usage=$(cat <<EOS
 usage:
   $PROG pty_qemu {-h | --help}
@@ -1363,7 +2098,7 @@ EOS
 # command - pty_usb @pub
 
 define_command pty_usb
-pty_usb() {
+cmd::pty_usb() {
   local -r usage=$(cat <<EOS
 usage:
   $PROG pty_usb {-h | --help}
@@ -1401,15 +2136,17 @@ EOS
 # ------------------------------------------------------------------------------
 # command - qemu_net_setup @pub
 
-# TODO: 安定したらsystemd oneshot
-
 define_command qemu_net_setup
-qemu_net_setup() {
+cmd::qemu_net_setup() {
   local -r usage="usage: $PROG qemu_net_setup [-h | --help]"
   arg_parse "$usage" "" "$@"
-  [ "$(cat /proc/sys/net/ipv4/ip_forward)" = 1 ] || die 1 "/proc/sys/net/ipv4/ip_forward: $(cat /proc/sys/net/ipv4/ip_forward) != 1"
 
   set -x
+
+  # 2023-04-24 Mon wsh79
+  # cat /proc/sys/net/ipv4/ip_forward
+  # ssh ログイン後は 1 だが、startup 時は 0 だった
+  [[ "$(cat /proc/sys/net/ipv4/ip_forward)" == 1 ]] || echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
 
   # @ref:qemu-bridge @ref:iptables-bridge
 
@@ -1419,7 +2156,7 @@ qemu_net_setup() {
 
   sudo nft add table ip nat0
   sudo nft 'add chain nat0 postrouting0 { type nat hook postrouting priority 100 ; }'
-  sudo nft add rule ip nat0 postrouting0 ip saddr 172.31.100.0/24 counter masquerade
+  sudo nft add rule ip nat0 postrouting0 ip saddr 172.31.100.0/24 ip daddr != 172.31.100.0/24 counter masquerade
 
   # sudo iptables -t nat -A POSTROUTING -s 172.31.100.0/24 ! -d 172.31.100.0/24 -j MASQUERADE
   # @ref:iptables-bridge
@@ -1436,23 +2173,40 @@ qemu_net_setup() {
 # compat
 
 define_command qemu_pty
-qemu_pty() {
-  pty_qemu "${@}"
+cmd::qemu_pty() {
+  cmd::pty_qemu "${@}"
 }
 
 # ------------------------------------------------------------------------------
 # command - xargs_delay @pub
 
 define_command xargs_delay
-xargs_delay() {
+cmd::xargs_delay() {
   local -r usage="usage: ... | $PROG xargs_delay [-h | --help] [-L1] [-I replace-str] COMMAND..."
   local -a COMMAND=() && arg_parse "$usage" "COMMAND..." "$@"
   local -a lines=()
   local -A line_latest_epochs=()
   while true; do
     local line
-    IFS= read -r -t0.1 line || true
+    IFS= read -r -t0.1 line || {  # `IFS=`: prevent removing leading/preceding spaces
+      [[ $line != "" ]] && {
+        # reaches here even with -t0.7; 0.1 でも 0.7 でも頻度は変わらない。↓ の -t1 以降は必ず完全なパスになった。スケジューラー依存かな
+        # read "/" -> read "home/wsh/a.conf" of /home/wsh/a.conf
+        # read "/home/wsh/a.c" -> read "onf" of /home/wsh/ample.conf
+        log_warning "timeout with non-empty line: $line"
+        echo -n "$line" | xxd >&2
+        log_warning "trying to read the rest of the line..."
+        IFS= read -r -t1 line2
+        log_warning "line2: $line2"
+        echo -n "$line2" | xxd >&2
+
+        line="$line$line2"
+        log_warning "line -> $line"
+      }
+    }
     if [[ $line != "" ]]; then
+      [[ -e $line ]] || err 1 "not exist (git rebasing?): $line" || continue  # tmp for rsync
+      [[ -f $line ]] || die 1 "BUG: not a file: $line"  # tmp for rsync
       if ! [[ -v line_latest_epochs[$line] ]]; then
         log_info "$line"
         lines+=("$line")
@@ -1480,11 +2234,33 @@ xargs_delay() {
   exit 0
 }
 
+cmd::repl() {
+  touch ~/.c_bash_repl_history
+  while true; do
+    shopt -s lastpipe && set +m  # set +m for interactive shell  TODO: restore -m
+    local line
+    rlwrap -c -C c_bash_repl -f. -pgreen -S'$ ' -- head -1 | IFS= read -r line || {  # `IFS=`: prevent removing leading/preceding spaces
+      local rc=$?
+      # line=$'\n'
+      log_info "EOF"
+      [[ $rc == "1" ]] || log_warning "BUG: \$?: $rc"
+      [[ $line == "" ]] || log_warning "BUG: \$line: $line (xxd: $(echo -n "$line" | xxd))"
+      break
+    }
+    if false; then
+      # xxd <<<"$line"  # "<<<" seems to append \n
+      echo -n "$line" | xxd
+    fi
+    log_debug "\$line: $line (xxd: $(echo -n "$line" | xxd))"
+    eval "$line"
+  done
+}
+
 # ------------------------------------------------------------------------------
 # command - z_meta_commands_list @pub
 
 define_command z_meta_commands_list
-z_meta_commands_list() {
+cmd::z_meta_commands_list() {
   local -r usage="usage: $PROG z_meta_commands_list [-h | --help]"
   arg_parse "$usage" "" "$@"
   for k in "${!_commands[@]}"; do
@@ -1502,58 +2278,29 @@ git ...
 DOC
 
 define_command z_meta_publish_self
-z_meta_publish_self() {
+cmd::z_meta_publish_self() {
   local -r usage="usage: $PROG z_meta_publish_self [-h | --help]"
   arg_parse "$usage" "" "$@"
-  local public="true"
-  while IFS= read -r line; do  # IFS= : prevent removeing preceding spaces
+  local public_cmd="true"
+  cmd bev "private_v" <"$(self_real_path)" | while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
     # # section @pub
     if [[ $line =~ ^#.+@pub$ ]]; then
-      log_info "[public: $public -> true] $line"
-      public="true"
+      log_info "[public_cmd: $public_cmd -> true] $line"
+      public_cmd="true"
     # # command - COMMAND  (private unless explicitly marked as @pub)
     # # section @private
     elif [[ $line =~ ^"# command - " ]] || [[ $line =~ ^#.+[@]private$ ]]; then
-      log_info "[public: $public -> false] $line"
-      public="false"
+      log_info "[public_cmd: $public_cmd -> false] $line"
+      public_cmd="false"
     else
       log_debug "$line"
     fi
-    [[ $public = "false" ]] && continue
+    [[ $public_cmd = "false" ]] && continue
     [[ $line =~ [@]private_line ]] && continue
     echo "$line"
-  done < "$(self_real_path)"
+  done
 
   return 0
-}
-
-# ------------------------------------------------------------------------------
-# archilves
-
-archives() {
-  # 0 references
-
-  # /usr/local/bin/bats               [](file:///usr/local/bin/bats)
-  # /usr/local/libexec/bats-core/bats [](file:///usr/local/libexec/bats-core/bats)
-
-  # path - parent directories
-
-  # ref: /usr/local/bin/bats
-  FILE_PATH=$(readlink -f "${BASH_SOURCE[0]}")
-  echo "$FILE_PATH"              # /home/wsh/sh/c.bash
-  echo "${FILE_PATH%/*}"         # /home/wsh/sh
-  echo "${FILE_PATH%/*/*}"       # /home/wsh
-  echo "${FILE_PATH%/*/*/*}"     # /home
-  echo "${FILE_PATH%/*/*/*/*}"   #
-  echo "${FILE_PATH%/*/*/*/*/*}" # /home/wsh/sh/c.bash
-
-  # shell arguments array to sh -c
-
-  # https://stackoverflow.com/questions/73722324/convert-bash-array-to-a-single-stringified-shell-argument-list-handable-by-sh
-  shell_arguments=(echo "foo bar" baz)
-  sh -c "${shell_arguments[*]@Q}"
-  sh -c "${*@Q}"  # not tested
-  sh -c "${@@Q}"  # not tested
 }
 
 # ------------------------------------------------------------------------------
@@ -1583,6 +2330,53 @@ test_main() { #@test
   run -0 --separate-stderr bash ~/sh/c.bash -v -- 0template -h             && [[ $output == "usage: c.bash 0template [-h | --help] ARG" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
   run -0 --separate-stderr bash ~/sh/c.bash -v    0template -z             && [[ $output == "ARG: -z" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
   run -0 --separate-stderr bash ~/sh/c.bash -v -- 0template -z             && [[ $output == "ARG: -z" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+
+  # runs main regardless of the name (even when not "c.bash")
+  cp ~/sh/c.bash /tmp/c.bash.d/test_main.c.bash && chmod +x /tmp/c.bash.d/test_main.c.bash
+  run -0 --separate-stderr bash /tmp/c.bash.d/test_main.c.bash -h                 && [[ $output =~ "usage:" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr      /tmp/c.bash.d/test_main.c.bash -h                 && [[ $output =~ "usage:" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  # in source: return 0, no main
+  echo $'#!/bin/bash\nsource /tmp/c.bash.d/test_main.c.bash' > /tmp/c.bash.d/test_main.test.bash && chmod +x /tmp/c.bash.d/test_main.test.bash
+  run -0 --separate-stderr bash /tmp/c.bash.d/test_main.test.bash                 && [[ $output == "" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr      /tmp/c.bash.d/test_main.test.bash                 && [[ $output == "" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash -c "source /tmp/c.bash.d/test_main.c.bash -h"     && [[ $output == "" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+
+  run -0 --separate-stderr bash -c "bash <~/sh/c.bash -s -- -h            " && [[ $output =~ "usage:" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash -c "bash <~/sh/c.bash -s -- 0template arg1" && [[ $output == "ARG: arg1" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  # TODO: test all the styles listed in [todo_test_main]
+
+  # $0 TODO
+if false; then
+  cd /tmp/c.bash.d/
+  cp ~/sh/c.bash ./
+  cp ~/sh/c.bash ./foo
+  cp ~/sh/c.bash ./z_meta_commands_list
+  # TODO: -h
+                run -2 --separate-stderr      ~/sh/c.bash                        && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr bash ~/sh/c.bash                        && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr      ./foo                              && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr bash ./foo                              && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr      /tmp/c.bash.d/foo                  && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr bash /tmp/c.bash.d/foo                  && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -0 --separate-stderr      ./z_meta_commands_list             && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+                run -0 --separate-stderr bash ./z_meta_commands_list             && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+                run -0 --separate-stderr      /tmp/c.bash.d/z_meta_commands_list && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+                run -0 --separate-stderr bash /tmp/c.bash.d/z_meta_commands_list && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -2 --separate-stderr      c.bash                             && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -2 --separate-stderr bash c.bash                             && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -2 --separate-stderr      foo                                && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -2 --separate-stderr bash foo                                && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -0 --separate-stderr      z_meta_commands_list               && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -0 --separate-stderr bash z_meta_commands_list               && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+fi
+}
+
+test_main_global_flags() { #@test
+  export C_BASH_DEBUG_GLOBAL_FLAGS=1
+  run -0 --separate-stderr bash ~/sh/c.bash -vv -v    CMD -a arg1 -- arg2 && [[ $output == "global_flags:-vv|-v @:CMD|-a|arg1|--|arg2" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  run -0 --separate-stderr bash ~/sh/c.bash -vv -v -- CMD -a arg1 -- arg2 && [[ $output == "global_flags:-vv|-v|-- @:CMD|-a|arg1|--|arg2" ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  #c.bash   # @ -vv -v    CMD -a arg1 -- arg2 | OPTIND 3 | [!OPTIND(3)] CMD | [..OPTIND-1(2)] -vv -v    |
+  #c.bash   # @ -vv -v -- CMD -a arg1 -- arg2 | OPTIND 4 | [!OPTIND(4)] CMD | [..OPTIND-1(3)] -vv -v -- |
 }
 
 # ------------------------------------------------------------------------------
@@ -1600,6 +2394,7 @@ fi
 
 OPT_q="false"
 OPT_v=0
+global_flags=()
 
 if not_yet && [ "$HAVE_UTIL_LINUX_GETOPT" = "yes" ]; then
   # TODO:
@@ -1617,41 +2412,36 @@ if not_yet && [ "$HAVE_UTIL_LINUX_GETOPT" = "yes" ]; then
     *) break;;  # COMMAND
     esac
   done
-else
-  [ $# != 0 ] && [[ $1 = '-h' || $1 = '-help' || $1 = '--help' ]] && top_usage && exit 0
-  OPT_q="false"
-  OPT_v=0
-  while getopts hqv- OPT; do
-    case $OPT in
-    h) top_usage; exit 0;;
-    q) OPT_q="true";;
-    v) ((OPT_v+=1));;
-    -) break;;  # COMMAND
-    ?) top_usage >&2 && exit 2;;
-    *) unreachable;;
-    esac
-  done
-  shift $((OPTIND - 1))
 fi
 
-[[ $OPT_q == "true" ]] && (( OPT_v > 0 )) && die 1 "-q and -v are mutually exclusive"
+[ $# != 0 ] && [[ $1 = '-h' || $1 = '-help' || $1 = '--help' ]] && top_usage && exit 0
+OPT_q="false"
+OPT_v=0
+while getopts hqv- OPT; do
+  case $OPT in
+  h) top_usage; exit 0;;
+  q) OPT_q="true";;
+  v) ((OPT_v+=1));;
+  -) break;;  # COMMAND
+  ?) top_usage >&2 && exit 2;;
+  *) unreachable;;
+  esac
+done
+global_flags=("${@:1:$OPTIND-1}")  # [1.. (len:$((OPTIND-1)))] (OPTIND:3, ${!OPTIND} == $3)
+shift $((OPTIND - 1))
+[[ -v C_BASH_DEBUG_GLOBAL_FLAGS ]] && (IFS="|" && echo "global_flags:${global_flags[*]} @:$*") && exit 0
+
+[[ $OPT_q == "true" ]] && ((OPT_v > 0)) && die 1 "-q and -v are mutually exclusive"
 [[ $OPT_q == "true" ]] && log_setlevel $LOG_ERR
-(( OPT_v == 1 )) && log_setlevel $LOG_INFO
-(( OPT_v > 1 )) && log_setlevel $LOG_DEBUG
+((OPT_v == 1)) && log_setlevel $LOG_INFO
+((OPT_v > 1)) && log_setlevel $LOG_DEBUG
 
-if (( $# == 0 )); then
-  err 0 "command not specified"
-  top_usage >&2
-  exit 2
-else
-  COMMAND_=$1 && shift
-fi
+_pre_main
 
-if ! [[ -v _commands[$COMMAND_] ]]; then
-  err 0 "no such command: $COMMAND_"
-  top_usage >&2
-  exit 2
-fi
+# [[ $0 =~ ^.*/?"c.bash"$ ]] || TODO: COMMAND_=${0##*/}
 
-"$COMMAND_" "$@"
+(($# == 0)) && err 0 "command not specified" && top_usage >&2 && exit 2
+COMMAND_=$1 && shift
+[[ -v _commands[$COMMAND_] ]] || { err 0 "no such command: $COMMAND_" && top_usage >&2 && exit 2; }
+"cmd::$COMMAND_" "$@"
 exit $?
