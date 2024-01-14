@@ -746,10 +746,11 @@ cmd::cfl_curl() {
   cfl_env_check
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
   (
-    BASH_XTRACEFD=$fd_xtrace
+    # BASH_XTRACEFD=$fd_xtrace
     ((LOG_LEVEL >= LOG_DEBUG)) && set -x
-    env LD_LIBRARY_PATH="$HOME/opt/curl8/lib/" /home/wsh/opt/curl8/bin/curl --fail-with-body -Ss -u "$CONFLUENCE_USER:$CONFLUENCE_PASS" "$@" >/tmp/c.bash.d/cfl_curl.out || die 1 "cfl_curl failed; body: $(cat /tmp/c.bash.d/cfl_curl.out)"
-  ) {fd_xtrace}> >(node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.env.CONFLUENCE_PASS, "$CONFLUENCE_PASS".replaceAll("$", "$$$$")))' | sed -E 's/^(.{160}).*$/\1.../' >&2)
+    env LD_LIBRARY_PATH="$HOME/opt/curl8/lib/" /home/wsh/opt/curl8/bin/curl --fail-with-body -Ss -K<(set +x; builtin echo "-u $CONFLUENCE_USER:$CONFLUENCE_PASS") "$@" >/tmp/c.bash.d/cfl_curl.out
+  # ) {fd_xtrace}> >(node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.env.CONFLUENCE_PASS, "$CONFLUENCE_PASS".replaceAll("$", "$$$$")))' | sed -E 's/^(.{160}).*$/\1.../' >&2)
+  ) || die 1 "cfl_curl failed; body: $(cat /tmp/c.bash.d/cfl_curl.out)"
   jq -c "." /tmp/c.bash.d/cfl_curl.out
 }
 false && pre_main() {
@@ -781,7 +782,7 @@ cmd::cfl_page_get_id() {
   local -r usage="usage: $PROG cfl_page_get_id [-h | --help] SPACE_KEY TITLE"
   local SPACE_KEY="" TITLE="" && arg_parse "$usage" "SPACE_KEY TITLE" "$@"
   cfl_env_check
-  (set -o pipefail; (((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE") | jq -er ".results[0].id")
+  (set -o pipefail; ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE") | jq -er ".results[0].id")
 }
 
 # ------------------------------------------------------------------------------
@@ -1339,38 +1340,6 @@ cmd::linux_kern_make_summary() {
 }
 
 # ------------------------------------------------------------------------------
-# command - net_if_rename @pub
-
-# variable_diff: usage:
-# variable_diff_1
-# some commands...
-# variable_diff_2
-
-cmd::variable_diff_1() {
-  declare -p > /tmp/c.bash.d/variable_diff.1
-}
-
-cmd::variable_diff_2() {
-  declare -p > /tmp/c.bash.d/variable_diff.2
-  delta /tmp/c.bash.d/variable_diff.1 /tmp/c.bash.d/variable_diff.2
-}
-
-define_command net_if_rename
-cmd::net_if_rename() {
-  local -r usage="usage: $PROG net_if_rename [-h | --help] MAC_ADDRESS NEW_NAME"
-  local MAC_ADDRESS="" NEW_NAME="" && arg_parse "$usage" "MAC_ADDRESS NEW_NAME" "$@"
-
-  # 42: enx00005e005300: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
-  #     link/ether 00:00:5e:00:53:00 brd ff:ff:ff:ff:ff:ff
-  shopt -s lastpipe && set +m  # set +m for interactive shell  TODO: restore -m
-  ip a | grep -B1 "$MAC_ADDRESS" | grep -P -o '(?<=\d: )\w+(?=: <)' | read -r old_name
-  set -x
-  sudo ip link set "$old_name" down
-  sudo ip link set "$old_name" name "$NEW_NAME"
-  sudo ip link set "$NEW_NAME" up
-}
-
-# ------------------------------------------------------------------------------
 # command - md_code_b64 @pub
 
 : <<'DOC'
@@ -1510,6 +1479,38 @@ test_md_secsp() { #@test
 }
 
 # ------------------------------------------------------------------------------
+# command - net_if_rename @pub
+
+# variable_diff: usage:
+# variable_diff_1
+# some commands...
+# variable_diff_2
+
+cmd::variable_diff_1() {
+  declare -p > /tmp/c.bash.d/variable_diff.1
+}
+
+cmd::variable_diff_2() {
+  declare -p > /tmp/c.bash.d/variable_diff.2
+  delta /tmp/c.bash.d/variable_diff.1 /tmp/c.bash.d/variable_diff.2
+}
+
+define_command net_if_rename
+cmd::net_if_rename() {
+  local -r usage="usage: $PROG net_if_rename [-h | --help] MAC_ADDRESS NEW_NAME"
+  local MAC_ADDRESS="" NEW_NAME="" && arg_parse "$usage" "MAC_ADDRESS NEW_NAME" "$@"
+
+  # 42: enx00005e005300: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+  #     link/ether 00:00:5e:00:53:00 brd ff:ff:ff:ff:ff:ff
+  shopt -s lastpipe && set +m  # set +m for interactive shell  TODO: restore -m
+  ip a | grep -B1 "$MAC_ADDRESS" | grep -P -o '(?<=\d: )\w+(?=: <)' | read -r old_name
+  set -x
+  sudo ip link set "$old_name" down
+  sudo ip link set "$old_name" name "$NEW_NAME"
+  sudo ip link set "$NEW_NAME" up
+}
+
+# ------------------------------------------------------------------------------
 # command - netbsd_makefile_expand_vars @pub
 
 define_command netbsd_makefile_expand_vars
@@ -1548,6 +1549,132 @@ cmd::netbsd_makefile_expand_vars() {
       echo "$line2$(echo -e '\t')# $line"
     fi
   done
+}
+
+# ------------------------------------------------------------------------------
+# command - pty_qemu @pub
+
+# @ref:qemu-pty
+
+define_command pty_qemu
+cmd::pty_qemu() {
+  local -r usage=$(cat <<EOS
+usage:
+  $PROG pty_qemu {-h | --help}
+  $PROG pty_qemu QEMU_PID
+  $PROG pty_qemu netbsd  # "\$(pgrep -f 'qemu-system-x86_64 .+/netbsd.qcow2')"
+EOS
+)
+  local QEMU_PID="" && arg_parse "$usage" "QEMU_PID" "$@"
+  local QEMU_PID_orig=$QEMU_PID
+  [[ $QEMU_PID == "netbsd" ]] && QEMU_PID=$(pgrep -f 'qemu-system-x86_64 .+/netbsd.qcow2')
+
+  [[ $QEMU_PID =~ ^[0-9]+$ ]] || die 1 "invalid QEMU_PID: $QEMU_PID"
+
+  local -r IN_PTY="/tmp/c.bash.d/pty.qemu.$QEMU_PID"                    # /tmp/c.bash.d/pty.qemu.0
+  local -r OUT_FILE="/tmp/c.bash.d/pty.qemu.$QEMU_PID.out"              # /tmp/c.bash.d/pty.qemu.0.out
+  local -r OUT_FILE_TS="/tmp/c.bash.d/pty.qemu.$QEMU_PID.out.ts"        # /tmp/c.bash.d/pty.qemu.0.out.ts
+  local -r OUT_FILE_RAWTS="/tmp/c.bash.d/pty.qemu.$QEMU_PID.out.rawts"  # /tmp/c.bash.d/pty.qemu.0.out.rawts
+
+  realpath "/proc/$QEMU_PID/exe" | grep -q '/qemu-system-' || die 1 "QEMU_PID $QEMU_PID is not a qemu process; /proc/$QEMU_PID/exe: $(realpath "/proc/$QEMU_PID/exe")"
+  ln -fsv "/dev/pts/$(grep -r tty-index "/proc/$QEMU_PID/fdinfo" | cut -f2)" "$IN_PTY"
+  set -x
+  # shellcheck disable=SC2046  # Quote this to prevent word splitting
+  if [ ! -f "$OUT_FILE" ]; then
+    nohup </dev/null >"$OUT_FILE" 2>&1 cat "$IN_PTY" & disown
+    nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat -A 2>&1 | ts "%F %T" >"$OUT_FILE_TS" 2>&1 & disown
+    nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat    2>&1 | ts "%F %T" >"$OUT_FILE_RAWTS" 2>&1 & disown
+    if [[ $QEMU_PID_orig != "$QEMU_PID" ]]; then
+      ln -fsv "$IN_PTY"         "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig"            # /tmp/c.bash.d/pty.qemu.netbsd
+      ln -fsv "$OUT_FILE"       "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig.out"        # /tmp/c.bash.d/pty.qemu.netbsd.out
+      ln -fsv "$OUT_FILE_TS"    "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig.out.ts"     # /tmp/c.bash.d/pty.qemu.netbsd.out.ts
+      ln -fsv "$OUT_FILE_RAWTS" "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig.out.rawts"  # /tmp/c.bash.d/pty.qemu.netbsd.out.rawts
+    fi
+  fi
+  ssh -t localhost "tail -F $OUT_FILE & socat -d -u STDIN,rawer OPEN:$IN_PTY"
+}
+
+# ------------------------------------------------------------------------------
+# command - pty_usb @pub
+
+define_command pty_usb
+cmd::pty_usb() {
+  local -r usage=$(cat <<EOS
+usage:
+  $PROG pty_usb {-h | --help}
+  $PROG pty_usb DEVICE BAUD
+  $PROG pty_usb /dev/ttyUSB0 115200
+EOS
+)
+  local DEVICE BAUD="" && arg_parse "$usage" "DEVICE BAUD" "$@"
+
+  local -r IN_PTY="/tmp/c.bash.d/pty.$(basename "$DEVICE")"                    # /tmp/c.bash.d/pty.ttyUSB0
+  local -r OUT_FILE="/tmp/c.bash.d/pty.$(basename "$DEVICE").out"              # /tmp/c.bash.d/pty.ttyUSB0.out
+  local -r OUT_FILE_TS="/tmp/c.bash.d/pty.$(basename "$DEVICE").out.ts"        # /tmp/c.bash.d/pty.ttyUSB0.out.ts
+  local -r OUT_FILE_RAWTS="/tmp/c.bash.d/pty.$(basename "$DEVICE").out.rawts"  # /tmp/c.bash.d/pty.ttyUSB0.out.rawts
+
+  set -x
+  lsof -nP "$OUT_FILE" | grep '^cat' || rm -fv "$OUT_FILE"
+  if [ ! -f "$OUT_FILE" ]; then
+    # @ref:stty-tty-usb
+    # stty: /dev/ttyUSB0: unable to perform all requested operations というエラーで失敗することがあるが、もう一回実行すれば通る; 謎
+    sudo stty --file="$DEVICE" 1:0:80001cb2:0:3:1c:7f:15:4:5:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0 ||
+      sudo stty --file="$DEVICE" 1:0:80001cb2:0:3:1c:7f:15:4:5:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0
+    sudo stty --file="$DEVICE" "$BAUD"
+    # sudo not needed:
+    # ls -l /dev/ttyUSB0  # crw-rw---- 1 root dialout 188, 0  2月 27 13:56 /dev/ttyUSB0
+    # groups              # dialout
+    nohup </dev/null >"$OUT_FILE" 2>&1 cat "$DEVICE" & disown
+    # shellcheck disable=SC2046  # Quote this to prevent word splitting
+    nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat -A 2>&1 | ts "%F %T" > "$OUT_FILE_TS" 2>&1 & disown
+    # shellcheck disable=SC2046  # Quote this to prevent word splitting
+    nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat    2>&1 | ts "%F %T" > "$OUT_FILE_RAWTS" 2>&1 & disown
+  fi
+  ssh -t localhost "tail -F $OUT_FILE & socat -d -u STDIN,rawer OPEN:$DEVICE"
+}
+
+# ------------------------------------------------------------------------------
+# command - qemu_net_setup @pub
+
+define_command qemu_net_setup
+cmd::qemu_net_setup() {
+  local -r usage="usage: $PROG qemu_net_setup [-h | --help]"
+  arg_parse "$usage" "" "$@"
+
+  set -x
+
+  # 2023-04-24 Mon wsh79
+  # cat /proc/sys/net/ipv4/ip_forward
+  # ssh ログイン後は 1 だが、startup 時は 0 だった
+  [[ "$(cat /proc/sys/net/ipv4/ip_forward)" == 1 ]] || echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
+
+  # @ref:qemu-bridge @ref:iptables-bridge
+
+  sudo ip link add br100 type bridge; sudo ip link set br100 up; sudo ip address add 172.31.100.100/24 dev br100
+  sudo ip link add br101 type bridge; sudo ip link set br101 up; sudo ip address add 172.31.101.100/24 dev br101
+  sudo ip link add br102 type bridge; sudo ip link set br102 up; sudo ip address add 172.31.102.100/24 dev br102
+
+  sudo nft add table ip nat0
+  sudo nft 'add chain nat0 postrouting0 { type nat hook postrouting priority 100 ; }'
+  sudo nft add rule ip nat0 postrouting0 ip saddr 172.31.100.0/24 ip daddr != 172.31.100.0/24 counter masquerade
+
+  # sudo iptables -t nat -A POSTROUTING -s 172.31.100.0/24 ! -d 172.31.100.0/24 -j MASQUERADE
+  # @ref:iptables-bridge
+  # ! -d 172.31.100.0/24 が無いとguest間通信に問題がある
+  #   172.31.100.85->172.31.100.38:
+  #     qemu-ubu 172.31.100.85->172.31.100.38 -> tap0 -> br0 MASQUERADE 172.31.100.100->172.31.100.38 -> tap1 -> qemu .38: .38 から見ると .100 から来たように見える
+
+  sudo systemctl start isc-dhcp-server.service
+}
+
+# ------------------------------------------------------------------------------
+# command - qemu_pty @pub
+
+# compat
+
+define_command qemu_pty
+cmd::qemu_pty() {
+  cmd::pty_qemu "${@}"
 }
 
 # ------------------------------------------------------------------------------
@@ -2065,132 +2192,6 @@ define_command replace_line_all
 cmd::replace_line_all() { cmd::txt_replace_line_all "$@"; }
 
 # ------------------------------------------------------------------------------
-# command - pty_qemu @pub
-
-# @ref:qemu-pty
-
-define_command pty_qemu
-cmd::pty_qemu() {
-  local -r usage=$(cat <<EOS
-usage:
-  $PROG pty_qemu {-h | --help}
-  $PROG pty_qemu QEMU_PID
-  $PROG pty_qemu netbsd  # "\$(pgrep -f 'qemu-system-x86_64 .+/netbsd.qcow2')"
-EOS
-)
-  local QEMU_PID="" && arg_parse "$usage" "QEMU_PID" "$@"
-  local QEMU_PID_orig=$QEMU_PID
-  [[ $QEMU_PID == "netbsd" ]] && QEMU_PID=$(pgrep -f 'qemu-system-x86_64 .+/netbsd.qcow2')
-
-  [[ $QEMU_PID =~ ^[0-9]+$ ]] || die 1 "invalid QEMU_PID: $QEMU_PID"
-
-  local -r IN_PTY="/tmp/c.bash.d/pty.qemu.$QEMU_PID"                    # /tmp/c.bash.d/pty.qemu.0
-  local -r OUT_FILE="/tmp/c.bash.d/pty.qemu.$QEMU_PID.out"              # /tmp/c.bash.d/pty.qemu.0.out
-  local -r OUT_FILE_TS="/tmp/c.bash.d/pty.qemu.$QEMU_PID.out.ts"        # /tmp/c.bash.d/pty.qemu.0.out.ts
-  local -r OUT_FILE_RAWTS="/tmp/c.bash.d/pty.qemu.$QEMU_PID.out.rawts"  # /tmp/c.bash.d/pty.qemu.0.out.rawts
-
-  realpath "/proc/$QEMU_PID/exe" | grep -q '/qemu-system-' || die 1 "QEMU_PID $QEMU_PID is not a qemu process; /proc/$QEMU_PID/exe: $(realpath "/proc/$QEMU_PID/exe")"
-  ln -fsv "/dev/pts/$(grep -r tty-index "/proc/$QEMU_PID/fdinfo" | cut -f2)" "$IN_PTY"
-  set -x
-  # shellcheck disable=SC2046  # Quote this to prevent word splitting
-  if [ ! -f "$OUT_FILE" ]; then
-    nohup </dev/null >"$OUT_FILE" 2>&1 cat "$IN_PTY" & disown
-    nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat -A 2>&1 | ts "%F %T" >"$OUT_FILE_TS" 2>&1 & disown
-    nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat    2>&1 | ts "%F %T" >"$OUT_FILE_RAWTS" 2>&1 & disown
-    if [[ $QEMU_PID_orig != "$QEMU_PID" ]]; then
-      ln -fsv "$IN_PTY"         "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig"            # /tmp/c.bash.d/pty.qemu.netbsd
-      ln -fsv "$OUT_FILE"       "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig.out"        # /tmp/c.bash.d/pty.qemu.netbsd.out
-      ln -fsv "$OUT_FILE_TS"    "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig.out.ts"     # /tmp/c.bash.d/pty.qemu.netbsd.out.ts
-      ln -fsv "$OUT_FILE_RAWTS" "/tmp/c.bash.d/pty.qemu.$QEMU_PID_orig.out.rawts"  # /tmp/c.bash.d/pty.qemu.netbsd.out.rawts
-    fi
-  fi
-  ssh -t localhost "tail -F $OUT_FILE & socat -d -u STDIN,rawer OPEN:$IN_PTY"
-}
-
-# ------------------------------------------------------------------------------
-# command - pty_usb @pub
-
-define_command pty_usb
-cmd::pty_usb() {
-  local -r usage=$(cat <<EOS
-usage:
-  $PROG pty_usb {-h | --help}
-  $PROG pty_usb DEVICE BAUD
-  $PROG pty_usb /dev/ttyUSB0 115200
-EOS
-)
-  local DEVICE BAUD="" && arg_parse "$usage" "DEVICE BAUD" "$@"
-
-  local -r IN_PTY="/tmp/c.bash.d/pty.$(basename "$DEVICE")"                    # /tmp/c.bash.d/pty.ttyUSB0
-  local -r OUT_FILE="/tmp/c.bash.d/pty.$(basename "$DEVICE").out"              # /tmp/c.bash.d/pty.ttyUSB0.out
-  local -r OUT_FILE_TS="/tmp/c.bash.d/pty.$(basename "$DEVICE").out.ts"        # /tmp/c.bash.d/pty.ttyUSB0.out.ts
-  local -r OUT_FILE_RAWTS="/tmp/c.bash.d/pty.$(basename "$DEVICE").out.rawts"  # /tmp/c.bash.d/pty.ttyUSB0.out.rawts
-
-  set -x
-  lsof -nP "$OUT_FILE" | grep '^cat' || rm -fv "$OUT_FILE"
-  if [ ! -f "$OUT_FILE" ]; then
-    # @ref:stty-tty-usb
-    # stty: /dev/ttyUSB0: unable to perform all requested operations というエラーで失敗することがあるが、もう一回実行すれば通る; 謎
-    sudo stty --file="$DEVICE" 1:0:80001cb2:0:3:1c:7f:15:4:5:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0 ||
-      sudo stty --file="$DEVICE" 1:0:80001cb2:0:3:1c:7f:15:4:5:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0
-    sudo stty --file="$DEVICE" "$BAUD"
-    # sudo not needed:
-    # ls -l /dev/ttyUSB0  # crw-rw---- 1 root dialout 188, 0  2月 27 13:56 /dev/ttyUSB0
-    # groups              # dialout
-    nohup </dev/null >"$OUT_FILE" 2>&1 cat "$DEVICE" & disown
-    # shellcheck disable=SC2046  # Quote this to prevent word splitting
-    nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat -A 2>&1 | ts "%F %T" > "$OUT_FILE_TS" 2>&1 & disown
-    # shellcheck disable=SC2046  # Quote this to prevent word splitting
-    nohup </dev/null $(: '1>pipe') 2>&1 tail -F "$OUT_FILE" | cat    2>&1 | ts "%F %T" > "$OUT_FILE_RAWTS" 2>&1 & disown
-  fi
-  ssh -t localhost "tail -F $OUT_FILE & socat -d -u STDIN,rawer OPEN:$DEVICE"
-}
-
-# ------------------------------------------------------------------------------
-# command - qemu_net_setup @pub
-
-define_command qemu_net_setup
-cmd::qemu_net_setup() {
-  local -r usage="usage: $PROG qemu_net_setup [-h | --help]"
-  arg_parse "$usage" "" "$@"
-
-  set -x
-
-  # 2023-04-24 Mon wsh79
-  # cat /proc/sys/net/ipv4/ip_forward
-  # ssh ログイン後は 1 だが、startup 時は 0 だった
-  [[ "$(cat /proc/sys/net/ipv4/ip_forward)" == 1 ]] || echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
-
-  # @ref:qemu-bridge @ref:iptables-bridge
-
-  sudo ip link add br100 type bridge; sudo ip link set br100 up; sudo ip address add 172.31.100.100/24 dev br100
-  sudo ip link add br101 type bridge; sudo ip link set br101 up; sudo ip address add 172.31.101.100/24 dev br101
-  sudo ip link add br102 type bridge; sudo ip link set br102 up; sudo ip address add 172.31.102.100/24 dev br102
-
-  sudo nft add table ip nat0
-  sudo nft 'add chain nat0 postrouting0 { type nat hook postrouting priority 100 ; }'
-  sudo nft add rule ip nat0 postrouting0 ip saddr 172.31.100.0/24 ip daddr != 172.31.100.0/24 counter masquerade
-
-  # sudo iptables -t nat -A POSTROUTING -s 172.31.100.0/24 ! -d 172.31.100.0/24 -j MASQUERADE
-  # @ref:iptables-bridge
-  # ! -d 172.31.100.0/24 が無いとguest間通信に問題がある
-  #   172.31.100.85->172.31.100.38:
-  #     qemu-ubu 172.31.100.85->172.31.100.38 -> tap0 -> br0 MASQUERADE 172.31.100.100->172.31.100.38 -> tap1 -> qemu .38: .38 から見ると .100 から来たように見える
-
-  sudo systemctl start isc-dhcp-server.service
-}
-
-# ------------------------------------------------------------------------------
-# command - qemu_pty @pub
-
-# compat
-
-define_command qemu_pty
-cmd::qemu_pty() {
-  cmd::pty_qemu "${@}"
-}
-
-# ------------------------------------------------------------------------------
 # command - xargs_delay @pub
 
 define_command xargs_delay
@@ -2309,7 +2310,7 @@ cmd::z_meta_publish_self() {
       log_debug "$line"
     fi
     [[ $public_cmd == "false" ]] && continue
-    [[ $line =~ [@]private_line ]] && continue
+    [[ $line =~ [@]pl ]] && continue  # private line
     echo "$line"
   done
 
