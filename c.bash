@@ -226,12 +226,12 @@ array_subtract() {
   for left in "${left_array[@]}"; do
     local append=1
     for right in "${right_array[@]}"; do
-      if [ "$left" = "$right" ]; then
+      if [[ "$left" == "$right" ]]; then
         append=0
         break
       fi
     done
-    [ $append = 1 ] && result_array+=("$left")
+    [[ $append == "1" ]] && result_array+=("$left")
   done
 
   if [[ $1 != "nameref" ]]; then
@@ -246,15 +246,15 @@ array_subtract() {
 
 # shellcheck disable=SC2015  # Note that A && B || C is not if-then-else. C may run when A is true.
 test_array_subtract() { #@test
-  local -a result left=(a b c) right=(b   z) && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} = "a c" ]] || bats_run_debug_fail >&3
-  local -a result left=(a b c) right=(b c z) && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} = "a" ]] || bats_run_debug_fail >&3
-  local -a result left=(a b c) right=(b   z) && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} = "a c" ]] || bats_run_debug_fail >&3
-  local -a result left=()      right=(b c z) && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} = "" ]] || bats_run_debug_fail >&3
-  local -a result left=(a b c) right=()      && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} = "a b c" ]] || bats_run_debug_fail >&3
+  local -a result left=(a b c) right=(b   z) && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} == "a c" ]] || bats_run_debug_fail >&3
+  local -a result left=(a b c) right=(b c z) && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} == "a" ]] || bats_run_debug_fail >&3
+  local -a result left=(a b c) right=(b   z) && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} == "a c" ]] || bats_run_debug_fail >&3
+  local -a result left=()      right=(b c z) && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} == "" ]] || bats_run_debug_fail >&3
+  local -a result left=(a b c) right=()      && array_subtract "result" "left" "right" >&3 && [[ ${result[*]} == "a b c" ]] || bats_run_debug_fail >&3
 
-  local -a nameref left=(a b c) right=(b z) && array_subtract "nameref" "left" "right" >&3 && [[ ${nameref[*]} = "a c" ]] || bats_run_debug_fail >&3
-  local -a result nameref=(a b c) right=(b z) && array_subtract "result" "nameref" "right" >&3 && [[ ${result[*]} = "a c" ]] || bats_run_debug_fail >&3
-  local -a result left=(a b c) nameref=(b z) && array_subtract "result" "left" "nameref" >&3 && [[ ${result[*]} = "a c" ]] || bats_run_debug_fail >&3
+  local -a nameref left=(a b c) right=(b z) && array_subtract "nameref" "left" "right" >&3 && [[ ${nameref[*]} == "a c" ]] || bats_run_debug_fail >&3
+  local -a result nameref=(a b c) right=(b z) && array_subtract "result" "nameref" "right" >&3 && [[ ${result[*]} == "a c" ]] || bats_run_debug_fail >&3
+  local -a result left=(a b c) nameref=(b z) && array_subtract "result" "left" "nameref" >&3 && [[ ${result[*]} == "a c" ]] || bats_run_debug_fail >&3
 }
 
 # not implemented yet
@@ -266,10 +266,10 @@ assert_variable_local() {
     # cannot detect a
     # c == d
     local a b=xxx c="" d=
-    [[ ${a+defined} = defined ]] && echo a defined  # not defined
-    [[ ${b+defined} = defined ]] && echo b defined
-    [[ ${c+defined} = defined ]] && echo c defined
-    [[ ${d+defined} = defined ]] && echo d defined
+    [[ ${a+defined} == "defined" ]] && echo a defined  # not defined
+    [[ ${b+defined} == "defined" ]] && echo b defined
+    [[ ${c+defined} == "defined" ]] && echo c defined
+    [[ ${d+defined} == "defined" ]] && echo d defined
     # b=xxx
     # c=
     # d=
@@ -277,10 +277,10 @@ assert_variable_local() {
     local -p
 
     fn() {
-      [[ ${outer_a+defined} = defined ]] && echo outer_a defined  # not defined
-      [[ ${outer_b+defined} = defined ]] && echo outer_b defined
-      [[ ${outer_c+defined} = defined ]] && echo outer_c defined
-      [[ ${outer_d+defined} = defined ]] && echo outer_d defined
+      [[ ${outer_a+defined} == "defined" ]] && echo outer_a defined  # not defined
+      [[ ${outer_b+defined} == "defined" ]] && echo outer_b defined
+      [[ ${outer_c+defined} == "defined" ]] && echo outer_c defined
+      [[ ${outer_d+defined} == "defined" ]] && echo outer_d defined
       # prints nothing
       local
       local -p
@@ -293,7 +293,7 @@ assert_variable_local() {
   local name=$1 && shift
   not_yet
   # cannot implement?
-  [[ ${!name+defined} = defined ]]  # true for both locals and globals
+  [[ ${!name+defined} == "defined" ]]  # true for both locals and globals
   declare -p "$name"  # only globals (and current scope locals)
 }
 
@@ -479,14 +479,14 @@ unreachable() {
 
 [[ $C_BASH_IN_BATS == "yes" ]] && bats_require_minimum_version 1.8.0
 
-[[ $C_BASH_IN_BATS == "yes" ]] && [ -z "$BATS_TEST_NUMBER" ] && {
+[[ $C_BASH_IN_BATS == "yes" ]] && [[ -z "$BATS_TEST_NUMBER" ]] && {
   [ -z "$BATS_SUITE_TEST_NUMBER" ] || echo -e "# \e[31m""BUG: BATS_SUITE_TEST_NUMBER defined: $BATS_SUITE_TEST_NUMBER\e[0m"
   [ -z "$BATS_TEST_NAME" ]         || echo -e "# \e[31m""BUG: BATS_TEST_NAME defined: $BATS_TEST_NAME\e[0m"
 } >&3
 
 setup() {
   [ -z "$BATS_TEST_NUMBER" ] && echo -e "# \e[31m""BUG: setup(): BATS_TEST_NUMBER not defined\e[0m"
-  [ "$BATS_SUITE_TEST_NUMBER" = "$BATS_TEST_NUMBER" ] || echo -e "# \e[31m""BUG: BATS_SUITE_TEST_NUMBER: $BATS_SUITE_TEST_NUMBER BATS_TEST_NUMBER: $BATS_TEST_NUMBER\e[0m"
+  [[ "$BATS_SUITE_TEST_NUMBER" == "$BATS_TEST_NUMBER" ]] || echo -e "# \e[31m""BUG: BATS_SUITE_TEST_NUMBER: $BATS_SUITE_TEST_NUMBER BATS_TEST_NUMBER: $BATS_TEST_NUMBER\e[0m"
 } >&3
 
 # ------------------------------------------------------------------------------
@@ -515,7 +515,7 @@ arg_parse() {
   local -r kind=${names2[0]}
   names2=("${names2[@]:1}")
 
-  [[ $# != 0 ]] && [[ $1 = "-h" || $1 = "-help" || $1 = "--help" ]] && echo "$usage" && exit 0
+  [[ $# != "0" ]] && [[ $1 == "-h" || $1 == "-help" || $1 == "--help" ]] && echo "$usage" && exit 0
 
   local name
 
@@ -524,8 +524,8 @@ arg_parse() {
     name=${names2[0]}
     # TODO: assert_variable_local "$caller" "$name"
     names2=("${names2[@]:1}")
-    [[ $name = "%%" ]] && break
-    [[ $# = 0 ]] && err 0 "error: required argument: \"$name\" missing" && echo "$usage" >&2 && return 2
+    [[ $name == "%%" ]] && break
+    [[ $# == "0" ]] && err 0 "error: required argument: \"$name\" missing" && echo "$usage" >&2 && return 2
     # https://stackoverflow.com/questions/9938649/indirect-variable-assignment-in-bash
     printf -v "$name" '%s' "$1" && shift
   done
@@ -536,7 +536,7 @@ arg_parse() {
     while [[ ${#names2[@]} != 0 ]]; do
       name=${names2[0]}
       names2=("${names2[@]:1}")
-      [[ $name = "%%" ]] && unreachable
+      [[ $name == "%%" ]] && unreachable
       # TODO: assert_variable_local "$caller" "$name"
       (($# == 0)) && return 0
       printf -v "$name" '%s' "$1" && shift
@@ -546,9 +546,9 @@ arg_parse() {
     ;;
   "HAS_ARGV")
     # variadic argument; must be the last
-    [[ ${#names2[@]} = 1 ]] || unreachable
+    [[ ${#names2[@]} == "1" ]] || unreachable
     name=${names2[0]}
-    [ $# = 0 ] && err 0 "error: required argument: \"$name...\" missing" && echo "$usage" >&2 && return 2
+    [[ $# == "0" ]] && err 0 "error: required argument: \"$name...\" missing" && echo "$usage" >&2 && return 2
     # TODO: [nameref_avoid_conflict_name]
     local -n argv_nameref=${names2[0]}
     argv_nameref=("$@")
@@ -561,11 +561,11 @@ arg_parse() {
       names2=("${names2[@]:1}")
       # TODO: assert_variable_local "$caller" "$name"
       (($# == 0)) && return 0
-      [[ $name = "%%" ]] && break
+      [[ $name == "%%" ]] && break
       printf -v "$name" '%s' "$1" && shift
     done
     # optional variadic argument; must be the last
-    [[ ${#names2[@]} = 1 ]] || unreachable
+    [[ ${#names2[@]} == "1" ]] || unreachable
     # TODO: [nameref_avoid_conflict_name]
     # shellcheck disable=SC2178  # Variable was used as an array but is now assigned a string
     local -n argv_nameref=${names2[0]}
@@ -603,8 +603,8 @@ arg_parse::_parse_names() {
     # [[:alnum:]_] : [0-9A-Za-z_]
 
     # ARGV.../[ARGV...] any -> error
-    [[ $variadic = "" ]] || die 1 "$caller: variadic name: \"$variadic...\" must be the last (in: $*)"
-    [[ $variadic_o = "" ]] || die 1 "$caller: variadic name: \"[$variadic_o...]\" must be the last (in: $*)"
+    [[ $variadic == "" ]] || die 1 "$caller: variadic name: \"$variadic...\" must be the last (in: $*)"
+    [[ $variadic_o == "" ]] || die 1 "$caller: variadic name: \"[$variadic_o...]\" must be the last (in: $*)"
 
     # optional?
     [[ $name =~ ^"["([[:alnum:]_]+)"]"$ ]] && optional+=("${BASH_REMATCH[1]}") && continue
@@ -672,13 +672,13 @@ test_arg_parse() { #@test
   set -- "arg1" "" "" ""               && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == 2 ]] && [[ ${ARGV[*]} == " "           ]]                              || bats_run_debug_fail >&3
 
   # MAY_ARGV
-  set -- "arg1" "arg2" "argv1" "argv2" && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = "arg2" ]] && [[ ${#ARGV[@]} = 2 ]] && [[ ${ARGV[*]} = "argv1 argv2" ]] || bats_run_debug_fail >&3
-  set -- "arg1" "arg2" "argv1"         && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = "arg2" ]] && [[ ${#ARGV[@]} = 1 ]] && [[ ${ARGV[*]} = "argv1"       ]] || bats_run_debug_fail >&3
-  set -- "arg1" "arg2"                 && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = "arg2" ]] && [[ ${#ARGV[@]} = 0 ]] && [[ ${ARGV[*]} = ""            ]] || bats_run_debug_fail >&3
-  set -- "arg1"                        && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = ""     ]] && [[ ${#ARGV[@]} = 0 ]] && [[ ${ARGV[*]} = ""            ]] || bats_run_debug_fail >&3
-  set -- "arg1" ""                     && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = ""     ]] && [[ ${#ARGV[@]} = 0 ]] && [[ ${ARGV[*]} = ""            ]] || bats_run_debug_fail >&3
-  set -- "arg1" "" ""                  && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = ""     ]] && [[ ${#ARGV[@]} = 1 ]] && [[ ${ARGV[*]} = ""            ]] || bats_run_debug_fail >&3
-  set -- "arg1" "" "" ""               && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 = "arg1" ]] && [[ $ARG2 = ""     ]] && [[ ${#ARGV[@]} = 2 ]] && [[ ${ARGV[*]} = " "           ]] || bats_run_debug_fail >&3
+  set -- "arg1" "arg2" "argv1" "argv2" && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == "2" ]] && [[ ${ARGV[*]} == "argv1 argv2" ]] || bats_run_debug_fail >&3
+  set -- "arg1" "arg2" "argv1"         && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == "1" ]] && [[ ${ARGV[*]} == "argv1"       ]] || bats_run_debug_fail >&3
+  set -- "arg1" "arg2"                 && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == "0" ]] && [[ ${ARGV[*]} == ""            ]] || bats_run_debug_fail >&3
+  set -- "arg1"                        && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == "0" ]] && [[ ${ARGV[*]} == ""            ]] || bats_run_debug_fail >&3
+  set -- "arg1" ""                     && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == "0" ]] && [[ ${ARGV[*]} == ""            ]] || bats_run_debug_fail >&3
+  set -- "arg1" "" ""                  && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == "1" ]] && [[ ${ARGV[*]} == ""            ]] || bats_run_debug_fail >&3
+  set -- "arg1" "" "" ""               && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == "2" ]] && [[ ${ARGV[*]} == " "           ]] || bats_run_debug_fail >&3
 }
 
 # ------------------------------------------------------------------------------
@@ -696,7 +696,7 @@ cmd::0template() {
 false && _() {
   # short usage
   local -r usage="usage: $PROG 0template [-h | --help]"
-  [[ $# != 0 ]] && [[ $1 = "-h" || $1 = "-help" || $1 = "--help" ]] && echo "$usage" && exit 0
+  [[ $# != 0 ]] && [[ $1 == "-h" || $1 == "-help" || $1 == "--help" ]] && echo "$usage" && exit 0
   [[ $# != 0 ]] && err 0 "error: excess argument(s): $*" && echo "$usage" >&2 && exit 2
 
   # long usage
@@ -727,9 +727,9 @@ cmd::apt_changelog() {
 
 cfl_env_check() {
   local ok="true"
-  [[ ${CONFLUENCE_URL+defined} = defined ]] || err 1 'environment variable CONFLUENCE_URL is not set' || ok="false"
-  [[ ${CONFLUENCE_USER+defined} = defined ]] || err 1 'environment variable CONFLUENCE_USER is not set' || ok="false"
-  [[ ${CONFLUENCE_PASS+defined} = defined ]] || err 1 'environment variable CONFLUENCE_PASS is not set' || ok="false"
+  [[ ${CONFLUENCE_URL+defined} == "defined" ]] || err 1 'environment variable CONFLUENCE_URL is not set' || ok="false"
+  [[ ${CONFLUENCE_USER+defined} == "defined" ]] || err 1 'environment variable CONFLUENCE_USER is not set' || ok="false"
+  [[ ${CONFLUENCE_PASS+defined} == "defined" ]] || err 1 'environment variable CONFLUENCE_PASS is not set' || ok="false"
   [[ $ok == "true" ]] || exit 1
   [[ $CONFLUENCE_URL != "${CONFLUENCE_URL%/}" ]] && {
     log_debug "remove trailing slash in CONFLUENCE_URL: $CONFLUENCE_URL -> ${CONFLUENCE_URL%/}"
@@ -916,9 +916,9 @@ cmd::discharging_checker() {
     energy_curr=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep -P -o '(?<=energy:)\s+\S+(?= Wh)' | tr -d ' ')
     state_curr=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep -P -o '(?<=state:)\s+\S+' | tr -d ' ')
     discharging="false"
-    [ "$state_curr" != 'pending-charge' ] && [ "$(echo "$energy_curr < $energy_prev" | bc)" = 1 ] && discharging="true"  # energy slowly decreases in 'pending-charge' state; notify only in 'charging' state
-    [ "$state_curr" = 'discharging' ]                                                             && discharging="true"
-    if [ "$discharging" = "true" ]; then
+    [[ "$state_curr" != "pending-charge" ]] && [[ "$(echo "$energy_curr < $energy_prev" | bc)" == "1" ]] && discharging="true"  # energy slowly decreases in "pending-charge" state; notify only in "charging" state
+    [[ "$state_curr" == "discharging" ]]                                                                 && discharging="true"
+    if [[ "$discharging" == "true" ]]; then
       percentage_=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep -P -o '(?<=percentage:)\s+\S+' | tr -d ' ')
       echo "discharging: $energy_prev Wh -> $energy_curr Wh, $state_prev -> $state_curr ($percentage_)"
       bash /home/wsh/sh/debug_notify.bash "discharging: $energy_prev Wh -> $energy_curr Wh ($percentage_), $state_prev -> $state_curr"
@@ -1094,7 +1094,7 @@ EOS
         log_debug "kill -0 $pid"
         kill -0 "$pid" && alive_pids+=("$pid")
       done
-      [[ ${#alive_pids[@]} = 0 ]] && return 0
+      [[ ${#alive_pids[@]} == "0" ]] && return 0
       log_info "alive: ${alive_pids[*]}"
       sleep 1
     done
@@ -1157,7 +1157,7 @@ define_command linux_kern_config
 cmd::linux_kern_config() {
   local -r usage="usage: $PROG linux_kern_config [-h | --help] [TARGET...]"
   local -a TARGET=() && arg_parse "$usage" "[TARGET...]" "$@"
-  [[ ${#TARGET[@]} = 0 ]] && TARGET=(vmlinux modules compile_commands.json bindeb-pkg)
+  [[ ${#TARGET[@]} == "0" ]] && TARGET=(vmlinux modules compile_commands.json bindeb-pkg)
   KBUILD_OUTPUT=$(cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT)
   export KBUILD_OUTPUT
   [[ $KBUILD_OUTPUT == "/home/wsh/qc/linux/focal-build-d" ]] && log_info "cd /home/wsh/qc/linux/focal-d" && cd /home/wsh/qc/linux/focal-d
@@ -1192,14 +1192,14 @@ cmd::linux_kern_config() {
 }
 
 cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT() {
-  [[ ${KBUILD_OUTPUT+defined} = defined ]] || case $PWD in
+  [[ ${KBUILD_OUTPUT+defined} == "defined" ]] || case $PWD in
     "/home/wsh/qc/linux/focal-d"*)       export KBUILD_OUTPUT=/home/wsh/qc/linux/focal-build-d;;
     "/home/wsh/qc/linux/focal-build-d"*) export KBUILD_OUTPUT=/home/wsh/qc/linux/focal-build-d;;
     "/home/wsh/qc/linux/focal-r"*)       export KBUILD_OUTPUT=/home/wsh/qc/linux/focal-build-r;;
     "/home/wsh/qc/linux/focal-build-r"*) export KBUILD_OUTPUT=/home/wsh/qc/linux/focal-build-r;;
     *) die 1 "environment variable KBUILD_OUTPUT is not set / unknown PWD";;
   esac
-  [[ ${KBUILD_OUTPUT+defined} = defined ]] || die 1 "environment variable KBUILD_OUTPUT is not set"
+  [[ ${KBUILD_OUTPUT+defined} == "defined" ]] || die 1 "environment variable KBUILD_OUTPUT is not set"
   case $KBUILD_OUTPUT in
     "/home/wsh/qc/linux/focal-build-d") log_info "debug";;
     "/home/wsh/qc/linux/focal-build-r") log_warning "release";;
@@ -1299,7 +1299,7 @@ define_command linux_kern_make
 cmd::linux_kern_make() {
   local -r usage="usage: $PROG linux_kern_make [-h | --help] [TARGET...]"
   local -a TARGET=() && arg_parse "$usage" "[TARGET...]" "$@"
-  [[ ${#TARGET[@]} = 0 ]] && TARGET=(vmlinux modules compile_commands.json bindeb-pkg)
+  [[ ${#TARGET[@]} == "0" ]] && TARGET=(vmlinux modules compile_commands.json bindeb-pkg)
   KBUILD_OUTPUT=$(cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT)
   export KBUILD_OUTPUT
   # TODO: on fail: log: debug!: cp -v $KBUILD_OUTPUT/compile_commands.json.bear /home/wsh/qc/linux/focal-d/compile_commands.json
@@ -1473,7 +1473,7 @@ cmd::md_secsp() {
   cmd md_code_b64 | node -e '
     const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
     const txt = fs.readFileSync("/dev/stdin", "utf8") + "\0eof\0";
-    let txt2 = "";
+    let txt2 == "";
     let lastSectionIsMatch = false;
     for (const match of txt.matchAll(new RegExp(`(^## ${regExpEscape(process.argv[1])}[\\s\\S]*?)(?=(^## |eof\0))`, "gm"))) {
       if (match[1].at(-1) === "\0") {
@@ -1542,7 +1542,7 @@ cmd::netbsd_makefile_expand_vars() {
       line2=${line2/${BASH_REMATCH[0]}/"\${${BASH_REMATCH[1]}}"}
     done
 
-    if [ "$line" = "$line2" ]; then
+    if [[ "$line" == "$line2" ]]; then
       echo "$line2"
     else
       echo "$line2$(echo -e '\t')# $line"
@@ -1572,7 +1572,7 @@ EOS
 )
   # TODO: arg_parse "$usage" "NAME [--] [CMD...]"
   local NAME="" SEP="" && local -a CMD=() && arg_parse "$usage" "NAME [SEP] [CMD...]" "$@"
-  [[ $SEP = "" ]] || [[ $SEP = "--" ]] || { err 0 "error: \"--\" missing; you may wanted to: smux $NAME -- $SEP ${CMD[*]}" && echo "$usage" >&2 && exit 2; }
+  [[ $SEP == "" ]] || [[ $SEP == "--" ]] || { err 0 "error: \"--\" missing; you may wanted to: smux $NAME -- $SEP ${CMD[*]}" && echo "$usage" >&2 && exit 2; }
 
   local -r IN_PTY="/home/wsh/.cache/wataash/c.ts-nodejs/smux.$NAME.in"                 # /home/wsh/.cache/wataash/c.ts-nodejs/smux.${name}.in -> /dev/pts/0
   local -r OUT_FILE="/home/wsh/.cache/wataash/c.ts-nodejs/smux.$NAME.out"              # /home/wsh/.cache/wataash/c.ts-nodejs/smux.${name}.out
@@ -1585,7 +1585,7 @@ EOS
     set -x
   else
     # array element in CMD
-    [[ ${#CMD[@]} = 0 ]] && die 1 "smux-server not found; CMD needed"
+    [[ ${#CMD[@]} == "0" ]] && die 1 "smux-server not found; CMD needed"
     set -x
     systemd-run --user -- "$(which c.js)" -v smux-server --name="$NAME" -- "${CMD[@]}" && sleep 0.1
   fi
@@ -1635,7 +1635,7 @@ define_command spotify_code_to_token
 cmd::spotify_code_to_token() {
   local -r usage="usage: $PROG spotify_code_to_token [-h | --help] REDIRECT_URI CODE"
   local REDIRECT_URI="" CODE="" && arg_parse "$usage" "REDIRECT_URI CODE" "$@"
-  [[ ${SPOTIFY_APP_AUTH+defined} = defined ]] || die 1 "environment variable SPOTIFY_APP_AUTH is not set"
+  [[ ${SPOTIFY_APP_AUTH+defined} == "defined" ]] || die 1 "environment variable SPOTIFY_APP_AUTH is not set"
   curl -fSs -X POST -H "Authorization: Basic $SPOTIFY_APP_AUTH" -d code="$CODE" -d redirect_uri="$REDIRECT_URI" -d grant_type=authorization_code "https://accounts.spotify.com/api/token" >/tmp/c.bash.d/spotify_code_to_token.json
   # jq < /tmp/c.bash.d/spotify_code_to_token.json
   log_debug "$(jq < /tmp/c.bash.d/spotify_code_to_token.json)"
@@ -1690,7 +1690,7 @@ define_command spotify_say_song
 cmd::spotify_say_song() {
   local -r usage="usage: $PROG spotify_say_song [-h | --help]"
   arg_parse "$usage" "" "$@"
-  [[ ${SPOTIFY_TOKEN+defined} = defined ]] || die 1 "environment variable SPOTIFY_TOKEN is not set"
+  [[ ${SPOTIFY_TOKEN+defined} == "defined" ]] || die 1 "environment variable SPOTIFY_TOKEN is not set"
 
   local rest_secs
   local artist_prev="" album_prev="" name_prev=""
@@ -2080,7 +2080,7 @@ EOS
 )
   local QEMU_PID="" && arg_parse "$usage" "QEMU_PID" "$@"
   local QEMU_PID_orig=$QEMU_PID
-  [[ $QEMU_PID = 'netbsd' ]] && QEMU_PID=$(pgrep -f 'qemu-system-x86_64 .+/netbsd.qcow2')
+  [[ $QEMU_PID == "netbsd" ]] && QEMU_PID=$(pgrep -f 'qemu-system-x86_64 .+/netbsd.qcow2')
 
   [[ $QEMU_PID =~ ^[0-9]+$ ]] || die 1 "invalid QEMU_PID: $QEMU_PID"
 
@@ -2232,7 +2232,7 @@ cmd::xargs_delay() {
     for line_ in "${lines[@]}"; do
       now=$(date "+%s.%N")
       log_debug "$line_: $now - ${line_latest_epochs[$line_]} = $(echo "$now - ${line_latest_epochs[$line_]}" | bc)"
-      if [[ $(echo "$now - ${line_latest_epochs[$line_]} > 0.5" | bc) = 1 ]]; then
+      if [[ $(echo "$now - ${line_latest_epochs[$line_]} > 0.5" | bc) == "1" ]]; then
         log_info "$line_: 0.5 seconds elapsed since the last seen; fire: ${COMMAND[*]} $line_"
         echo "$line_" | xargs "${COMMAND[@]}"
         unset "line_latest_epochs[$line_]"
@@ -2308,7 +2308,7 @@ cmd::z_meta_publish_self() {
     else
       log_debug "$line"
     fi
-    [[ $public_cmd = "false" ]] && continue
+    [[ $public_cmd == "false" ]] && continue
     [[ $line =~ [@]private_line ]] && continue
     echo "$line"
   done
@@ -2409,7 +2409,7 @@ OPT_q="false"
 OPT_v=0
 global_flags=()
 
-if not_yet && [ "$HAVE_UTIL_LINUX_GETOPT" = "yes" ]; then
+if not_yet && [[ "$HAVE_UTIL_LINUX_GETOPT" == "yes" ]]; then
   # TODO:
   #   c.bash -v 0template -z
   #   prevent parsing -z !
@@ -2427,7 +2427,7 @@ if not_yet && [ "$HAVE_UTIL_LINUX_GETOPT" = "yes" ]; then
   done
 fi
 
-[ $# != 0 ] && [[ $1 = "-h" || $1 = "-help" || $1 = "--help" ]] && top_usage && exit 0
+[ $# != 0 ] && [[ $1 == "-h" || $1 == "-help" || $1 == "--help" ]] && top_usage && exit 0
 OPT_q="false"
 OPT_v=0
 while getopts hqv- OPT; do
