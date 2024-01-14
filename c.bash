@@ -996,30 +996,6 @@ cmd::file_timestamp() {
 }
 
 # ------------------------------------------------------------------------------
-# command - git_status_repos @pub
-
-define_command git_status_repos
-cmd::git_status_repos() {
-  local -r usage="usage: $PROG git_status_repos [-h | --help]"
-  arg_parse "$usage" "" "$@"
-  for d in \
-      ~/qc/tesc/ \
-      ~/qjs/tesjs/ \
-      ~/qjs/tesjs/proj/kousu/ \
-      ~/qpy/tespy/ \
-      ~/qrb/tesrb/ \
-      ~/qrs/tesrs/ \
-  ; do
-    echo "---------- $d ----------"
-    cd "$d"
-    # https://unix.stackexchange.com/questions/155046/determine-if-git-working-directory-is-clean-from-a-script
-    git update-index -q --really-refresh
-    git diff-index --quiet HEAD && continue
-    git status -sb
-  done
-}
-
-# ------------------------------------------------------------------------------
 # command - grep_multiline (gm) @pub
 
 # c.bash gm -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash
