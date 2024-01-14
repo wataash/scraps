@@ -324,7 +324,10 @@ bats_run_debug_fail() {
 }
 
 cmd() {
-  bash "$(self_real_path)" "${global_flags[@]}" "$@"
+  (
+    BASH_XTRACEFD=$fd_devnull set +x
+    bash "$(self_real_path)" "${global_flags[@]}" "$@"
+  ) {fd_devnull}>/dev/null
 }
 
 # line, funcname of this line
@@ -720,21 +723,7 @@ cmd::apt_changelog() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_page_get_content @pub
-
-cmd::cfl_curl() {
-  cfl_env_check
-  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  (
-    BASH_XTRACEFD=$fd_xtrace
-    set -x
-    LD_LIBRARY_PATH=$HOME/opt/curl8/lib/ /home/wsh/opt/curl8/bin/curl --fail-with-body -Ss -u "$CONFLUENCE_USER:$CONFLUENCE_PASS" "$@" >/tmp/c.bash.d/cfl_curl.out || die 1 "cfl_curl failed; body: $(cat /tmp/c.bash.d/cfl_curl.out)"
-  ) {fd_xtrace}> >(node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.env.CONFLUENCE_PASS, "$CONFLUENCE_PASS".replaceAll("$", "$$$$")) + "\n")' | sed -E 's/^(.{160}).*$/\1.../' >&2)
-  cat /tmp/c.bash.d/cfl_curl.out
-}
-false && pre_main() {
-  cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/1"
-}
+# command - cfl - lib @pub
 
 cfl_env_check() {
   local ok="true"
@@ -749,6 +738,27 @@ cfl_env_check() {
   return 0
 }
 
+# ------------------------------------------------------------------------------
+# command - cfl_curl @pub
+
+define_command cfl_curl
+cmd::cfl_curl() {
+  cfl_env_check
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  (
+    BASH_XTRACEFD=$fd_xtrace
+    ((LOG_LEVEL >= LOG_DEBUG)) && set -x
+    env LD_LIBRARY_PATH="$HOME/opt/curl8/lib/" /home/wsh/opt/curl8/bin/curl --fail-with-body -Ss -u "$CONFLUENCE_USER:$CONFLUENCE_PASS" "$@" >/tmp/c.bash.d/cfl_curl.out || die 1 "cfl_curl failed; body: $(cat /tmp/c.bash.d/cfl_curl.out)"
+  ) {fd_xtrace}> >(node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.env.CONFLUENCE_PASS, "$CONFLUENCE_PASS".replaceAll("$", "$$$$")))' | sed -E 's/^(.{160}).*$/\1.../' >&2)
+  jq -c "." /tmp/c.bash.d/cfl_curl.out
+}
+false && pre_main() {
+  cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/1"
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_page_get_content @pub
+
 # echo:
 # title
 # storage
@@ -758,7 +768,7 @@ cmd::cfl_page_get_content() {
   local ID="" && arg_parse "$usage" "ID" "$@"
   [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
   cfl_env_check
-  (set -o pipefail; cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID?expand=body.storage" | jq -e >/tmp/c.bash.d/cfl_page_get_content.json)
+  (set -o pipefail; ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID?expand=body.storage" | jq -e >/tmp/c.bash.d/cfl_page_get_content.json)
   jq -er </tmp/c.bash.d/cfl_page_get_content.json ".title"
   jq -er </tmp/c.bash.d/cfl_page_get_content.json ".body.storage.value"
 }
@@ -771,7 +781,7 @@ cmd::cfl_page_get_id() {
   local -r usage="usage: $PROG cfl_page_get_id [-h | --help] SPACE_KEY TITLE"
   local SPACE_KEY="" TITLE="" && arg_parse "$usage" "SPACE_KEY TITLE" "$@"
   cfl_env_check
-  (set -o pipefail; set -x; cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE" | jq -er ".results[0].id" >/dev/stdout)
+  (set -o pipefail; (((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE") | jq -er ".results[0].id")
 }
 
 # ------------------------------------------------------------------------------
@@ -782,7 +792,7 @@ cmd::cfl_page_rm() {
   local -r usage="usage: $PROG cfl_page_rm [-h | --help] ID"
   local ID="" && arg_parse "$usage" "ID" "$@"
   cfl_env_check
-  (set -x cmd::cfl_curl -X DELETE "$CONFLUENCE_URL/rest/api/content/$ID")
+  ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X DELETE "$CONFLUENCE_URL/rest/api/content/$ID")
 }
 
 # ------------------------------------------------------------------------------
@@ -795,12 +805,12 @@ cmd::cfl_page_update() {
   [[ $FILE == "" ]] && FILE="/dev/stdin"
   [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
   cfl_env_check
-  cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID" | jq -e >/tmp/c.bash.d/cfl_page_update.1.json
+  ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_page_update.1.json
   local -i ver
   ver=$(jq -er ".version.number" /tmp/c.bash.d/cfl_page_update.1.json)
   ((ver++))
   jo -p -d. -- version.number="$ver" title="$TITLE" type=page body.storage.value=@"$FILE" body.storage.representation=storage >/tmp/c.bash.d/cfl_page_update.put.json
-  cmd::cfl_curl -X PUT -H "Content-Type: application/json" -d @/tmp/c.bash.d/cfl_page_update.put.json "$CONFLUENCE_URL/rest/api/content/$ID" | jq -e >/tmp/c.bash.d/cfl_page_update.2.json
+  ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X PUT -H "Content-Type: application/json" -d @/tmp/c.bash.d/cfl_page_update.put.json "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_page_update.2.json
 }
 
 # ------------------------------------------------------------------------------
@@ -1742,7 +1752,7 @@ cmd::spotify_say_song() {
         fi
         done
       fi
-      say_name_begin=$(date +%s.%N)
+      say_name_begin=$(date "+%s.%N")
       for _ in {1..2}; do
         if LANG=C grep '[^[:cntrl:][:print:]]' <<< "$name"; then
           echo "$name" | kakasi -i utf8 -JH | timeout 2 espeak -s120 -v ja+f3 || true
@@ -1750,7 +1760,7 @@ cmd::spotify_say_song() {
           echo "$name"                      | timeout 2 espeak -s120 -v f1 || true
         fi
       done
-      say_name_secs=$(echo "$(date +%s.%N) - $say_name_begin" | bc)
+      say_name_secs=$(echo "$(date "+%s.%N") - $say_name_begin" | bc)
     }
 
     cmd::spotify_say_song::say
@@ -1806,6 +1816,27 @@ cmd::strace_prettify() {
     sed -i -E "s/\b$line\b/[PID:$i]/g" /tmp/c.bash.d/strace_prettify.in.txt
   done
   cat /tmp/c.bash.d/strace_prettify.in.txt
+}
+
+# ------------------------------------------------------------------------------
+# command - time_sub @pub
+
+define_command time_sub
+cmd::time_sub() {
+  local -r usage="usage: $PROG time_sub [-h | --help] L R FMT"
+  local L="" R="" FMT="" && arg_parse "$usage" "L R FMT" "$@"
+  diff_epoch=$(("$(date -d"$L" "+%s")" - "$(date -d"$R" "+%s")"))
+  # printf "%($FMT)T\n" "$diff_epoch"  # JP: JST: +9h
+  date -u -d@"$diff_epoch" "+$FMT"
+}
+
+test_time_sub() { #@test
+  run -0 bash ~/sh/c.bash time_sub " 1      " "0" "%s %F %T"            && [[ $output == "3600 1970-01-01 01:00:00" ]] || bats_run_debug_fail >&3
+  run -0 bash ~/sh/c.bash time_sub "01:00   " "0" "%s %F %T"            && [[ $output == "3600 1970-01-01 01:00:00" ]] || bats_run_debug_fail >&3
+  run -0 bash ~/sh/c.bash time_sub "01:00:00" "0" "%s %F %T"            && [[ $output == "3600 1970-01-01 01:00:00" ]] || bats_run_debug_fail >&3
+  run -0 bash ~/sh/c.bash time_sub "01:01:01" "0" "%s %F %T"            && [[ $output == "3661 1970-01-01 01:01:01" ]] || bats_run_debug_fail >&3
+  run -0 bash ~/sh/c.bash time_sub "23:59:59" "0" "%s %F %T"            && [[ $output == "86399 1970-01-01 23:59:59" ]] || bats_run_debug_fail >&3
+  run -0 bash ~/sh/c.bash time_sub "23:59:59" "1h 1min 1sec" "%s %F %T" && [[ $output == "21538 1970-01-01 05:58:58" ]] || bats_run_debug_fail >&3
 }
 
 # ------------------------------------------------------------------------------
