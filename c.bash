@@ -403,10 +403,16 @@ LOG_DEBUG=7    # /* debug-level messages */
 log_setlevel() {
   LOG_LEVEL=$1
 
+  if false; then  # slow
   log_error() { ( BASH_XTRACEFD=$fd_devnull : ) {fd_devnull}>/dev/null; }
   log_warning() { ( BASH_XTRACEFD=$fd_devnull : ) {fd_devnull}>/dev/null; }
   log_info() { ( BASH_XTRACEFD=$fd_devnull : ) {fd_devnull}>/dev/null; }
   log_debug() { ( BASH_XTRACEFD=$fd_devnull : ) {fd_devnull}>/dev/null; }
+  fi
+  log_error() { :; }
+  log_warning() { :; }
+  log_info() { :; }
+  log_debug() { :; }
 
   ((LOG_LEVEL < LOG_ERR)) && return 0
   log_error() { ( BASH_XTRACEFD=$fd_devnull set +x; printf '\e[31m[E] %s: %s\e[0m\n' "$(caller1)" "$*" >&2 ) {fd_devnull}>/dev/null; }
@@ -506,7 +512,7 @@ arg_parse() {
   local -r kind=${names2[0]}
   names2=("${names2[@]:1}")
 
-  [[ $# != 0 ]] && [[ $1 = '-h' || $1 = '-help' || $1 = '--help' ]] && echo "$usage" && exit 0
+  [[ $# != 0 ]] && [[ $1 = "-h" || $1 = "-help" || $1 = "--help" ]] && echo "$usage" && exit 0
 
   local name
 
@@ -687,7 +693,7 @@ cmd::0template() {
 false && _() {
   # short usage
   local -r usage="usage: $PROG 0template [-h | --help]"
-  [[ $# != 0 ]] && [[ $1 = '-h' || $1 = '-help' || $1 = '--help' ]] && echo "$usage" && exit 0
+  [[ $# != 0 ]] && [[ $1 = "-h" || $1 = "-help" || $1 = "--help" ]] && echo "$usage" && exit 0
   [[ $# != 0 ]] && err 0 "error: excess argument(s): $*" && echo "$usage" >&2 && exit 2
 
   # long usage
@@ -2414,7 +2420,7 @@ if not_yet && [ "$HAVE_UTIL_LINUX_GETOPT" = "yes" ]; then
   done
 fi
 
-[ $# != 0 ] && [[ $1 = '-h' || $1 = '-help' || $1 = '--help' ]] && top_usage && exit 0
+[ $# != 0 ] && [[ $1 = "-h" || $1 = "-help" || $1 = "--help" ]] && top_usage && exit 0
 OPT_q="false"
 OPT_v=0
 while getopts hqv- OPT; do
