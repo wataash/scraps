@@ -95,17 +95,17 @@ false && {
 # C_BASH_IN_BATS no  | c.bash                               | source c.bash
 #                    | bash c.bash                          | bash -c "source /home/wsh/sh/c.bash"
 #                    | bash <c.bash                         |
-if [[ "${#BASH_SOURCE[@]}" == 0 ]]; then
+if [[ "${#BASH_SOURCE[@]}" == "0" ]]; then
   # bash <c.bash
   C_BASH_DO_MAIN="yes"
-elif [[ "${#BASH_SOURCE[@]}" == 1 ]]; then
+elif [[ "${#BASH_SOURCE[@]}" == "1" ]]; then
   C_BASH_DO_MAIN="yes"  # c.bash / bash c.bash
   [[ -v BASH_EXECUTION_STRING ]] && C_BASH_DO_MAIN="no"  # bash -c "source /home/wsh/sh/c.bash"
   # likely [[ $(realpath "${BASH_SOURCE[-1]}") == "/home/wsh/sh/c.bash" ]]
-elif [[ "${#BASH_SOURCE[@]}" == 2 ]]; then
+elif [[ "${#BASH_SOURCE[@]}" == "2" ]]; then
   # source c.bash
   C_BASH_DO_MAIN="no"
-elif [[ "${#BASH_SOURCE[@]}" == 3 ]]; then
+elif [[ "${#BASH_SOURCE[@]}" == "3" ]]; then
   # bats c.bash
   # source a -> source c.bash
   C_BASH_DO_MAIN="no"
@@ -138,6 +138,13 @@ _pre_main() {
 
 # ------------------------------------------------------------------------------
 # lib
+
+# # C_BASH_FD_DEVNULL
+# exec {C_BASH_FD_DEVNULL}<> /dev/null
+# set -x
+# BASH_XTRACEFD=$C_BASH_FD_DEVNULL echo foo
+# BASH_XTRACEFD=$C_BASH_FD_DEVNULL echo foo  # /home/wsh/bin/c.bash: line 152: BASH_XTRACEFD: 10: invalid value for trace file descriptor
+# # instead: (BASH_XTRACEFD=$fd_devnull set +x; echo foo) {fd_devnull}>/dev/null
 
 PROG=$(basename "$0")
 
@@ -452,6 +459,7 @@ net_connected_6() {
 not_yet() { false; }
 
 # https://stackoverflow.com/questions/1527049/how-can-i-join-elements-of-an-array-in-bash
+# or: $(IFS=,; echo "${arr[*]}")
 function str_join_by {
   local d=${1-} f=${2-}
   if shift 2; then
@@ -470,8 +478,22 @@ usage:
 EOS
 }
 
+# assert assertion: [[ expr ]] || unreachable
 unreachable() {
   die 1 "unreachable: $(caller1): $(sed -n "${BASH_LINENO[0]}"p "$(self_real_path)")"
+}
+
+# variable_diff: usage:
+# variable_diff_1
+# some commands...
+# variable_diff_2
+
+variable_diff_1() {
+  declare -p > /tmp/c.bash.d/variable_diff.1
+}
+variable_diff_2() {
+  declare -p > /tmp/c.bash.d/variable_diff.2
+  delta /tmp/c.bash.d/variable_diff.1 /tmp/c.bash.d/variable_diff.2
 }
 
 # ------------------------------------------------------------------------------
@@ -492,9 +514,24 @@ setup() {
 # ------------------------------------------------------------------------------
 # commands
 
-declare -A _commands
+declare -A _commands                           # "${_commands[@]}": unstable (order is random)
+declare -a _command_list_stable_no_deprecated  # "${_command_list_stable_no_deprecated[@]}": stable
+declare -a _command_list_stable_no_deprecated_no_alias
 define_command() {
-  _commands[$1]+='defined'
+  local cmd=$1; shift
+  _commands[$cmd]=$cmd
+  _command_list_stable_no_deprecated+=("$cmd")
+  _command_list_stable_no_deprecated_no_alias+=("$cmd")
+  local alias
+  for alias in "$@"; do
+    if [[ $alias =~ ^"DEPRECATED:" ]]; then
+      alias=${alias#"DEPRECATED:"}
+      _commands[$alias]=$cmd
+      continue
+    fi
+    _commands[$alias]=$cmd
+    _command_list_stable_no_deprecated+=("$alias")
+  done
 }
 
 # local name="" ... && local -a arr=() && arg_parse "$usage" "name..." "$@"
@@ -663,13 +700,13 @@ test_arg_parse() { #@test
   set --               && run -2 --separate-stderr   arg_parse "$usage" "ARG1 [ARG2]" "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG1" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
 
   # HAS_ARGV
-  set -- "arg1" "arg2" "argv1" "argv2" && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == 2 ]] && [[ ${ARGV[*]} == "argv1 argv2" ]]                              || bats_run_debug_fail >&3
-  set -- "arg1" "arg2" "argv1"         && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == 1 ]] && [[ ${ARGV[*]} == "argv1"       ]]                              || bats_run_debug_fail >&3
+  set -- "arg1" "arg2" "argv1" "argv2" && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == "2" ]] && [[ ${ARGV[*]} == "argv1 argv2" ]]                              || bats_run_debug_fail >&3
+  set -- "arg1" "arg2" "argv1"         && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == "1" ]] && [[ ${ARGV[*]} == "argv1"       ]]                              || bats_run_debug_fail >&3
   set -- "arg1" "arg2"                 && run -2 --separate-stderr                     arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARGV..." missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
   set -- "arg1"                        && run -2 --separate-stderr                     arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARG2" missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]]    || bats_run_debug_fail >&3
   set -- "arg1" ""                     && run -2 --separate-stderr                     arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@"          && [[ $output == "" ]] && [[ ${stderr_lines[0]} =~ 'error: required argument: "ARGV..." missing' ]] && [[ ${stderr_lines[1]} =~ ^"usage: " ]] || bats_run_debug_fail >&3
-  set -- "arg1" "" ""                  && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == 1 ]] && [[ ${ARGV[*]} == ""            ]]                              || bats_run_debug_fail >&3
-  set -- "arg1" "" "" ""               && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == 2 ]] && [[ ${ARGV[*]} == " "           ]]                              || bats_run_debug_fail >&3
+  set -- "arg1" "" ""                  && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == "1" ]] && [[ ${ARGV[*]} == ""            ]]                              || bats_run_debug_fail >&3
+  set -- "arg1" "" "" ""               && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 ARG2 ARGV..." "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == ""     ]] && [[ ${#ARGV[@]} == "2" ]] && [[ ${ARGV[*]} == " "           ]]                              || bats_run_debug_fail >&3
 
   # MAY_ARGV
   set -- "arg1" "arg2" "argv1" "argv2" && local ARG1="" ARG2="" && local -a ARGV=() && arg_parse "$usage" "ARG1 [ARG2] [ARGV...]" "$@" >&3 2>&3 && [[ $ARG1 == "arg1" ]] && [[ $ARG2 == "arg2" ]] && [[ ${#ARGV[@]} == "2" ]] && [[ ${ARGV[*]} == "argv1 argv2" ]] || bats_run_debug_fail >&3
@@ -727,9 +764,9 @@ cmd::apt_changelog() {
 
 cfl_env_check() {
   local ok="true"
-  [[ ${CONFLUENCE_URL+defined} == "defined" ]] || err 1 'environment variable CONFLUENCE_URL is not set' || ok="false"
-  [[ ${CONFLUENCE_USER+defined} == "defined" ]] || err 1 'environment variable CONFLUENCE_USER is not set' || ok="false"
-  [[ ${CONFLUENCE_PASS+defined} == "defined" ]] || err 1 'environment variable CONFLUENCE_PASS is not set' || ok="false"
+  [[ ${CONFLUENCE_URL+defined} == "defined" ]] || err 1 "environment variable CONFLUENCE_URL is not set" || ok="false"
+  [[ ${CONFLUENCE_USER+defined} == "defined" ]] || err 1 "environment variable CONFLUENCE_USER is not set" || ok="false"
+  [[ ${CONFLUENCE_PASS+defined} == "defined" ]] || err 1 "environment variable CONFLUENCE_PASS is not set" || ok="false"
   [[ $ok == "true" ]] || exit 1
   [[ $CONFLUENCE_URL != "${CONFLUENCE_URL%/}" ]] && {
     log_debug "remove trailing slash in CONFLUENCE_URL: $CONFLUENCE_URL -> ${CONFLUENCE_URL%/}"
@@ -746,15 +783,33 @@ cmd::cfl_curl() {
   cfl_env_check
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
   (
-    # BASH_XTRACEFD=$fd_xtrace
     ((LOG_LEVEL >= LOG_DEBUG)) && set -x
-    env LD_LIBRARY_PATH="$HOME/opt/curl8/lib/" /home/wsh/opt/curl8/bin/curl --fail-with-body -Ss -K<(set +x; builtin echo "-u $CONFLUENCE_USER:$CONFLUENCE_PASS") "$@" >/tmp/c.bash.d/cfl_curl.out
-  # ) {fd_xtrace}> >(node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.env.CONFLUENCE_PASS, "$CONFLUENCE_PASS".replaceAll("$", "$$$$")))' | sed -E 's/^(.{160}).*$/\1.../' >&2)
-  ) || die 1 "cfl_curl failed; body: $(cat /tmp/c.bash.d/cfl_curl.out)"
+    curl --fail-with-body -Ss -K<(BASH_XTRACEFD=$fd_devnull builtin echo "-u $CONFLUENCE_USER:$CONFLUENCE_PASS") {fd_devnull}>/dev/null "$@" >/tmp/c.bash.d/cfl_curl.out
+  ) {fd_devnull}>/dev/null || die 1 "cfl_curl failed; body: $(cat /tmp/c.bash.d/cfl_curl.out)"
   jq -c "." /tmp/c.bash.d/cfl_curl.out
 }
 false && pre_main() {
   cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/1"
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_page_format_with_actual_update_abort @pub
+
+define_command cfl_page_format_with_actual_update_abort
+cmd::cfl_page_format_with_actual_update_abort() {
+  local -r usage="usage: $PROG cfl_page_format_with_actual_update_abort [-h | --help] [FILE]"
+  local FILE="" && arg_parse "$usage" "[FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+  cfl_env_check
+  [[ ${DANGEROUS_PLEASE_UNDERSTAND_WHAT_THIS_DO_CONFLUENCE_UPDATE_CONTENT_ID+defined} == "defined" ]] || die 1 "environment variable DANGEROUS_PLEASE_UNDERSTAND_WHAT_THIS_DO_CONFLUENCE_UPDATE_CONTENT_ID is not set" || ok="false"
+  local ID=$DANGEROUS_PLEASE_UNDERSTAND_WHAT_THIS_DO_CONFLUENCE_UPDATE_CONTENT_ID
+
+  (set -o pipefail; ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID" | jq -e >/tmp/c.bash.d/cfl_page_format_with_actual_update_abort.json)
+  local original_title
+  original_title=$(jq -er ".title" /tmp/c.bash.d/cfl_page_format_with_actual_update_abort.json)
+  # cmd cfl_page_update "$ID" "$original_title" "$FILE" | jq ".body.storage.value"  # not formatted yet
+  cmd cfl_page_update "$ID" "$original_title" "$FILE" >/dev/null
+  cmd cfl_page_get_content "$ID"  # not formatted! abort
 }
 
 # ------------------------------------------------------------------------------
@@ -769,7 +824,7 @@ cmd::cfl_page_get_content() {
   local ID="" && arg_parse "$usage" "ID" "$@"
   [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
   cfl_env_check
-  (set -o pipefail; ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID?expand=body.storage" | jq -e >/tmp/c.bash.d/cfl_page_get_content.json)
+  (set -o pipefail; ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID?expand=body.storage" | jq -e >/tmp/c.bash.d/cfl_page_get_content.json)
   jq -er </tmp/c.bash.d/cfl_page_get_content.json ".title"
   jq -er </tmp/c.bash.d/cfl_page_get_content.json ".body.storage.value"
 }
@@ -799,6 +854,7 @@ cmd::cfl_page_rm() {
 # ------------------------------------------------------------------------------
 # command - cfl_page_update @pub
 
+# stdout: JSON from POST "$CONFLUENCE_URL/rest/api/content/$ID"
 define_command cfl_page_update
 cmd::cfl_page_update() {
   local -r usage="usage: $PROG cfl_page_update [-h | --help] ID TITLE [FILE]"
@@ -806,12 +862,13 @@ cmd::cfl_page_update() {
   [[ $FILE == "" ]] && FILE="/dev/stdin"
   [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
   cfl_env_check
-  ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_page_update.1.json
+  ( ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_page_update.1.json
   local -i ver
   ver=$(jq -er ".version.number" /tmp/c.bash.d/cfl_page_update.1.json)
   ((ver++))
   jo -p -d. -- version.number="$ver" title="$TITLE" type=page body.storage.value=@"$FILE" body.storage.representation=storage >/tmp/c.bash.d/cfl_page_update.put.json
-  ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X PUT -H "Content-Type: application/json" -d @/tmp/c.bash.d/cfl_page_update.put.json "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_page_update.2.json
+  ( ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X PUT -H "Content-Type: application/json" -d @/tmp/c.bash.d/cfl_page_update.put.json "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_page_update.2.json
+  jq "." /tmp/c.bash.d/cfl_page_update.2.json
 }
 
 # ------------------------------------------------------------------------------
@@ -896,7 +953,7 @@ cmd::discharging_checker() {
 
   # without this: notify-send: Cannot autolaunch D-Bus without X11 $DISPLAY
   # @ref:no-X11-DBUS_SESSION_BUS_ADDRESS
-  DBUS_SESSION_BUS_ADDRESS=$(strings /proc/"$(pgrep -u wsh gnome-session | head -1)"/environ | grep -P -o "(?<=DBUS_SESSION_BUS_ADDRESS=).+")  # unix:path=/run/user/1000/bus
+  DBUS_SESSION_BUS_ADDRESS=$(strings /proc/"$(pgrep -u wsh gnome-session | head -1)"/environ | grep -P -o '(?<=DBUS_SESSION_BUS_ADDRESS=).+$')  # unix:path=/run/user/1000/bus
   export DBUS_SESSION_BUS_ADDRESS
 
   local interval=$BASE_INTERVAL
@@ -1001,11 +1058,39 @@ cmd::file_timestamp() {
 
 # c.bash gm -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash
 # c.bash gm -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash | sed '1d;$d'
+
+define_command grep_multiline gm
+cmd::grep_multiline() {
+  local -r usage="usage: ... | $PROG grep_multiline (gm) [-h | --help] -P -m1 PATTERN_BEGIN PATTERN_END [| sed '1d;\$d']"
+  local P="" m="" PATTERN_BEGIN="" PATTERN_END="" && arg_parse "$usage" "P m PATTERN_BEGIN PATTERN_END" "$@"
+  [[ $P != "-P" ]] && err 0 "error: \"$P\" != \"-P\" (in $*)" && echo "$usage" >&2 && exit 2
+  [[ $m != "-m1" ]] && err 0 "error: \"$m\" != \"-m1\" (in $*)" && echo "$usage" >&2 && exit 2
+  local txt
+  txt=$(cat)
+  # set -x
+  grep -P -m1 -q "$PATTERN_BEGIN" <<< "$txt"
+  local -i lineno_begin
+  lineno_begin="$(grep -P -m1 -n "$PATTERN_BEGIN" <<< "$txt" | cut -d":" -f1)"
+  grep -P -m1 -q "$PATTERN_END" <<< "$txt"
+  # lineno_end="$(grep -P -m1 -n "$PATTERN_END" <<< "$txt" | cut -d":" -f1)"
+  # set +x
+  local -i lineno_end
+  grep -P -n "$PATTERN_END" <<< "$txt" | cut -d":" -f1 | while IFS= read -r lineno_end; do  # `IFS=`: prevent removing leading/preceding spaces
+    log_debug "lineno_end: $lineno_end"
+    if ((lineno_end > lineno_begin)); then
+      sed -n "${lineno_begin},${lineno_end}p" <<< "$txt"
+      exit 0
+    fi
+  done && exit 0
+  exit 1
+}
+
+# ------------------------------------------------------------------------------
 # command - grep_multiline_greedy (gm_greedy) @pub
 
 # c.bash gm_greedy -P "^define_command grep_multiline_greedy" "cat" < /home/wsh/sh/c.bash
 
-define_command grep_multiline_greedy
+define_command grep_multiline_greedy gm_greedy
 cmd::grep_multiline_greedy() {
   local -r usage="usage: ... | $PROG grep_multiline_greedy (gm_greedy) [-h | --help] -P PATTERN_BEGIN PATTERN_END [| sed '1d;\$d']"
   local P="" PATTERN_BEGIN="" PATTERN_END="" && arg_parse "$usage" "P PATTERN_BEGIN PATTERN_END" "$@"
@@ -1024,9 +1109,6 @@ cmd::grep_multiline_greedy() {
   sed -n "${lineno_begin},${lineno_end}p" <<< "$txt"
   exit 0
 }
-
-define_command gm_greedy
-cmd::gm_greedy() { cmd::grep_multiline_greedy "$@"; }
 
 # ------------------------------------------------------------------------------
 # command - journalctl @pub
@@ -1342,23 +1424,11 @@ cmd::linux_kern_make_summary() {
 # ------------------------------------------------------------------------------
 # command - md_code_b64 @pub
 
-: <<'DOC'
-```sh
-code
-``` -> @__code_block__:YGBgc2gKY29kZQpgYGA=
-DOC
-
 define_command md_code_b64
 cmd::md_code_b64() {
   local -r usage="usage: $PROG md_code_b64 [-h | --help]"
   arg_parse "$usage" "" "$@"
-  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  node -e '
-    let txt = fs.readFileSync("/dev/stdin", "utf8");
-    for (const match of txt.matchAll(/^```(\w+)?[\s\S]+?^```$/gm)) {
-      txt = txt.replace(match[0], `@__code_block__:${Buffer.from(match[0]).toString("base64")}`);
-    }
-    process.stdout.write(txt);'
+  c.js txt-markdown-code-b64
 }
 
 test_md_code_b64() { #@test
@@ -1380,13 +1450,7 @@ define_command md_code_b64d
 cmd::md_code_b64d() {
   local -r usage="usage: $PROG md_code_b64d [-h | --help]"
   arg_parse "$usage" "" "$@"
-  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  node -e '
-    let txt = fs.readFileSync("/dev/stdin", "utf8");
-    for (const match of txt.matchAll(/^@__code_block__:(.+)$/gm)) {
-      txt = txt.replace(match[0], Buffer.from(match[1], "base64").toString("utf8").replaceAll("$", "$$$$"));
-    }
-    process.stdout.write(txt);'
+  c.js txt-markdown-code-b64d
 }
 
 test_md_code_b64d() { #@test
@@ -1442,7 +1506,7 @@ cmd::md_secsp() {
   cmd md_code_b64 | node -e '
     const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
     const txt = fs.readFileSync("/dev/stdin", "utf8") + "\0eof\0";
-    let txt2 == "";
+    let txt2 = "";
     let lastSectionIsMatch = false;
     for (const match of txt.matchAll(new RegExp(`(^## ${regExpEscape(process.argv[1])}[\\s\\S]*?)(?=(^## |eof\0))`, "gm"))) {
       if (match[1].at(-1) === "\0") {
@@ -1476,38 +1540,6 @@ test_md_secsp() { #@test
   echo -n $'## foo1\n## bar1\n## foo2\n## bar2'               >/tmp/c.bash.d/test.in && echo -n $'## foo1\n## foo2'         >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
   echo -n $'## foo1\n\n## bar1\n\n## foo2\n\n## bar2\n'       >/tmp/c.bash.d/test.in && echo -n $'## foo1\n\n## foo2\n'     >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
   echo -n $'## foo1\n\n\n## bar1\n\n## foo2\n\n\n## bar2\n\n' >/tmp/c.bash.d/test.in && echo -n $'## foo1\n\n\n## foo2\n\n' >/tmp/c.bash.d/test.expect && run -0 bash -c "bash ~/sh/c.bash md_secsp foo </tmp/c.bash.d/test.in >/tmp/c.bash.d/test.out && cmp /tmp/c.bash.d/test.expect /tmp/c.bash.d/test.out" && [[ $output == '' ]] || bats_run_debug_fail >&3
-}
-
-# ------------------------------------------------------------------------------
-# command - net_if_rename @pub
-
-# variable_diff: usage:
-# variable_diff_1
-# some commands...
-# variable_diff_2
-
-cmd::variable_diff_1() {
-  declare -p > /tmp/c.bash.d/variable_diff.1
-}
-
-cmd::variable_diff_2() {
-  declare -p > /tmp/c.bash.d/variable_diff.2
-  delta /tmp/c.bash.d/variable_diff.1 /tmp/c.bash.d/variable_diff.2
-}
-
-define_command net_if_rename
-cmd::net_if_rename() {
-  local -r usage="usage: $PROG net_if_rename [-h | --help] MAC_ADDRESS NEW_NAME"
-  local MAC_ADDRESS="" NEW_NAME="" && arg_parse "$usage" "MAC_ADDRESS NEW_NAME" "$@"
-
-  # 42: enx00005e005300: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
-  #     link/ether 00:00:5e:00:53:00 brd ff:ff:ff:ff:ff:ff
-  shopt -s lastpipe && set +m  # set +m for interactive shell  TODO: restore -m
-  ip a | grep -B1 "$MAC_ADDRESS" | grep -P -o '(?<=\d: )\w+(?=: <)' | read -r old_name
-  set -x
-  sudo ip link set "$old_name" down
-  sudo ip link set "$old_name" name "$NEW_NAME"
-  sudo ip link set "$NEW_NAME" up
 }
 
 # ------------------------------------------------------------------------------
@@ -1552,6 +1584,59 @@ cmd::netbsd_makefile_expand_vars() {
 }
 
 # ------------------------------------------------------------------------------
+# command - net_if_rename @pub
+
+define_command net_if_rename
+cmd::net_if_rename() {
+  local -r usage="usage: $PROG net_if_rename [-h | --help] MAC_ADDRESS NEW_NAME"
+  local MAC_ADDRESS="" NEW_NAME="" && arg_parse "$usage" "MAC_ADDRESS NEW_NAME" "$@"
+
+  # 42: enx00005e005300: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+  #     link/ether 00:00:5e:00:53:00 brd ff:ff:ff:ff:ff:ff
+  shopt -s lastpipe && set +m  # set +m for interactive shell  TODO: restore -m
+  ip a | grep -B1 "$MAC_ADDRESS" | grep -P -o '(?<=\d: )\w+(?=: <)' | read -r old_name
+  set -x
+  sudo ip link set "$old_name" down
+  sudo ip link set "$old_name" name "$NEW_NAME"
+  sudo ip link set "$NEW_NAME" up
+}
+
+# ------------------------------------------------------------------------------
+# command - pkill (pk) @pub
+# sudo -v && [ -e /usr/local/bin/pk ] && printf "\e[37m""exists\n\e[0m" || echo -e '#!/bin/sh \n exec /home/wsh/sh/c.bash pkill "$@"' | sudo tee /usr/local/bin/pk && sudo chmod +x /usr/local/bin/pk
+
+define_command pkill pk
+cmd::pkill() {
+  local -r usage="usage: $PROG pkill [-h | --help] ARG..."
+  local -a ARG=() && arg_parse "$usage" "ARG..." "$@"
+  pgrep -a "${ARG[@]}"
+  pkill "${ARG[@]}"
+  exit 0
+}
+
+# ------------------------------------------------------------------------------
+# command - pstree @pub
+
+define_command pstree
+cmd::pstree() {
+  local -r usage="usage: $PROG pstree [-h | --help] PIDS..."
+  local -a PIDS="" && arg_parse "$usage" "PIDS..." "$@"
+  local pid
+  local -a pids
+  log_debug "PIDS: ${PIDS[*]}"
+  for pid in "${PIDS[@]}"; do
+    while true; do
+      pids+=("$pid")
+      local ppid
+      ppid=$(ps -p $pid -o ppid:1=)
+      [[ $pid = "1" ]] && { [[ $ppid == "0" ]] || unreachable; } && break;
+      pid=$ppid
+    done
+  done
+  ps -p "$(IFS=,; echo "${pids[*]}")" -H u -ww
+}
+
+# ------------------------------------------------------------------------------
 # command - pty_qemu @pub
 
 # @ref:qemu-pty
@@ -1569,7 +1654,7 @@ EOS
   local QEMU_PID_orig=$QEMU_PID
   [[ $QEMU_PID == "netbsd" ]] && QEMU_PID=$(pgrep -f 'qemu-system-x86_64 .+/netbsd.qcow2')
 
-  [[ $QEMU_PID =~ ^[0-9]+$ ]] || die 1 "invalid QEMU_PID: $QEMU_PID"
+  [[ $QEMU_PID =~ ^[0-9]+$ ]] || die 2 "invalid QEMU_PID: $QEMU_PID"
 
   local -r IN_PTY="/tmp/c.bash.d/pty.qemu.$QEMU_PID"                    # /tmp/c.bash.d/pty.qemu.0
   local -r OUT_FILE="/tmp/c.bash.d/pty.qemu.$QEMU_PID.out"              # /tmp/c.bash.d/pty.qemu.0.out
@@ -1646,7 +1731,7 @@ cmd::qemu_net_setup() {
   # 2023-04-24 Mon wsh79
   # cat /proc/sys/net/ipv4/ip_forward
   # ssh ログイン後は 1 だが、startup 時は 0 だった
-  [[ "$(cat /proc/sys/net/ipv4/ip_forward)" == 1 ]] || echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
+  [[ "$(cat /proc/sys/net/ipv4/ip_forward)" == "1" ]] || echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
 
   # @ref:qemu-bridge @ref:iptables-bridge
 
@@ -1712,7 +1797,7 @@ EOS
     set -x
   else
     # array element in CMD
-    [[ ${#CMD[@]} == "0" ]] && die 1 "smux-server not found; CMD needed"
+    [[ ${#CMD[@]} == "0" ]] && die 2 "smux-server not found; CMD needed"
     set -x
     systemd-run --user -- "$(which c.js)" -v smux-server --name="$NAME" -- "${CMD[@]}" && sleep 0.1
   fi
@@ -1955,7 +2040,7 @@ test_time_sub() { #@test
 # c.bash -v bef NAME </home/wsh/sh/c.bash  # HERE
 # c.bash -v bef NONEXISTENT </home/wsh/sh/c.bash  # TypeError
 
-define_command txt_begin_end
+define_command txt_begin_end be
 cmd::txt_begin_end() {
   local -r usage="usage: [... |] $PROG txt_begin_end (be) [-h | --help] NAME [FILE]"
   local NAME="" FILE="" && arg_parse "$usage" "NAME [FILE]" "$@"
@@ -1984,14 +2069,10 @@ cmd::txt_begin_end() {
   exit 0
 }
 
-# alias
-define_command be
-cmd::be() { cmd::txt_begin_end "$@"; }
-
 # ------------------------------------------------------------------------------
 # command - txt_begin_end_fast (bef) @pub
 
-define_command txt_begin_end_fast
+define_command txt_begin_end_fast bef
 cmd::txt_begin_end_fast() {
   local -r usage="usage: [... |] $PROG txt_begin_end_fast (bef) [-h | --help] NAME [FILE]"
   local NAME="" FILE="" && arg_parse "$usage" "NAME [FILE]" "$@"
@@ -1999,10 +2080,6 @@ cmd::txt_begin_end_fast() {
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
   node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").match(new RegExp(`@beg:${process.argv[1]}\\b.*\r?\n([\\s\\S]*?\r?\n)^.*@end:${process.argv[1]}\\b`, "m"))[1]); // TODO: escape argv[1]' "$NAME" <"$FILE"
 }
-
-# alias
-define_command bef
-cmd::bef() { cmd::txt_begin_end_fast "$@"; }
 
 # ------------------------------------------------------------------------------
 # command - txt_begin_end_v (bev) @pub
@@ -2017,7 +2094,7 @@ cmd::bef() { cmd::txt_begin_end_fast "$@"; }
 # c.bash -v bev NONEXISTENT </home/wsh/sh/c.bash >/tmp/a
 # diff -u /home/wsh/sh/c.bash /tmp/a  # no diff
 
-define_command txt_begin_end_v
+define_command txt_begin_end_v bev
 cmd::txt_begin_end_v() {
   local -r usage="usage: [... |] $PROG txt_begin_end_v (bev) [-h | --help] NAME [FILE]"
   local NAME="" FILE="" && arg_parse "$usage" "NAME [FILE]" "$@"
@@ -2044,10 +2121,6 @@ cmd::txt_begin_end_v() {
   exit 0
 }
 
-# alias
-define_command bev
-cmd::bev() { cmd::txt_begin_end_v "$@"; }
-
 # ------------------------------------------------------------------------------
 # command - txt_begin_end_v_fast (bevf) @pub
 #
@@ -2061,7 +2134,7 @@ cmd::bev() { cmd::txt_begin_end_v "$@"; }
 # c.bash -v bevf NONEXISTENT </home/wsh/sh/c.bash >/tmp/a
 # diff -u /home/wsh/sh/c.bash /tmp/a  # no diff
 
-define_command txt_begin_end_v_fast
+define_command txt_begin_end_v_fast bevf
 cmd::txt_begin_end_v_fast() {
   local -r usage="usage: [... |] $PROG txt_begin_end_v_fast (bevf) [-h | --help] NAME [FILE]"
   local NAME="" FILE="" && arg_parse "$usage" "NAME [FILE]" "$@"
@@ -2069,10 +2142,6 @@ cmd::txt_begin_end_v_fast() {
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
   node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(new RegExp(`^.*@beg:${process.argv[1]}\\b.*\r?\n[\\s\\S]*?@end:${process.argv[1]}\\b.*(\r?\n|$)`, "gm"), ""))' "$NAME" <"$FILE"
 }
-
-# alias
-define_command bevf
-cmd::bevf() { cmd::txt_begin_end_v_fast "$@"; }
 
 # ------------------------------------------------------------------------------
 # command - txt_eval @pub
@@ -2113,7 +2182,7 @@ cmd::txt_eval() {
 # c.bash rep "$(c.bash grep_multiline -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash)" "hi there" < /home/wsh/sh/c.bash > /tmp/c.bash.d/rep.test.bash
 # delta /home/wsh/sh/c.bash /tmp/c.bash.d/rep.test.bash
 
-define_command txt_replace
+define_command txt_replace rep DEPRECATED:replace
 cmd::txt_replace() {
   local -r usage="usage: ... | $PROG txt_replace (rep) [-h | --help] FROM TO"
   local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
@@ -2124,18 +2193,10 @@ cmd::txt_replace() {
   python3 -c "import sys; print(sys.stdin.read().replace(sys.argv[1], sys.argv[2], 1), end='')" "$FROM" "$TO"
 }
 
-# alias
-define_command rep
-cmd::rep() { cmd::txt_replace "$@"; }
-
-# compatibility
-define_command replace
-cmd::replace() { cmd::txt_replace "$@"; }
-
 # ------------------------------------------------------------------------------
 # command - txt_replace_all (repa) @pub
 
-define_command txt_replace_all
+define_command txt_replace_all repa DEPRECATED:replace_all
 cmd::txt_replace_all() {
   local -r usage="usage: ... | $PROG txt_replace_all (repa) [-h | --help] FROM TO"
   local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
@@ -2144,18 +2205,10 @@ cmd::txt_replace_all() {
   python3 -c "import sys; print(sys.stdin.read().replace(sys.argv[1], sys.argv[2]), end='')" "$FROM" "$TO"
 }
 
-# alias
-define_command repa
-cmd::repa() { cmd::txt_replace_all "$@"; }
-
-# compatibility
-define_command replace_all
-cmd::replace_all() { cmd::txt_replace_all "$@"; }
-
 # ------------------------------------------------------------------------------
 # command - txt_replace_line (repl) @pub
 
-define_command txt_replace_line
+define_command txt_replace_line repl DEPRECATED:replace_line
 cmd::txt_replace_line() {
   local -r usage="usage: ... | $PROG txt_replace_line (repl) [-h | --help] FROM TO"
   local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
@@ -2163,18 +2216,10 @@ cmd::txt_replace_line() {
   python3 -c "import sys; [print(line.replace(sys.argv[1], sys.argv[2], 1), end='') for line in sys.stdin]" "$FROM" "$TO"  # not tested
 }
 
-# alias
-define_command repl
-cmd::repl() { cmd::txt_replace_line "$@"; }
-
-# compatibility
-define_command replace_line
-cmd::replace_line() { cmd::txt_replace_line "$@"; }
-
 # ------------------------------------------------------------------------------
 # command - txt_replace_line_all (repla) @pub
 
-define_command txt_replace_line_all
+define_command txt_replace_line_all repla DEPRECATED:replace_line_all
 cmd::txt_replace_line_all() {
   local -r usage="usage: ... | $PROG txt_replace_line_all (repla) [-h | --help] FROM TO"
   local FROM="" TO="" && arg_parse "$usage" "FROM TO" "$@"
@@ -2182,14 +2227,6 @@ cmd::txt_replace_line_all() {
   # node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.argv[1], process.argv[2].replaceAll("$", "$$$$")))' "$FROM" "$TO"  # not tested
   python3 -c "import sys; [print(line.replace(sys.argv[1], sys.argv[2]), end='') for line in sys.stdin]" "$FROM" "$TO"
 }
-
-# alias
-define_command repla
-cmd::repla() { cmd::txt_replace_line_all "$@"; }
-
-# compatibility
-define_command replace_line_all
-cmd::replace_line_all() { cmd::txt_replace_line_all "$@"; }
 
 # ------------------------------------------------------------------------------
 # command - xargs_delay @pub
@@ -2271,21 +2308,35 @@ cmd::repl() {
 }
 
 # ------------------------------------------------------------------------------
-# command - z_meta_commands_list @pub
+# command - z_meta_command_list @pub
 
-define_command z_meta_commands_list
-cmd::z_meta_commands_list() {
-  local -r usage="usage: $PROG z_meta_commands_list [-h | --help]"
+define_command z_meta_command_list
+cmd::z_meta_command_list() {
+  local -r usage="usage: $PROG z_meta_command_list [-h | --help]"
   arg_parse "$usage" "" "$@"
-  for k in "${!_commands[@]}"; do
-    echo "$k"
-  done | sort
+  # for cmd in "${!_commands[@]}"; do  # order is unstable
+  for cmd in "${_command_list_stable_no_deprecated[@]}"; do
+    echo "$cmd"
+  done
+}
+
+# ------------------------------------------------------------------------------
+# command - z_meta_command_list_no_alias @pub
+
+define_command z_meta_command_list_no_alias
+cmd::z_meta_command_list_no_alias() {
+  local -r usage="usage: $PROG z_meta_command_list_no_alias [-h | --help]"
+  arg_parse "$usage" "" "$@"
+  for cmd in "${_command_list_stable_no_deprecated_no_alias[@]}"; do
+    echo "$cmd"
+  done
 }
 
 # ------------------------------------------------------------------------------
 # command - z_meta_publish_self @pub
 
 : <<'DOC'
+diff -u (c.bash z_meta_command_list_no_alias | psub) (c.bash z_meta_command_list_no_alias | sort | psub)
 c.bash -v z_meta_publish_self > ~/src/scraps/c.bash
 cd ~/src/scraps/
 git ...
@@ -2310,7 +2361,7 @@ cmd::z_meta_publish_self() {
       log_debug "$line"
     fi
     [[ $public_cmd == "false" ]] && continue
-    [[ $line =~ [@]pl ]] && continue  # private line
+    [[ $line =~ [@]"pl"$ || $line =~ [@]"pl"[^0-9A-Za-z_] ]] && continue  # private line
     echo "$line"
   done
 
@@ -2364,24 +2415,24 @@ if false; then
   cd /tmp/c.bash.d/
   cp ~/sh/c.bash ./
   cp ~/sh/c.bash ./foo
-  cp ~/sh/c.bash ./z_meta_commands_list
+  cp ~/sh/c.bash ./z_meta_command_list
   # TODO: -h
-                run -2 --separate-stderr      ~/sh/c.bash                        && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-                run -2 --separate-stderr bash ~/sh/c.bash                        && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-                run -2 --separate-stderr      ./foo                              && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-                run -2 --separate-stderr bash ./foo                              && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-                run -2 --separate-stderr      /tmp/c.bash.d/foo                  && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-                run -2 --separate-stderr bash /tmp/c.bash.d/foo                  && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-                run -0 --separate-stderr      ./z_meta_commands_list             && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
-                run -0 --separate-stderr bash ./z_meta_commands_list             && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
-                run -0 --separate-stderr      /tmp/c.bash.d/z_meta_commands_list && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
-                run -0 --separate-stderr bash /tmp/c.bash.d/z_meta_commands_list && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
-  PATH=$PATH:./ run -2 --separate-stderr      c.bash                             && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-  PATH=$PATH:./ run -2 --separate-stderr bash c.bash                             && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-  PATH=$PATH:./ run -2 --separate-stderr      foo                                && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-  PATH=$PATH:./ run -2 --separate-stderr bash foo                                && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
-  PATH=$PATH:./ run -0 --separate-stderr      z_meta_commands_list               && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
-  PATH=$PATH:./ run -0 --separate-stderr bash z_meta_commands_list               && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr      ~/sh/c.bash                       && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr bash ~/sh/c.bash                       && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr      ./foo                             && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr bash ./foo                             && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr      /tmp/c.bash.d/foo                 && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -2 --separate-stderr bash /tmp/c.bash.d/foo                 && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+                run -0 --separate-stderr      ./z_meta_command_list             && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+                run -0 --separate-stderr bash ./z_meta_command_list             && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+                run -0 --separate-stderr      /tmp/c.bash.d/z_meta_command_list && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+                run -0 --separate-stderr bash /tmp/c.bash.d/z_meta_command_list && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -2 --separate-stderr      c.bash                            && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -2 --separate-stderr bash c.bash                            && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -2 --separate-stderr      foo                               && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -2 --separate-stderr bash foo                               && [[ $output == "" ]]                    && [[ $stderr =~ $'command not specified / no such command: foo\e[0m'.*"usage:" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -0 --separate-stderr      z_meta_command_list               && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
+  PATH=$PATH:./ run -0 --separate-stderr bash z_meta_command_list               && [[ $output =~ ^$'0template\nagsafe' ]] && [[ $stderr == "" ]] || bats_run_debug_fail >&3
 fi
 }
 
@@ -2457,5 +2508,5 @@ _pre_main
 (($# == 0)) && err 0 "command not specified" && top_usage >&2 && exit 2
 COMMAND_=$1 && shift
 [[ -v _commands[$COMMAND_] ]] || { err 0 "no such command: $COMMAND_" && top_usage >&2 && exit 2; }
-"cmd::$COMMAND_" "$@"
+"cmd::${_commands[$COMMAND_]}" "$@"
 exit $?
