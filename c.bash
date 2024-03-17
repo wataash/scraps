@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: Copyright (c) 2022-2023 Wataru Ashihara <wataash0607@gmail.com>
+# SPDX-FileCopyrightText: Copyright (c) 2022-2024 Wataru Ashihara <wataash0607@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
 # shellcheck disable=SC2317  # Command appears to be unreachable. Check usage (or ignore if invoked indirectly).
@@ -480,7 +480,7 @@ EOS
 
 # assert assertion: [[ expr ]] || unreachable
 unreachable() {
-  die 1 "unreachable: $(caller1): $(sed -n "${BASH_LINENO[0]}"p "$(self_real_path)")"
+  die 1 "unreachable: $(caller1): $(sed -n "${BASH_LINENO[0]}"p "${BASH_SOURCE[1]}")"
 }
 
 # variable_diff: usage:
@@ -776,6 +776,151 @@ cfl_env_check() {
 }
 
 # ------------------------------------------------------------------------------
+# command - cfl_content_attachment_get @pub
+
+# saves to ~/.cache/wataash/c.bash/cfl_content_attachment_get/*
+define_command cfl_content_attachment_get
+cmd::cfl_content_attachment_get() {
+  local -r usage="usage: $PROG cfl_content_attachment_get [-h | --help] ID"
+  local ID="" && arg_parse "$usage" "ID" "$@"
+  [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
+  cfl_env_check
+  mkdir -p ~/.cache/wataash/c.bash/cfl_content_attachment_get/
+  cmd cfl_content_attachment_get_json "$ID" >~/.cache/wataash/c.bash/cfl_content_attachment_get/tmp.json
+  local removed_caches; removed_caches=$(find ~/.cache/wataash/c.bash/cfl_content_attachment_get/ -mtime +3 -delete -print); [[ -n $removed_caches ]] && log_info "removed old caches: $removed_caches"
+  jq -c '.results[] | { id, title, extensions, _links }' ~/.cache/wataash/c.bash/cfl_content_attachment_get/tmp.json | while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
+    local id title size link
+    id=$(jq -er '.id' <<<"$line")
+    title=$(jq -er '.title' <<<"$line")
+    size=$(jq -er '.extensions.fileSize' <<<"$line")
+    link=$(jq -er '._links.download' <<<"$line")
+    [[ -f ~/.cache/wataash/c.bash/cfl_content_attachment_get/$id ]] && [[ $(stat -c %s ~/.cache/wataash/c.bash/cfl_content_attachment_get/"$id") == "$size" ]] && log_debug "skip: $id $title" && continue
+    (set -o pipefail; ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/$link" -o ~/.cache/wataash/c.bash/cfl_content_attachment_get/"$id")
+  done
+  jq '.' ~/.cache/wataash/c.bash/cfl_content_attachment_get/tmp.json
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_content_attachment_get_json @pub
+
+define_command cfl_content_attachment_get_json
+cmd::cfl_content_attachment_get_json() {
+  local -r usage="usage: $PROG cfl_content_attachment_get_json [-h | --help] ID"
+  local ID="" && arg_parse "$usage" "ID" "$@"
+  [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
+  cfl_env_check
+  local start=0 limit=50
+  # local limit=5  # limit test
+  mkdir -p /tmp/c.bash.d/cfl_content_attachment_get_json/
+  echo '{"results":[]}' >/tmp/c.bash.d/cfl_content_attachment_get_json/all.json
+  for try in {1..10}; do
+    # log_debug "try: $try"
+    (set -o pipefail; ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID/child/attachment?start=$start&limit=$limit" | jq >"/tmp/c.bash.d/cfl_content_attachment_get_json/$start.json")
+    # jq -c '.results = "[\(.results | length) elements]"' "/tmp/c.bash.d/cfl_content_attachment_get_json/$start.json"; echo
+    jq -n '{"results":[inputs.results[]]}' /tmp/c.bash.d/cfl_content_attachment_get_json/all.json "/tmp/c.bash.d/cfl_content_attachment_get_json/$start.json" | sponge /tmp/c.bash.d/cfl_content_attachment_get_json/all.json
+    local next
+    next=$(jq -e '._links.next' "/tmp/c.bash.d/cfl_content_attachment_get_json/$start.json") || break
+    start=$((start + limit))
+    [[ $next == "\"/rest/api/content/$ID/child/attachment?limit=$limit&start=$start\"" ]] || unreachable
+    ((try == 10)) && die 1 "too many entries?"
+  done
+  jq '.' /tmp/c.bash.d/cfl_content_attachment_get_json/all.json
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_content_attachment_post @pub
+
+define_command cfl_content_attachment_post
+cmd::cfl_content_attachment_post() {
+  local -r usage="usage: $PROG cfl_content_attachment_post [-h | --help] PAGE_ID FILE"
+  local PAGE_ID="" && arg_parse "$usage" "PAGE_ID FILE" "$@"
+  [[ $PAGE_ID =~ ^[0-9]+$ ]] || err 1 "PAGE_ID must be a number: $PAGE_ID"
+  cfl_env_check
+  # -F "minorEdit=true" -F "comment=aaa aaa"
+  (set -o pipefail; ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X POST -H "X-Atlassian-Token: nocheck" -F "file=@$FILE" "$CONFLUENCE_URL/rest/api/content/$PAGE_ID/child/attachment") | jq >/tmp/c.bash.d/cfl_content_attachment_post.json
+  jq '.' /tmp/c.bash.d/cfl_content_attachment_post.json
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_content_delete @pub
+
+define_command cfl_content_delete
+cmd::cfl_content_delete() {
+  local -r usage="usage: $PROG cfl_content_delete [-h | --help] ID"
+  local ID="" && arg_parse "$usage" "ID" "$@"
+  cfl_env_check
+  ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X DELETE "$CONFLUENCE_URL/rest/api/content/$ID")
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_content_format_with_actual_update_abort @pub
+
+define_command cfl_content_format_with_actual_update_abort
+cmd::cfl_content_format_with_actual_update_abort() {
+  local -r usage="usage: $PROG cfl_content_format_with_actual_update_abort [-h | --help] [FILE]"
+  local FILE="" && arg_parse "$usage" "[FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+  cfl_env_check
+  [[ ${DANGEROUS_PLEASE_UNDERSTAND_WHAT_THIS_DO_CONFLUENCE_UPDATE_CONTENT_ID+defined} == "defined" ]] || die 1 "environment variable DANGEROUS_PLEASE_UNDERSTAND_WHAT_THIS_DO_CONFLUENCE_UPDATE_CONTENT_ID is not set" || ok="false"
+  local ID=$DANGEROUS_PLEASE_UNDERSTAND_WHAT_THIS_DO_CONFLUENCE_UPDATE_CONTENT_ID
+
+  (set -o pipefail; ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID" | jq -e >/tmp/c.bash.d/cfl_content_format_with_actual_update_abort.json)
+  local original_title
+  original_title=$(jq -er ".title" /tmp/c.bash.d/cfl_content_format_with_actual_update_abort.json)
+  # cmd cfl_content_update "$ID" "$original_title" "$FILE" | jq -e '.body.storage.value'  # not formatted yet
+  cmd cfl_content_update "$ID" "$original_title" "$FILE" >/dev/null
+  cmd cfl_content_get "$ID"  # not formatted! abort
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_content_get @pub
+
+# echo:
+# title
+# storage
+define_command cfl_content_get
+cmd::cfl_content_get() {
+  local -r usage="usage: $PROG cfl_content_get [-h | --help] ID"
+  local ID="" && arg_parse "$usage" "ID" "$@"
+  [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
+  cfl_env_check
+  (set -o pipefail; ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID?expand=body.storage" | jq -e >/tmp/c.bash.d/cfl_content_get.json)
+  jq -er </tmp/c.bash.d/cfl_content_get.json ".title"
+  jq -er </tmp/c.bash.d/cfl_content_get.json ".body.storage.value"
+}
+
+# ------------------------------------------------------------------------------
+# command - cfl_content_get_id @pub
+
+define_command cfl_content_get_id
+cmd::cfl_content_get_id() {
+  local -r usage="usage: $PROG cfl_content_get_id [-h | --help] SPACE_KEY TITLE"
+  local SPACE_KEY="" TITLE="" && arg_parse "$usage" "SPACE_KEY TITLE" "$@"
+  cfl_env_check
+  (set -o pipefail; ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE") | jq -er ".results[0].id")
+}
+# ------------------------------------------------------------------------------
+# command - cfl_content_update @pub
+# TODO: rename: cfl_content_update
+
+# stdout: JSON from PUT "$CONFLUENCE_URL/rest/api/content/$ID"
+define_command cfl_content_update
+cmd::cfl_content_update() {
+  local -r usage="usage: $PROG cfl_content_update [-h | --help] ID TITLE [FILE]"
+  local ID="" TITLE="" FILE="" && arg_parse "$usage" "ID TITLE [FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+  [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
+  cfl_env_check
+  ( ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_content_update.1.json
+  local -i ver
+  ver=$(jq -er ".version.number" /tmp/c.bash.d/cfl_content_update.1.json)
+  ((ver++))
+  jo -p -d. -- version.number="$ver" title="$TITLE" type=page body.storage.value=@"$FILE" body.storage.representation=storage >/tmp/c.bash.d/cfl_content_update.put.json
+  ( ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X PUT -H "Content-Type: application/json" -d @/tmp/c.bash.d/cfl_content_update.put.json "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_content_update.2.json
+  jq '.' /tmp/c.bash.d/cfl_content_update.2.json
+}
+
+# ------------------------------------------------------------------------------
 # command - cfl_curl @pub
 
 define_command cfl_curl
@@ -786,89 +931,10 @@ cmd::cfl_curl() {
     ((LOG_LEVEL >= LOG_DEBUG)) && set -x
     curl --fail-with-body -Ss -K<(BASH_XTRACEFD=$fd_devnull builtin echo "-u $CONFLUENCE_USER:$CONFLUENCE_PASS") {fd_devnull}>/dev/null "$@" >/tmp/c.bash.d/cfl_curl.out
   ) {fd_devnull}>/dev/null || die 1 "cfl_curl failed; body: $(cat /tmp/c.bash.d/cfl_curl.out)"
-  jq -c "." /tmp/c.bash.d/cfl_curl.out
+  jq -c '.' /tmp/c.bash.d/cfl_curl.out
 }
 false && pre_main() {
   cmd::cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/1"
-}
-
-# ------------------------------------------------------------------------------
-# command - cfl_page_format_with_actual_update_abort @pub
-
-define_command cfl_page_format_with_actual_update_abort
-cmd::cfl_page_format_with_actual_update_abort() {
-  local -r usage="usage: $PROG cfl_page_format_with_actual_update_abort [-h | --help] [FILE]"
-  local FILE="" && arg_parse "$usage" "[FILE]" "$@"
-  [[ $FILE == "" ]] && FILE="/dev/stdin"
-  cfl_env_check
-  [[ ${DANGEROUS_PLEASE_UNDERSTAND_WHAT_THIS_DO_CONFLUENCE_UPDATE_CONTENT_ID+defined} == "defined" ]] || die 1 "environment variable DANGEROUS_PLEASE_UNDERSTAND_WHAT_THIS_DO_CONFLUENCE_UPDATE_CONTENT_ID is not set" || ok="false"
-  local ID=$DANGEROUS_PLEASE_UNDERSTAND_WHAT_THIS_DO_CONFLUENCE_UPDATE_CONTENT_ID
-
-  (set -o pipefail; ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID" | jq -e >/tmp/c.bash.d/cfl_page_format_with_actual_update_abort.json)
-  local original_title
-  original_title=$(jq -er ".title" /tmp/c.bash.d/cfl_page_format_with_actual_update_abort.json)
-  # cmd cfl_page_update "$ID" "$original_title" "$FILE" | jq ".body.storage.value"  # not formatted yet
-  cmd cfl_page_update "$ID" "$original_title" "$FILE" >/dev/null
-  cmd cfl_page_get_content "$ID"  # not formatted! abort
-}
-
-# ------------------------------------------------------------------------------
-# command - cfl_page_get_content @pub
-
-# echo:
-# title
-# storage
-define_command cfl_page_get_content
-cmd::cfl_page_get_content() {
-  local -r usage="usage: $PROG cfl_page_get_content [-h | --help] ID"
-  local ID="" && arg_parse "$usage" "ID" "$@"
-  [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
-  cfl_env_check
-  (set -o pipefail; ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID?expand=body.storage" | jq -e >/tmp/c.bash.d/cfl_page_get_content.json)
-  jq -er </tmp/c.bash.d/cfl_page_get_content.json ".title"
-  jq -er </tmp/c.bash.d/cfl_page_get_content.json ".body.storage.value"
-}
-
-# ------------------------------------------------------------------------------
-# command - cfl_page_get_id @pub
-
-define_command cfl_page_get_id
-cmd::cfl_page_get_id() {
-  local -r usage="usage: $PROG cfl_page_get_id [-h | --help] SPACE_KEY TITLE"
-  local SPACE_KEY="" TITLE="" && arg_parse "$usage" "SPACE_KEY TITLE" "$@"
-  cfl_env_check
-  (set -o pipefail; ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE") | jq -er ".results[0].id")
-}
-
-# ------------------------------------------------------------------------------
-# command - cfl_page_rm @pub
-
-define_command cfl_page_rm
-cmd::cfl_page_rm() {
-  local -r usage="usage: $PROG cfl_page_rm [-h | --help] ID"
-  local ID="" && arg_parse "$usage" "ID" "$@"
-  cfl_env_check
-  ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X DELETE "$CONFLUENCE_URL/rest/api/content/$ID")
-}
-
-# ------------------------------------------------------------------------------
-# command - cfl_page_update @pub
-
-# stdout: JSON from POST "$CONFLUENCE_URL/rest/api/content/$ID"
-define_command cfl_page_update
-cmd::cfl_page_update() {
-  local -r usage="usage: $PROG cfl_page_update [-h | --help] ID TITLE [FILE]"
-  local ID="" TITLE="" FILE="" && arg_parse "$usage" "ID TITLE [FILE]" "$@"
-  [[ $FILE == "" ]] && FILE="/dev/stdin"
-  [[ $ID =~ ^[0-9]+$ ]] || err 1 "ID must be a number: $ID"
-  cfl_env_check
-  ( ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_page_update.1.json
-  local -i ver
-  ver=$(jq -er ".version.number" /tmp/c.bash.d/cfl_page_update.1.json)
-  ((ver++))
-  jo -p -d. -- version.number="$ver" title="$TITLE" type=page body.storage.value=@"$FILE" body.storage.representation=storage >/tmp/c.bash.d/cfl_page_update.put.json
-  ( ((LOG_LEVEL >= LOG_DEBUG)) && set -x; cmd cfl_curl -X PUT -H "Content-Type: application/json" -d @/tmp/c.bash.d/cfl_page_update.put.json "$CONFLUENCE_URL/rest/api/content/$ID") | jq -e >/tmp/c.bash.d/cfl_page_update.2.json
-  jq "." /tmp/c.bash.d/cfl_page_update.2.json
 }
 
 # ------------------------------------------------------------------------------
@@ -1910,9 +1976,9 @@ cmd::spotify_say_song() {
     curl -fSs -X "GET" "https://api.spotify.com/v1/me/player/currently-playing" -H "Accept: application/json" -H "Content-Type: application/json" -H "Authorization: Bearer $SPOTIFY_TOKEN" > /tmp/c.bash.d/spotify_say_song.json
 
     local artist name
-    artist="$(jq -e -r < /tmp/c.bash.d/spotify_say_song.json ".item.artists[0].name")"
-    album="$(jq -e -r < /tmp/c.bash.d/spotify_say_song.json ".item.album.name")"
-    name="$(jq -e -r < /tmp/c.bash.d/spotify_say_song.json ".item.name")"
+    artist="$(jq -er < /tmp/c.bash.d/spotify_say_song.json ".item.artists[0].name")"
+    album="$(jq -er < /tmp/c.bash.d/spotify_say_song.json ".item.album.name")"
+    name="$(jq -er < /tmp/c.bash.d/spotify_say_song.json ".item.name")"
     [[ -z $artist ]] && [[ -z $album ]] && [[ -z $name ]] && log_debug "not playing" && sleep 10 && continue
     [[ $artist == "$artist_prev" ]] && [[ $album == "$album_prev" ]] && [[ $name == "$name_prev" ]] && log_debug "$artist - $album - $name; not changed; retry" && sleep 1 && continue
     log_debug "$artist - $album - $name"
@@ -2337,7 +2403,7 @@ cmd::z_meta_command_list_no_alias() {
 
 : <<'DOC'
 diff -u (c.bash z_meta_command_list_no_alias | psub) (c.bash z_meta_command_list_no_alias | sort | psub)
-c.bash -v z_meta_publish_self > ~/src/scraps/c.bash
+c.bash -v z_meta_publish_self >~/src/scraps/c.bash
 cd ~/src/scraps/
 git ...
 DOC
