@@ -5,14 +5,17 @@
 // noinspection RegExpRepeatedSpace
 
 /* eslint-disable @typescript-eslint/ban-ts-comment */
+/* eslint-disable @typescript-eslint/ban-types */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-constant-condition */
 /* eslint-disable no-regex-spaces */
 
-import * as assert from "node:assert";
+import * as assert from "node:assert/strict";
 import * as child_process from "node:child_process";
 import * as crypto from "node:crypto";
+import * as dns from "node:dns";
 import * as fs from "node:fs";
+import * as fsPromise from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -30,7 +33,7 @@ import express from "express";
 import * as nodeHtmlParser from "node-html-parser";
 import * as parse5 from "parse5";
 import * as pty from "node-pty";
-import * as puppeteer from "puppeteer-core";
+// import * as puppeteer from "puppeteer-core";
 
 import { Logger } from "./src/logger.js";
 
@@ -65,6 +68,44 @@ function i(object: any): ReturnType<typeof util.inspect> {
 
 function ii(object: any): ReturnType<typeof util.inspect> {
   return util.inspect(object, { colors: tty.isatty(process.stdout.fd), breakLength: Infinity });
+}
+
+/**
+ * integersSummary([]); // []
+ * integersSummary([0]); // ["0"]
+ * integersSummary([0, 1]); // ["0", "1"]
+ * integersSummary([0, 1, 2]); // ["0-2"]
+ * integersSummary([0, 1, 2, 4]); // ["0-2", "4"]
+ * integersSummary([0, 1, 2, 4, 6]); // ["0-2", "4", "6"]
+ * integersSummary([0, 1, 2, 4, 6, 7]); // ["0-2", "4", "6", "7"]
+ * integersSummary([0, 1, 2, 4, 6, 7, 8]); // ["0-2", "4", "6-8"]
+ * integersSummary([0, 0]); // throws
+ * integersSummary([1, 0]); // throws (must be sorted)
+ * @param numbers
+ */
+function integersSummary(numbers: number[]): string[] {
+  if (numbers.length === 0) return [];
+  // if (numbers.length === 1) return `${numbers[0]}`;
+  const ret = [];
+  let begin = numbers[0];
+  let prev = numbers[0];
+  for (const i of [...numbers.slice(1), 0x7fffffff]) {
+    if (prev >= i) throw new Error(`prev:${prev}, i:${i}`);
+    if (prev + 1 === i) {
+      prev = i;
+      continue;
+    }
+    if (begin === prev) {
+      ret.push(`${begin}`);
+    } else if (begin + 1 === prev) {
+      ret.push(`${begin}`)
+      ret.push(`${prev}`)
+    } else {
+      ret.push(`${begin}-${prev}`);
+    }
+    begin = prev = i;
+  }
+  return ret;
 }
 
 // https://github.com/jonschlinkert/isobject/blob/master/index.js
@@ -103,11 +144,28 @@ class Queue<T> {
   }
 }
 
+let re;
 let reArr: RegExpExecArray | null;
+let reArr2: RegExpExecArray;
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions
 function regExpEscape(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
+}
+
+function reExec(regexp: RegExp, string: string): RegExpExecArray {
+  const reArr = regexp.exec(string);
+  if (reArr === null) {
+    throw new AppError(`not match: ${regexp} (string: ${stringSnip(string, 30)})`);
+  }
+  return reArr;
+}
+
+// TODO: copy type of argument of String.prototype.replace
+// replace(searchValue: string | RegExp, replaceValue: string): string;
+// replace(searchValue: string | RegExp, replacer: (substring: string, ...args: any[]) => string): string;
+function reReplace(regexp: RegExp, searchValue: string | RegExp, replaceValue: string): RegExp {
+  return new RegExp(regexp.source.replace(searchValue, replaceValue), regexp.flags);
 }
 
 // const regExpReplacerEscape = (s: string): string => s.replaceAll("$", "$$$$"); // avoid special replacement with "$" https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
@@ -304,12 +362,10 @@ program
   .addOption(new commander.Option("   ---z-hidden-global-option").hideHelp().default(false))
   .alias(); // dummy
 
-function cliCommandExit(exitStatus: number): void {
-  cliCommandExitStatus.push(exitStatus);
-  return;
-}
-
-const cliCommandExitStatus = new Queue<number>();
+let cliCommandExit: (exitStatus: number) => void;
+const cliCommandExitStatusPromise = new Promise<number>((resolve) => {
+  cliCommandExit = resolve;
+});
 
 function cliCommandInit(): OptsGlobal {
   if (program.opts().quiet === true) {
@@ -333,15 +389,16 @@ function cliIncreaseVerbosity(value: string /* actually undefined */, previous: 
   return previous + 1;
 }
 
-export async function cliMain(): Promise<never> {
+export async function cliMain(): Promise<void> {
   try {
-    await program.parse(process.argv);
-    const exitStatus = await cliCommandExitStatus.pop();
-    process.exit(exitStatus);
+    await program.parseAsync(process.argv);
+    process.exitCode = await cliCommandExitStatusPromise;
+    return;
   } catch (e) {
+    process.exitCode = 1;
     if (e instanceof AppError) {
       // assert.ok(e.constructor.name === "AppError")
-      process.exit(1);
+      return;
     }
     logger.error(`unexpected error: ${e}`);
     throw e;
@@ -353,16 +410,30 @@ export async function cliMain(): Promise<never> {
 // lib for commands
 
 // https://github.com/tj/commander.js#custom-option-processing
+
+function myParseDuration(value: string, dummyPrevious?: number): number {
+  if (value.match(/^\d+$/)) return parseInt(value);
+  const cmd = `date -d ${stringEscapeShell(`19700101 ${value}`)} -u +%s`;
+  // TODO: before cliCommandInit(), can't output debug log
+  const secs = parseInt(sh(cmd));
+  if (secs < 0) {
+    // -1sec
+    throw new commander.InvalidArgumentError(`value: ${value} < 0 (cmd: ${cmd})`);
+  }
+  return secs;
+}
+
+// https://github.com/tj/commander.js#custom-option-processing
 // prettier-ignore
 function myParseInt(value: string, dummyPrevious?: number): number {
-  const parsedValue = Number.parseInt(value, 10);
+  const parsedValue = parseInt(value, 10);
   if (Number.isNaN(parsedValue))
     throw new commander.InvalidArgumentError("not a number.");
   return parsedValue;
 }
 
 function myParseIntPort(value: string, dummyPrevious?: number): number {
-  const parsedValue = Number.parseInt(value, 10);
+  const parsedValue = parseInt(value, 10);
   if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
   if (parsedValue < 0 || parsedValue > 65535) throw new commander.InvalidArgumentError("must be 0-65535.");
   return parsedValue;
@@ -381,6 +452,55 @@ program
   .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - countdown @pub
+
+program
+  .command("countdown")
+  .description("countdown description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("<duration>", "e.g. 300, 3hour 4min 5sec (GNU date(1) style)").argParser(myParseDuration))
+  .allowExcessArguments(false)
+  .action(async (duration: number, opts: { ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+    let someOutputted = false;
+    while (duration > 0) {
+      if (duration === 1) {
+        process.stdout.write("1");
+      } else {
+        process.stdout.write(`${duration} `);
+      }
+      someOutputted = true;
+      duration--;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    someOutputted && process.stdout.write("\n");
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - exec-slow-paste @pub
+
+program
+  .command("exec-slow-paste")
+  .description("exec-slow-paste description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("[file]"))
+  .allowExcessArguments(false)
+  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+    let in_ = fs.readFileSync(file ?? "/dev/stdin");
+    const origClipBoard = child_process.execSync("xsel -b -o");
+    while (in_.length > 0) {
+      child_process.execSync("xsel -b -i", { input: in_.slice(0, 2048) });
+      // process.stdout.write(child_process.execSync("xsel -b -o"));
+      child_process.execSync("xdotool key $(: --delay default 12ms) ctrl+shift+v");
+      in_ = in_.slice(2048);
+    }
+    child_process.execSync("xsel -b -i", { input: origClipBoard });
     return cliCommandExit(0);
   });
 
@@ -413,18 +533,18 @@ class ExecTSServerDefsHTTPReader {
         });
         continue;
       }
-      if (reArr[3].length < Number.parseInt(reArr[2], 10)) {
+      if (reArr[3].length < parseInt(reArr[2], 10)) {
         logger.debug(`short read: ${reArr[3].length} < ${reArr[2]}; buf:${this.buf}`);
         await new Promise((resolve) => {
           this.waiters.push({ resolve });
         });
         continue;
       }
-      const content = this.buf.subarray(reArr[1].length, reArr[1].length + Number.parseInt(reArr[2], 10));
-      if (this.buf.length < reArr[1].length + Number.parseInt(reArr[2], 10)) {
+      const content = this.buf.subarray(reArr[1].length, reArr[1].length + parseInt(reArr[2], 10));
+      if (this.buf.length < reArr[1].length + parseInt(reArr[2], 10)) {
         unreachable();
       }
-      this.buf = this.buf.subarray(reArr[1].length + Number.parseInt(reArr[2], 10));
+      this.buf = this.buf.subarray(reArr[1].length + parseInt(reArr[2], 10));
       if (this.buf.length > 0) {
         logger.debug(`leftover: ${this.buf.length} bytes`);
       }
@@ -503,6 +623,168 @@ program
       JSON.parse(resp).body[0];
     }
 
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - fs-link-hard @pub
+
+program
+  .command("fs-link-hard")
+  .description("fs-link-hard description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("<dir>"))
+  .addArgument(new commander.Argument("<dirSHA1>"))
+  .allowExcessArguments(false)
+  .action(async (dir: string, dirSHA1: string, opts: { ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+
+    fs.mkdirSync(dirSHA1, { recursive: true });
+    const sha1s = new Set(fs.readdirSync(dirSHA1));
+
+    function walk(dir: string) {
+      const files = fs.readdirSync(dir, { withFileTypes: true });
+      for (const file of files) {
+        const path_ = `${dir}/${file.name}`;
+        if (file.isFile()) {
+          const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path_)).digest("hex");
+          if (sha1s.has(sha1)) {
+            // assert.ok(fs.existsSync(`${dirSHA1}/${sha1}`));
+            // XXX: non atomic
+            fs.unlinkSync(path_);
+            fs.linkSync(`${dirSHA1}/${sha1}`, path_);
+          } else {
+            // assert.ok(!fs.existsSync(`${dirSHA1}/${sha1}`));
+            fs.linkSync(path_, `${dirSHA1}/${sha1}`);
+            sha1s.add(sha1);
+          }
+        } else if (file.isDirectory()) {
+          console.debug(`walk into ${path.join(dir, file.name)}`);
+          walk(path.join(dir, file.name));
+        } else if (file.isSymbolicLink()) {
+          // console.debug(`ignore symbolic link: ${path_}`)
+        } else {
+          throw new Error(`unexpected file type: ${file}`);
+        }
+        "breakpoint".match(/breakpoint/);
+      }
+      "breakpoint".match(/breakpoint/);
+    }
+
+    walk(dir);
+    console.info("done");
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - fs-link-sym @pub
+
+program
+  .command("fs-link-sym")
+  .description("fs-link-sym description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("<dir>"))
+  .addArgument(new commander.Argument("<dirSHA1>"))
+  .allowExcessArguments(false)
+  .action(async (dir: string, dirSHA1: string, opts: { ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+
+    fs.mkdirSync(dirSHA1, { recursive: true });
+    const sha1s = new Set(fs.readdirSync(dirSHA1));
+
+    function walk(dir: string) {
+      const files = fs.readdirSync(dir, { withFileTypes: true });
+      for (const file of files) {
+        const path_ = `${dir}/${file.name}`;
+        if (file.isFile()) {
+          const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path_)).digest("hex");
+          if (sha1s.has(sha1)) {
+            // assert.ok(fs.existsSync(`${dirSHA1}/${sha1}`));
+            // console.debug(`ln -s ${dirSHA1}/${sha1} ${path_}`);
+            // XXX: non atomic
+            fs.unlinkSync(path_);
+            fs.symlinkSync(`${dirSHA1}/${sha1}`, path_);
+          } else {
+            // assert.ok(!fs.existsSync(`${dirSHA1}/${sha1}`));
+            // console.debug(`[new sha1] ln -s ${dirSHA1}/${sha1} ${path_}`);
+            // XXX: non atomic
+            fs.renameSync(path_, `${dirSHA1}/${sha1}`);
+            fs.symlinkSync(`${dirSHA1}/${sha1}`, path_);
+            sha1s.add(sha1);
+          }
+        } else if (file.isDirectory()) {
+          console.debug(`walk into ${path.join(dir, file.name)}`);
+          walk(path.join(dir, file.name));
+        } else if (file.isSymbolicLink()) {
+          // console.debug(`ignore symbolic link: ${path_}`)
+        } else {
+          throw new Error(`unexpected file type: ${file}`);
+        }
+        "breakpoint".match(/breakpoint/);
+      }
+      "breakpoint".match(/breakpoint/);
+    }
+
+    walk(dir);
+    console.info("done");
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - fs-link-sym-async @pub
+
+program
+  .command("fs-link-sym-async")
+  .description("fs-link-sym-async description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("<dir>"))
+  .addArgument(new commander.Argument("<dirSHA1>"))
+  .allowExcessArguments(false)
+  .action(async (dir: string, dirSHA1: string, opts: { ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+
+    fs.mkdirSync(dirSHA1, { recursive: true });
+    const sha1s = new Set(fs.readdirSync(dirSHA1));
+
+    async function walk(dir: string) {
+      const files = fs.readdirSync(dir, { withFileTypes: true });
+      for (const file of files) {
+        const path_ = `${dir}/${file.name}`;
+        if (file.isFile()) {
+          const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path_)).digest("hex");
+          if (sha1s.has(sha1)) {
+            // if (!fs.existsSync(`${dirSHA1}/${sha1}`)) {
+            //   console.warn(`not symlinked yet: ${dirSHA1}/${sha1}`);
+            // }
+            // XXX: non atomic
+            fsPromise.unlink(path_).then(() => {
+              // console.debug(`ln -s ${dirSHA1}/${sha1} ${path_}`);
+              fsPromise.symlink(`${dirSHA1}/${sha1}`, path_);
+            });
+          } else {
+            // assert.ok(!fs.existsSync(`${dirSHA1}/${sha1}`));
+            // XXX: non atomic
+            fsPromise.rename(path_, `${dirSHA1}/${sha1}`).then(() => {
+              // console.debug(`[new sha1] ln -s ${dirSHA1}/${sha1} ${path_}`);
+              fsPromise.symlink(`${dirSHA1}/${sha1}`, path_);
+            });
+            sha1s.add(sha1);
+          }
+        } else if (file.isDirectory()) {
+          console.debug(`walk into ${path.join(dir, file.name)}`);
+          await walk(path.join(dir, file.name));
+        } else if (file.isSymbolicLink()) {
+          // console.debug(`ignore symbolic link: ${path_}`)
+        } else {
+          throw new Error(`unexpected file type: ${file}`);
+        }
+        // await new Promise((resolve) => setTimeout(resolve, 0)); // slow
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    await walk(dir);
+    console.info("done");
     return cliCommandExit(0);
   });
 
@@ -593,7 +875,7 @@ program
       cp.stdout.on("data", (data) => {
         logger.debug(`spawn(): stdout: ${stringSnip(data.toString(), 100)}`);
         // res.send(data);
-        if (!res.write(data)) {
+        if (!res.write(data)) { // TODO: res.on("close", ...)
           cp.stdout.destroy(); // kill with SIGPIPE
           cp.stderr.destroy();
         }
@@ -651,6 +933,58 @@ program
     });
     await sleepForever();
     // return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - net-etc-hosts @pub
+
+program
+  .command("net-etc-hosts")
+  .description("net-etc-hosts description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("<host...>", "e.g. example.com http://www.example.com/foo/ https://www.example.com/foo/"))
+  .allowExcessArguments(false)
+  .action(async (host: string[], opts: { connectUrl: string; ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+    for (const [i, h] of host.entries()) {
+      if (h.includes("/")) {
+        // http://www.example.com/foo/ -> www.example.com
+        try {
+          const url = new URL(h);
+          logger.debug(`${h} -> ${url.hostname}`);
+          host[i] = url.hostname;
+        } catch (e) {
+          if (!(e instanceof TypeError)) throw e;
+          throw new AppError(`invalid <host>: ${e.message}: ${h}`);
+        }
+        continue;
+      }
+      // host
+      try {
+        new URL(`http://${h}`);
+      } catch (e) {
+        throw new AppError(`invalid <host>: ${h}`);
+      }
+    }
+    // const lookupAddresses: dns.LookupAddress[] = await Promise.all(host.map((h) => util.promisify(dns.lookup)(h)));
+    const promises = [];
+    for (const h of host) {
+      // const lookupAddress: dns.LookupAddress = await util.promisify(dns.lookup)(h);
+      const promise = util.promisify(dns.lookup)(h, {all: true}).then((lookupAddresses) => {
+        for (const lookupAddress of lookupAddresses) {
+          switch (lookupAddress.family) {
+            // 0000:0000:0000:0000:0000:0000:0000:0000 39 chars
+            case 4: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## A; added by ${path.basename(__filename)} net-etc-hosts\n`); break;
+            case 6: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## AAAA; added by ${path.basename(__filename)} net-etc-hosts\n`); break;
+            default:
+              throw new AppError(`BUG: unexpected family: ${lookupAddress.family} (host: ${lookupAddress.address}, lookupAddress: ${util.inspect(lookupAddress)})`);
+          }
+        }
+      });
+      promises.push(promise);
+    }
+    await Promise.all(promises);
+    return cliCommandExit(0);
   });
 
 // -----------------------------------------------------------------------------
@@ -759,6 +1093,136 @@ function ptyCmdHandleEscape(ptyProcess: pty.IPty, data: Buffer, previousTilde: b
 }
 
 // -----------------------------------------------------------------------------
+// command - txt-color-complementary @pub
+
+program
+  .command("txt-color-complementary")
+  .description("txt-color-complementary description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("[color]"))
+  .allowExcessArguments(false)
+  .action(async (color: string | undefined, opts: { ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+    const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
+    const match = /^(?<hash>#?)(?<r>[0-9a-f]{2})(?<g>[0-9a-f]{2})(?<b>[0-9a-f]{2})(\r?\n)?$/i.exec(txt);
+    if (match === null) {
+      throw new AppError(`invalid color code: ${txt}`);
+    }
+    const r = parseInt(match.groups!.r, 16);
+    const g = parseInt(match.groups!.g, 16);
+    const b = parseInt(match.groups!.b, 16);
+    // https://www.wave440.com/php/iro.php
+    const maxMin = Math.max(r, g, b) + Math.min(r, g, b);
+    process.stdout.write(`${match.groups!.hash}${(maxMin - r).toString(16).padStart(2, "0")}${(maxMin - g).toString(16).padStart(2, "0")}${(maxMin - b).toString(16).padStart(2, "0")}\n`);
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - txt-color-invert @pub
+
+program
+  .command("txt-color-invert")
+  .description("txt-color-invert description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("[color]"))
+  .allowExcessArguments(false)
+  .action(async (color: string | undefined, opts: { ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+    const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
+    const match = /^(?<hash>#?)(?<r>[0-9a-f]{2})(?<g>[0-9a-f]{2})(?<b>[0-9a-f]{2})(\r?\n)?$/i.exec(txt);
+    if (match === null) {
+      throw new AppError(`invalid color code: ${txt}`);
+    }
+    const r = parseInt(match.groups!.r, 16);
+    const g = parseInt(match.groups!.g, 16);
+    const b = parseInt(match.groups!.b, 16);
+    process.stdout.write(`${match.groups!.hash}${(255 - r).toString(16).padStart(2, "0")}${(255 - g).toString(16).padStart(2, "0")}${(255 - b).toString(16).padStart(2, "0")}\n`);
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - txt-confluence-html-format @pub
+
+program
+  .command("txt-confluence-html-format")
+  .description("txt-confluence-html-format description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("[file]"))
+  .allowExcessArguments(false)
+  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+    let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+
+    txt = txtHTMLCDataB64(txt);
+
+    // " -> &quot;
+    // preserving: <tag attr="value">
+    while ((reArr = />([^<]*)"/.exec(txt)) !== null) {
+      txt = txt.replace(reArr[0], `>${reArr[1]}&quot;`);
+    }
+
+    // <ac:structured-macro ac:macro-id="00000000-0000-0000-0000-000000000001" ac:name="expand" ac:schema-version="1"><ac:parameter ac:name="title">TITLE</ac:parameter><ac:rich-text-body>
+    // ↓
+    // <ac:structured-macro ac:name="expand" ac:schema-version="1" ac:macro-id="00000000-0000-0000-0000-000000000001"><ac:parameter ac:name="title">TITLE</ac:parameter><ac:rich-text-body>
+    while ((reArr = /<ac:structured-macro ac:macro-id="(.+?)" ac:name="(expand|html)" ac:schema-version="1">/.exec(txt)) !== null) {
+      txt = txt.replace(reArr[0], `<ac:structured-macro ac:name="${reArr[2]}" ac:schema-version="1" ac:macro-id="${reArr[1]}">`);
+    }
+
+    // <ac:plain-text-body> \n <![CDATA[ → <ac:plain-text-body><![CDATA[
+    while ((reArr = /<ac:plain-text-body>\s+<!\[CDATA\[/.exec(txt)) !== null) {
+      txt = txt.replace(reArr[0], `<ac:plain-text-body><![CDATA[`);
+    }
+
+    // <ac:...> \n <ac:...> → <ac:...><ac:...>
+    // example:
+    // <ac:structured-macro ac:name="html" ac:schema-version="1" ac:macro-id="00000000-0000-0000-0000-000000000001">
+    //   <ac:plain-text-body>
+    // <![CDATA[
+    // ↓
+    // <ac:structured-macro ac:name="html" ac:schema-version="1" ac:macro-id="00000000-0000-0000-0000-000000000001"><ac:plain-text-body><![CDATA[
+    while ((reArr = /(<ac:[^>]+>)\s+<ac:/.exec(txt)) !== null) {
+      txt = txt.replace(reArr[0], `${reArr[1]}<ac:`);
+    }
+
+    // </ac:...> \n <ac:...> → </ac:...><ac:...>
+    // example:
+    // <p><ac:structured-macro ac:name="code" ...><ac:parameter ac:name="language">bash</ac:parameter> <ac:plain-text-body><![CDATA[
+    // ↓
+    // <p><ac:structured-macro ac:name="code" ...><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[
+    while ((reArr = /(<\/ac:[^>]+>)\s+<ac:/.exec(txt)) !== null) {
+      txt = txt.replace(reArr[0], `${reArr[1]}<ac:`);
+    }
+
+    // </ac:...> \n </ac:...> → </ac:...></ac:...>
+    // example:
+    // </ac:plain-text-body> </ac:structured-macro></p>
+    // ↓
+    // </ac:plain-text-body></ac:structured-macro></p>
+    while ((reArr = /(<\/ac:[^>]+>)\s+<\/ac:/.exec(txt)) !== null) {
+      txt = txt.replace(reArr[0], `${reArr[1]}</ac:`);
+    }
+
+    // exception:
+    //                     </ac:structured-macro> **\n** <ac:structured-macro ...
+    // </ac:rich-text-body></ac:structured-macro> **\n** </ac:rich-text-body></ac:structured-macro>
+    while ((reArr = /<\/ac:structured-macro>(<\/?ac:)/.exec(txt)) !== null) {
+      txt = txt.replace(reArr[0], `</ac:structured-macro>\n${reArr[1]}`);
+    }
+
+    txt = txtHTMLCDataB64d(txt);
+
+    // ]]> </ac:plain-text-body></ac:structured-macro></p>
+    // ↓
+    // ]]></ac:plain-text-body></ac:structured-macro></p>
+    while ((reArr = /]]>\s+<\/ac:plain-text-body>/.exec(txt)) !== null) {
+      txt = txt.replace(reArr[0], `]]></ac:plain-text-body>`);
+    }
+
+    process.stdout.write(txt);
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
 // command - txt-emoji @pub
 
 // https://github.com/mathiasbynens/emoji-regex/blob/v10.3.0/index.js#L3
@@ -864,6 +1328,46 @@ program
       }
     }
     process.stdout.write(txt);
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - txt-file-backup-sha1-hash-analyze @pub
+
+program
+  .command("txt-file-backup-sha1-hash-analyze")
+  .description("txt-file-backup-sha1-hash-analyze description")
+  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+  .addArgument(new commander.Argument("[file]"))
+  .allowExcessArguments(false)
+  .action(async (file: string | undefined, opts: { grep?: string, merge?: string, sortLen: boolean, ZTest: boolean }) => {
+    const optsGlobal = cliCommandInit();
+    const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+    const sha1Paths: { [key: string]: string[] } = {};
+    for (const line of txt.split(/\r?\n/)) {
+      const match = /^([^-].*)  ([0-9a-f]{16})$/.exec(line);
+      if (match === null) {
+        if (!line.startsWith("-") && line.trim() !== "") {
+          console.warn(`ignore line: ${line}`);
+        }
+        continue;
+      }
+      sha1Paths[match[2]] = sha1Paths[match[2]] ?? [];
+      sha1Paths[match[2]].push(match[1]);
+    }
+    for (const line of txt.split(/\r?\n/)) {
+      if (!line.startsWith("-")) continue;
+      const match = /^-(.+)  ([0-9a-f]{16})$/.exec(line);
+      if (match === null) {
+        console.warn(`ignore line: ${line}`);
+        continue;
+      }
+      if (match[2] in sha1Paths) {
+        console.log(`${line} -> ${sha1Paths[match[2]].join(", ")}`);
+      } else {
+        console.log(`${line} -> __REAL_REMOVED__`);
+      }
+    }
     return cliCommandExit(0);
   });
 
@@ -1096,6 +1600,15 @@ line 2<>]]></pre>y</div>
   });
 
 function txtHTMLBreak(html: string): string {
+  html = txtHTMLCDataB64(html);
+  while ((reArr = /^(\S)(<\w+>)/m.exec(html)) !== null) {
+    html = html.replace(reArr[0], `${reArr[1]}\n${reArr[2]}`);
+  }
+  html = txtHTMLCDataB64d(html);
+  return html;
+}
+
+function txtHTMLBreakOld(html: string): string {
   const offsets = [{offset: -1, kind: "dummy"}];
   // @ts-ignore
   const assert = (expr) => {
@@ -1166,58 +1679,12 @@ program
   .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { width: number, ZTest: boolean }) => {
     const optsGlobal = cliCommandInit();
-    if (opts.ZTest) {
-      const json = {
-        "j": { "a": "b", "c": "d", "e": "f" },
-        "k": [1, true, null]
-      };
-      assert.strictEqual(`${txtJsonFlat("", json, { width: 1 }).join("\n")}\n`, `\
-.j.a: "b"
-.j.c: "d"
-.j.e: "f"
-.k[0]: 1
-.k[1]: true
-.k[2]: null
-`);
-      assert.strictEqual(`${txtJsonFlat("", json, { width: 16 }).join("\n")}\n`, `\
-.j.a: "b"
-.j.c: "d"
-.j.e: "f"
-.k[0]: 1
-.k[1]: true
-.k[2]: null
-`);
-      assert.strictEqual(`${txtJsonFlat("", json, { width: 17 }).join("\n")}\n`, `\
-.j.a: "b"
-.j.c: "d"
-.j.e: "f"
-.k: [1,true,null]
-`);
-      assert.strictEqual(`${txtJsonFlat("", json, { width: 28 }).join("\n")}\n`, `\
-.j.a: "b"
-.j.c: "d"
-.j.e: "f"
-.k: [1,true,null]
-`);
-      assert.strictEqual(`${txtJsonFlat("", json, { width: 29 }).join("\n")}\n`, `\
-.j: {"a":"b","c":"d","e":"f"}
-.k: [1,true,null]
-`);
-      assert.strictEqual(`${txtJsonFlat("", json, { width: 48 }).join("\n")}\n`, `\
-.j: {"a":"b","c":"d","e":"f"}
-.k: [1,true,null]
-`);
-      assert.strictEqual(`${txtJsonFlat("", json, { width: 49 }).join("\n")}\n`, `\
-{"j":{"a":"b","c":"d","e":"f"},"k":[1,true,null]}
-`);
-      return cliCommandExit(0);
-    }
-    const flat = txtJsonFlat("", JSON.parse(fs.readFileSync(file ?? "/dev/stdin", "utf8")), { width: opts.width });
+    const flat = strJSONFlat("", JSON.parse(fs.readFileSync(file ?? "/dev/stdin", "utf8")), { width: opts.width });
     process.stdout.write(`${flat.join("\n")}\n`);
     return cliCommandExit(0);
   });
 
-function txtJsonFlat(key: string, j: unknown, opts: { width: number }): string[] {
+function strJSONFlat(key: string, j: unknown, opts: { width: number }): string[] {
   const s = JSON.stringify(j);
   if (typeof j === "string" || typeof j === "number" || j === false || j === true || j === null) {
     return key === "" ? [s] : [`${key}: ${s}`];
@@ -1232,14 +1699,14 @@ function txtJsonFlat(key: string, j: unknown, opts: { width: number }): string[]
     if (j.length === 0) {
       return key === "" ? ["[]"] : [`${key}: []`];
     }
-    return [...j.entries()].map(([i, value]) => txtJsonFlat(`${key}[${i}]`, value, opts)).flat();
+    return [...j.entries()].map(([i, value]) => strJSONFlat(`${key}[${i}]`, value, opts)).flat();
   }
-  assert.ok(isObject(j));
+  assert.ok(j !== undefined && j.constructor === Object);
   if (Object.keys(j).length === 0) {
     return key === "" ? ["{}"] : [`${key}: {}`];
   }
-  // return Object.entries(j).map(([key, value]) => `.${key}: ${txtJsonFlat(value, {width: opts.width - key.length - 3 /* .:SPACE */})}`);
-  return Object.entries(j).map(([thisKey, value]) => txtJsonFlat(`${key}.${thisKey}`, value, opts)).flat();
+  // return Object.entries(j).map(([key, value]) => `.${key}: ${strJSONFlat(value, {width: opts.width - key.length - 3 /* .:SPACE */})}`);
+  return Object.entries(j).map(([thisKey, value]) => strJSONFlat(`${key}.${thisKey}`, value, opts)).flat();
 }
 
 // -----------------------------------------------------------------------------
@@ -1532,13 +1999,45 @@ program
       // 2 = "22:1-23:1"
       const reArr = /^(\d+):1-(\d+):1$/.exec(v);
       if (reArr === null) throw new Error(`invalid data-pos: ${v}`);
-      const line1 = Number.parseInt(reArr[1]);
-      const line2 = Number.parseInt(reArr[2]);
+      const line1 = parseInt(reArr[1]);
+      const line2 = parseInt(reArr[2]);
       assert.deepStrictEqual(line1 + 1, line2);
       return line1;
     });
     child_process.execSync(`sed -n 1,2p`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26 });
     child_process.execSync(`sed -n -e ${lineNums.join("p -e ")}p`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26, stdio: ["pipe", "inherit", "inherit"] });
+
+    return cliCommandExit(0);
+  });
+
+// -----------------------------------------------------------------------------
+// command - txt-private @pub
+
+program
+  .command("txt-private")
+  .description("txt-private description")
+  .addArgument(new commander.Argument("[file]"))
+  .allowExcessArguments(false)
+  .action(async (file: string | undefined, opts: {}) => {
+    const optsGlobal = cliCommandInit();
+    let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+
+
+    // @ bv ... @ ev
+    txt = txt.replaceAll(/^.*@(bv)\b.*(\r?\n)[\s\S]*?@(ev)\b.*(\r?\n|$)/gm, "");
+
+    // @ pl private line
+    while ((reArr = /^.*@(pl)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+    // @ pla private line above
+    while ((reArr = /^.*(\r?\n).*@(pla)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+    // @ plb private line below
+    while ((reArr = /^.*@(plb)\b.*(\r?\n).*$/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+    // @ plb private line right
+    while ((reArr = /\s*@(plr)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+    // @ plb private line right and comment (# //)
+    while ((reArr = /\s*(#|\/\/)\s*@(plr)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+
+    process.stdout.write(txt);
 
     return cliCommandExit(0);
   });
@@ -1642,8 +2141,7 @@ program
 // -----------------------------------------------------------------------------
 // main
 
-// https://stackoverflow.com/a/60309682/4085441
+// https://stackoverflow.com/questions/45136831/node-js-require-main-module/60309682#60309682
 if (esMain(import.meta)) {
   await cliMain();
-  unreachable();
 }
