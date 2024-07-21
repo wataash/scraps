@@ -120,7 +120,8 @@ fi
 [[ $C_BASH_DO_MAIN == "yes" ]] && [[ $C_BASH_IN_BATS == "yes" ]] && unreachable
 
 if [[ $C_BASH_DO_MAIN == "yes" ]]; then
-set -eu
+set -eu -o errtrace
+trap 'echo -e "\e[31m""exit $? at ${BASH_SOURCE[0]} line $LINENO: [\$BASH_COMMAND: $BASH_COMMAND] $(sed -n "$LINENO"p "${BASH_SOURCE[0]}")\e[0m"' >&2 ERR
 PS4='+ \e[37m''$LINENO: \e[0m'
 fi
 
@@ -787,7 +788,7 @@ cmd::cfl_content_attachment_get() {
   cfl_env_check
   mkdir -p ~/.cache/wataash/c.bash/cfl_content_attachment_get/
   cmd cfl_content_attachment_get_json "$ID" >~/.cache/wataash/c.bash/cfl_content_attachment_get/tmp.json
-  local removed_caches; removed_caches=$(find ~/.cache/wataash/c.bash/cfl_content_attachment_get/ -mtime +3 -delete -print); [[ -n $removed_caches ]] && log_info "removed old caches: $removed_caches"
+  local removed_caches; removed_caches=$(find ~/.cache/wataash/c.bash/cfl_content_attachment_get/ -mtime +3 -xtype f -delete -print); [[ -n $removed_caches ]] && log_info "removed old caches: $removed_caches"
   jq -c '.results[] | { id, title, extensions, _links }' ~/.cache/wataash/c.bash/cfl_content_attachment_get/tmp.json | while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
     local id title size link
     id=$(jq -er '.id' <<<"$line")
@@ -1675,6 +1676,7 @@ define_command pkill pk
 cmd::pkill() {
   local -r usage="usage: $PROG pkill [-h | --help] ARG..."
   local -a ARG=() && arg_parse "$usage" "ARG..." "$@"
+  trap '' ERR
   pgrep -a "${ARG[@]}"
   pkill "${ARG[@]}"
   exit 0
@@ -1804,6 +1806,11 @@ cmd::qemu_net_setup() {
   sudo ip link add br100 type bridge; sudo ip link set br100 up; sudo ip address add 172.31.100.100/24 dev br100
   sudo ip link add br101 type bridge; sudo ip link set br101 up; sudo ip address add 172.31.101.100/24 dev br101
   sudo ip link add br102 type bridge; sudo ip link set br102 up; sudo ip address add 172.31.102.100/24 dev br102
+  sudo ip link add br103 type bridge; sudo ip link set br103 up; sudo ip address add 172.31.103.100/24 dev br103
+  sudo ip link add br104 type bridge; sudo ip link set br104 up; sudo ip address add 172.31.104.100/24 dev br104
+  sudo ip link add br105 type bridge; sudo ip link set br105 up; sudo ip address add 172.31.105.100/24 dev br105
+  sudo ip link add br106 type bridge; sudo ip link set br106 up; sudo ip address add 172.31.106.100/24 dev br106
+  sudo ip link add br107 type bridge; sudo ip link set br107 up; sudo ip address add 172.31.107.100/24 dev br107
 
   sudo nft add table ip nat0
   sudo nft 'add chain nat0 postrouting0 { type nat hook postrouting priority 100 ; }'
@@ -2210,6 +2217,27 @@ cmd::txt_begin_end_v_fast() {
 }
 
 # ------------------------------------------------------------------------------
+# command - txt_bv_ev (bv) @pub
+#
+# excludes (like grep -v):
+# @ bv  from here
+# ...
+# @ ev    to here
+#
+# c.bash bv </home/wsh/sh/c.bash >/tmp/a
+# diff -u /home/wsh/sh/c.bash /tmp/a
+
+define_command txt_bv_ev bv
+cmd::txt_bv_ev() {
+  local -r usage="usage: [... |] $PROG txt_bv_ev (bv) [-h | --help] [FILE]"
+  local FILE="" && arg_parse "$usage" "[FILE]" "$@"
+  [[ $FILE == "" ]] && FILE="/dev/stdin"
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  # from c.js txt-private
+  node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(new RegExp(`^.*[@]bv\\b.*\r?\n[\\s\\S]*?[@]ev\\b.*(\r?\n|$)`, "gm"), ""))' <"$FILE"
+}
+
+# ------------------------------------------------------------------------------
 # command - txt_eval @pub
 
 define_command txt_eval
@@ -2402,8 +2430,8 @@ cmd::z_meta_command_list_no_alias() {
 # command - z_meta_publish_self @pub
 
 : <<'DOC'
-diff -u (c.bash z_meta_command_list_no_alias | psub) (c.bash z_meta_command_list_no_alias | sort | psub)
-c.bash -v z_meta_publish_self >~/src/scraps/c.bash
+diff -u "$(c.bash z_meta_command_list_no_alias | psub)" "$(c.bash z_meta_command_list_no_alias | sort | psub)"
+c.bash -v z_meta_publish_self | c.bash bv >~/src/scraps/c.bash
 cd ~/src/scraps/
 git ...
 DOC
