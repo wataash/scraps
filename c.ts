@@ -447,7 +447,6 @@ program.command("0template")
   .description("0template description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -461,7 +460,6 @@ program.command("countdown")
   .description("countdown description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<duration>", "e.g. 300, 3hour 4min 5sec (GNU date(1) style)").argParser(myParseDuration))
-  .allowExcessArguments(false)
   .action(async (duration: number, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     let someOutputted = false;
@@ -486,7 +484,6 @@ program.command("exec-slow-paste")
   .description("exec-slow-paste description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     let in_ = fs.readFileSync(file ?? "/dev/stdin");
@@ -554,7 +551,6 @@ class ExecTSServerDefsHTTPReader {
 program.command("exec-tsserver-defs")
   .description("exec-tsserver-defs description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
-  .allowExcessArguments(false)
   .action(async (opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
 
@@ -630,7 +626,6 @@ program.command("fs-link-hard")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<dir>"))
   .addArgument(new commander.Argument("<dirSHA1>"))
-  .allowExcessArguments(false)
   .action(async (dir: string, dirSHA1: string, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
 
@@ -679,7 +674,6 @@ program.command("fs-link-sym")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<dir>"))
   .addArgument(new commander.Argument("<dirSHA1>"))
-  .allowExcessArguments(false)
   .action(async (dir: string, dirSHA1: string, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
 
@@ -732,7 +726,6 @@ program.command("fs-link-sym-async")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<dir>"))
   .addArgument(new commander.Argument("<dirSHA1>"))
-  .allowExcessArguments(false)
   .action(async (dir: string, dirSHA1: string, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
 
@@ -788,7 +781,6 @@ program.command("fs-md-code-blocks")
   .description("fs-md-code-blocks description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -814,7 +806,6 @@ program.command("http-clipboard-server")
   .description("http-clipboard-server description")
   .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(myParseIntPort))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
-  .allowExcessArguments(false)
   .action(async (opts: { port: number; zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const app = express();
@@ -854,7 +845,6 @@ program.command("http-sse-proxy")
   .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(myParseIntPort))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<url>", "url to SSE-proxy"))
-  .allowExcessArguments(false)
   .action(async (url: string, opts: { port: number; zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const app = express();
@@ -893,7 +883,6 @@ program.command("http-sse-tailf")
   .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(myParseIntPort))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { port: number; zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const app = express();
@@ -931,7 +920,6 @@ program.command("net-etc-hosts")
   .description("net-etc-hosts description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<host...>", "e.g. example.com http://www.example.com/foo/ https://www.example.com/foo/"))
-  .allowExcessArguments(false)
   .action(async (host: string[], opts: { connectUrl: string; zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     for (const [i, h] of host.entries()) {
@@ -982,7 +970,6 @@ program.command("pty-cmd")
   .description("pty-cmd description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<cmd...>", "run <cmd> in a new pty"))
-  .allowExcessArguments(false)
   .action(async (cmd: string[], opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
 
@@ -1086,7 +1073,6 @@ program.command("txt-color-complementary")
   .description("txt-color-complementary description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[color]"))
-  .allowExcessArguments(false)
   .action(async (color: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
@@ -1110,7 +1096,6 @@ program.command("txt-color-invert")
   .description("txt-color-invert description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[color]"))
-  .allowExcessArguments(false)
   .action(async (color: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
@@ -1132,7 +1117,6 @@ program.command("txt-confluence-html-format")
   .description("txt-confluence-html-format description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -1234,7 +1218,6 @@ program.command("txt-emoji")
   .description("txt-emoji description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -1251,7 +1234,6 @@ program.command("txt-emoji-count")
   .description("txt-emoji-count description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -1289,7 +1271,6 @@ program.command("txt-extrace-prettify")
   .description("prettify `sudo extrace -tu | ts` output")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -1319,7 +1300,6 @@ program.command("txt-file-backup-sha1-hash-analyze")
   .description("txt-file-backup-sha1-hash-analyze description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { grep?: string, merge?: string, sortLen: boolean, zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -1361,7 +1341,6 @@ program.command("txt-fish-history-edit")
   .addOption(new commander.Option("--sort-len").conflicts(["grep", "merge"]).default(false))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { grep?: string, merge?: string, sortLen: boolean, zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -1434,7 +1413,6 @@ program.command("txt-html-cdata-b64")
   .description("txt-html-cdata-b64 description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     if (opts.zTest) {
@@ -1470,7 +1448,6 @@ program.command("txt-html-cdata-b64d")
   .description("txt-html-cdata-b64d description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     if (opts.zTest) {
@@ -1510,7 +1487,6 @@ program.command("txt-html-break")
   .description("txt-html-break description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     if (opts.zTest) {
@@ -1651,7 +1627,6 @@ program.command("txt-json-flatten")
   .addOption(new commander.Option("--width <number>").default(80).argParser(myParseIntPort))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { width: number, zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const flat = strJSONFlat("", JSON.parse(fs.readFileSync(file ?? "/dev/stdin", "utf8")), { width: opts.width });
@@ -1694,7 +1669,6 @@ program.command("txt-markdown-cat")
   .description("txt-markdown-cat description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     process.stdout.write(txtMarkdownCat(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
@@ -1741,7 +1715,6 @@ program.command("txt-markdown-code-b64")
   .description("txt-markdown-code-b64 description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     process.stdout.write(txtMarkdownCodeB64(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
@@ -1762,7 +1735,6 @@ program.command("txt-markdown-code-b64d")
   .description("txt-markdown-code-b64d description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     process.stdout.write(txtMarkdownCodeB64d(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
@@ -1784,7 +1756,6 @@ program.command("txt-markdown-h2-sec")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("<section>", "## @sec:<section>"))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (section: string, file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     if (opts.zTest) {
@@ -1868,7 +1839,6 @@ program.command("txt-markdown-h2-section-reduce")
   .description("txt-markdown-h2-section-reduce description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const nCommonElementsFromTheBeginning = (arr1: string[], arr2: string[]) => [...arr1, "\0dummy\0"].findIndex((tok, i) => tok !== arr2[i]);
@@ -1900,7 +1870,6 @@ program.command("txt-markdown-headers")
   .description("txt-markdown-headers description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -1985,7 +1954,6 @@ program.command("txt-markdown-headers")
 program.command("txt-private")
   .description("txt-private description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (file: string | undefined, opts: {}) => {
     const optsGlobal = cliCommandInit();
     let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -2029,7 +1997,6 @@ program.command("txt-regexp-search").alias("re")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<pattern>"))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
   .action(async (pattern: string, file: string | undefined, opts: { flags: string, zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
@@ -2054,7 +2021,6 @@ program.command("txt-regexp-search").alias("re")
 program.command("z-meta-command-list")
   .description("meta command - list subcommands")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
-  .allowExcessArguments(false)
   .action(async (opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
     const names = program.commands.map((command) => command.name());
@@ -2068,7 +2034,6 @@ program.command("z-meta-command-list")
 program.command("z-meta-publish-self")
   .description("meta command - publish self")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
-  .allowExcessArguments(false)
   .action(async (opts: { zTest: boolean }) => {
     const optsGlobal = cliCommandInit();
 
