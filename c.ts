@@ -156,7 +156,7 @@ function regExpEscape(s: string): string {
 function reExec(regexp: RegExp, string: string): RegExpExecArray {
   const reArr = regexp.exec(string);
   if (reArr === null) {
-    throw new AppError(`not match: ${regexp} (string: ${stringSnip(string, 30)})`);
+    throw new AppError(`not match: ${regexp} (string: ${strSnip(string, 30)})`);
   }
   return reArr;
 }
@@ -193,7 +193,7 @@ export async function sleepForever(): Promise<never> {
   }
 }
 
-// `sh -c ${stringCommandsToShC(["echo", "foo bar"])}`
+// `sh -c ${strCommandsToShC(["echo", "foo bar"])}`
 //
 // bash -c 'echo "${@@Q}"' _ echo "foo bar"            # 'echo' 'foo bar'
 // bash -c 'echo "${@@Q}"' _ echo ">" "foo bar"        # 'echo' '>' 'foo bar'
@@ -202,65 +202,65 @@ export async function sleepForever(): Promise<never> {
 // a.js echo "foo bar"           # ["echo", "foo bar"]         -> `'echo' 'foo bar'`
 // a.js echo ">" "foo bar"       # ["echo", ">", "foo bar"]    -> `'echo' '>' 'foo bar'`
 // a.js "echo 'foo bar' > a.txt" # ["echo 'foo bar' > a.txt"]  -> `'echo '\\''foo bar'\\'' > a.txt'`
-function stringCommandsToShC(cmds: string[]): string {
+function strCommandsToShC(cmds: string[]): string {
   // TODO: implement in js
   const stdout = child_process.execFileSync("bash", ["-c", 'echo "${@@Q}"', "_", ...cmds], { encoding: "utf8" });
   return stdout.trimEnd();
 }
 
-// assert.deepStrictEqual(stringCommandsToShC(["echo", "foo bar"]), `'echo' 'foo bar'`);
-// assert.deepStrictEqual(stringCommandsToShC(["echo", ">", "foo bar"]), `'echo' '>' 'foo bar'`);
-// assert.deepStrictEqual(stringCommandsToShC(["echo 'foo bar' > a.txt"]), `'echo '\\''foo bar'\\'' > a.txt'`);
+// assert.deepStrictEqual(strCommandsToShC(["echo", "foo bar"]), `'echo' 'foo bar'`);
+// assert.deepStrictEqual(strCommandsToShC(["echo", ">", "foo bar"]), `'echo' '>' 'foo bar'`);
+// assert.deepStrictEqual(strCommandsToShC(["echo 'foo bar' > a.txt"]), `'echo '\\''foo bar'\\'' > a.txt'`);
 
-// stringEmptify("\n a \r\n b \n") // -> "\n\r\n\n"
-function stringEmptify(s: string): string {
+// strEmptify("\n a \r\n b \n") // -> "\n\r\n\n"
+function strEmptify(s: string): string {
   const matches = s.match(/\r?\n/g); // ES2020: .matchAll()
   if (matches === null) return "";
   return matches.join("");
 }
 
-// "|\n a \r\n b \n" 0  stringEmptifyFromIndex("\n a \r\n b \n", 0) // \n\r\n\n
-// "\n| a \r\n b \n" 1  stringEmptifyFromIndex("\n a \r\n b \n", 1) // same
-// "\n |a \r\n b \n" 2  stringEmptifyFromIndex("\n a \r\n b \n", 2) // \n \r\n\n
-// "\n a| \r\n b \n" 3  stringEmptifyFromIndex("\n a \r\n b \n", 3) // \n a\r\n\n
-// "\n a |\r\n b \n" 4  stringEmptifyFromIndex("\n a \r\n b \n", 4) // \n a \r\n\n
-// "\n a \r|\n b \n" 5  stringEmptifyFromIndex("\n a \r\n b \n", 5) // same
-// "\n a \r\n| b \n" 6  stringEmptifyFromIndex("\n a \r\n b \n", 6) // same
-// "\n a \r\n |b \n" 7  stringEmptifyFromIndex("\n a \r\n b \n", 7) // \n a \r\n \n
-// "\n a \r\n b| \n" 8  stringEmptifyFromIndex("\n a \r\n b \n", 8) // \n a \r\n b\n
-// "\n a \r\n b |\n" 9  stringEmptifyFromIndex("\n a \r\n b \n", 9) // \n a \r\n b \n
-// "\n a \r\n b \n|" 10 stringEmptifyFromIndex("\n a \r\n b \n", 10) // \n a \r\n b \n
-function stringEmptifyFromIndex(s: string, index: number): string {
-  return s.slice(0, index) + stringEmptify(s.slice(index));
+// "|\n a \r\n b \n" 0  strEmptifyFromIndex("\n a \r\n b \n", 0) // \n\r\n\n
+// "\n| a \r\n b \n" 1  strEmptifyFromIndex("\n a \r\n b \n", 1) // same
+// "\n |a \r\n b \n" 2  strEmptifyFromIndex("\n a \r\n b \n", 2) // \n \r\n\n
+// "\n a| \r\n b \n" 3  strEmptifyFromIndex("\n a \r\n b \n", 3) // \n a\r\n\n
+// "\n a |\r\n b \n" 4  strEmptifyFromIndex("\n a \r\n b \n", 4) // \n a \r\n\n
+// "\n a \r|\n b \n" 5  strEmptifyFromIndex("\n a \r\n b \n", 5) // same
+// "\n a \r\n| b \n" 6  strEmptifyFromIndex("\n a \r\n b \n", 6) // same
+// "\n a \r\n |b \n" 7  strEmptifyFromIndex("\n a \r\n b \n", 7) // \n a \r\n \n
+// "\n a \r\n b| \n" 8  strEmptifyFromIndex("\n a \r\n b \n", 8) // \n a \r\n b\n
+// "\n a \r\n b |\n" 9  strEmptifyFromIndex("\n a \r\n b \n", 9) // \n a \r\n b \n
+// "\n a \r\n b \n|" 10 strEmptifyFromIndex("\n a \r\n b \n", 10) // \n a \r\n b \n
+function strEmptifyFromIndex(s: string, index: number): string {
+  return s.slice(0, index) + strEmptify(s.slice(index));
 }
 
-// "|\n a \r\n b \n" 0  stringEmptifyUntilIndex("\n a \r\n b \n", 0) // \n a \r\n b \n
-// "\n| a \r\n b \n" 1  stringEmptifyUntilIndex("\n a \r\n b \n", 1) // same
-// "\n |a \r\n b \n" 2  stringEmptifyUntilIndex("\n a \r\n b \n", 2) // \na \r\n b \n
-// "\n a| \r\n b \n" 3  stringEmptifyUntilIndex("\n a \r\n b \n", 3) // \n \r\n b \n
-// "\n a |\r\n b \n" 4  stringEmptifyUntilIndex("\n a \r\n b \n", 4) // \n\r\n b \n
-// "\n a \r|\n b \n" 5  stringEmptifyUntilIndex("\n a \r\n b \n", 5) // \n\n b \n    ! \r\n -> \r
-// "\n a \r\n| b \n" 6  stringEmptifyUntilIndex("\n a \r\n b \n", 6) // \n\r\n b \n
-// "\n a \r\n |b \n" 7  stringEmptifyUntilIndex("\n a \r\n b \n", 7) // \n\r\nb \n
-// "\n a \r\n b| \n" 8  stringEmptifyUntilIndex("\n a \r\n b \n", 8) // \n\r\n \n
-// "\n a \r\n b |\n" 9  stringEmptifyUntilIndex("\n a \r\n b \n", 9) // \n\r\n\n
-// "\n a \r\n b \n|" 10 stringEmptifyUntilIndex("\n a \r\n b \n", 10) // same
-function stringEmptifyUntilIndex(s: string, index: number): string {
-  return stringEmptify(s.slice(0, index)) + s.slice(index);
+// "|\n a \r\n b \n" 0  strEmptifyUntilIndex("\n a \r\n b \n", 0) // \n a \r\n b \n
+// "\n| a \r\n b \n" 1  strEmptifyUntilIndex("\n a \r\n b \n", 1) // same
+// "\n |a \r\n b \n" 2  strEmptifyUntilIndex("\n a \r\n b \n", 2) // \na \r\n b \n
+// "\n a| \r\n b \n" 3  strEmptifyUntilIndex("\n a \r\n b \n", 3) // \n \r\n b \n
+// "\n a |\r\n b \n" 4  strEmptifyUntilIndex("\n a \r\n b \n", 4) // \n\r\n b \n
+// "\n a \r|\n b \n" 5  strEmptifyUntilIndex("\n a \r\n b \n", 5) // \n\n b \n    ! \r\n -> \r
+// "\n a \r\n| b \n" 6  strEmptifyUntilIndex("\n a \r\n b \n", 6) // \n\r\n b \n
+// "\n a \r\n |b \n" 7  strEmptifyUntilIndex("\n a \r\n b \n", 7) // \n\r\nb \n
+// "\n a \r\n b| \n" 8  strEmptifyUntilIndex("\n a \r\n b \n", 8) // \n\r\n \n
+// "\n a \r\n b |\n" 9  strEmptifyUntilIndex("\n a \r\n b \n", 9) // \n\r\n\n
+// "\n a \r\n b \n|" 10 strEmptifyUntilIndex("\n a \r\n b \n", 10) // same
+function strEmptifyUntilIndex(s: string, index: number): string {
+  return strEmptify(s.slice(0, index)) + s.slice(index);
 }
 
 // ]]> -> ]]]]><![CDATA[>
-function stringEscapeCdata(str: string): string {
+function strEscapeCdata(str: string): string {
   // return str.replaceAll("]]>", "]]]]><![CDATA[>"); // es2021
   return str.replace(/]]>/g, "]]]]><![CDATA[>");
 }
 
 // https://stackoverflow.com/questions/1779858/how-do-i-escape-a-string-for-a-shell-command-in-node
-function stringEscapeShell(str: string) {
+function strEscapeShell(str: string) {
   return `"${str.replace(/(["'$`\\])/g, "\\$1")}"`;
 }
 
-function stringFirstLine(s: string): string {
+function strFirstLine(s: string): string {
   const i = s.indexOf("\n");
   if (i === -1) return s;
   if (i === 0) return ""; // "\n..."
@@ -271,66 +271,66 @@ function stringFirstLine(s: string): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _stringFirstLineTest(): void {
-  assert.deepStrictEqual(stringFirstLine(""), "");
-  assert.deepStrictEqual(stringFirstLine("\r"), "\r");
-  assert.deepStrictEqual(stringFirstLine("\x01"), "\x01"); // ^A
-  assert.deepStrictEqual(stringFirstLine("\n"), "");
-  assert.deepStrictEqual(stringFirstLine("\r\n"), "");
-  assert.deepStrictEqual(stringFirstLine("\n\r"), "");
-  assert.deepStrictEqual(stringFirstLine("xxx"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("xxx\n"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("xxx\r\n"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("xxx\n\r"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("\nyyy"), "");
-  assert.deepStrictEqual(stringFirstLine("\r\nyyy"), "");
-  assert.deepStrictEqual(stringFirstLine("xxx\nyyy"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("xxx\r\nyyy"), "xxx");
+function _strFirstLineTest(): void {
+  assert.deepStrictEqual(strFirstLine(""), "");
+  assert.deepStrictEqual(strFirstLine("\r"), "\r");
+  assert.deepStrictEqual(strFirstLine("\x01"), "\x01"); // ^A
+  assert.deepStrictEqual(strFirstLine("\n"), "");
+  assert.deepStrictEqual(strFirstLine("\r\n"), "");
+  assert.deepStrictEqual(strFirstLine("\n\r"), "");
+  assert.deepStrictEqual(strFirstLine("xxx"), "xxx");
+  assert.deepStrictEqual(strFirstLine("xxx\n"), "xxx");
+  assert.deepStrictEqual(strFirstLine("xxx\r\n"), "xxx");
+  assert.deepStrictEqual(strFirstLine("xxx\n\r"), "xxx");
+  assert.deepStrictEqual(strFirstLine("\nyyy"), "");
+  assert.deepStrictEqual(strFirstLine("\r\nyyy"), "");
+  assert.deepStrictEqual(strFirstLine("xxx\nyyy"), "xxx");
+  assert.deepStrictEqual(strFirstLine("xxx\r\nyyy"), "xxx");
 }
 
-function stringNumberOfLines(s: string): number {
+function strNumberOfLines(s: string): number {
   return (s.match(/\n/g) || []).length + 1;
 }
 
-function stringRemoveFirstLine(s: string): string {
+function strRemoveFirstLine(s: string): string {
   const i = s.indexOf("\n");
   if (i === -1) return "";
   return s.slice(i + 1);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _stringRemoveFirstLineTest(): void {
-  assert.deepStrictEqual(stringRemoveFirstLine(""), "");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo"), "");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\n"), "");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\r\n"), "");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\n\r"), "\r");
-  assert.deepStrictEqual(stringRemoveFirstLine("\n\n"), "\n");
-  assert.deepStrictEqual(stringRemoveFirstLine("\r\n\r\n"), "\r\n");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\n\nbar\nbaz\n"), "\nbar\nbaz\n");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\r\n\r\nbar\r\nbaz\r\n"), "\r\nbar\r\nbaz\r\n");
+function _strRemoveFirstLineTest(): void {
+  assert.deepStrictEqual(strRemoveFirstLine(""), "");
+  assert.deepStrictEqual(strRemoveFirstLine("foo"), "");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\n"), "");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\r\n"), "");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\n\r"), "\r");
+  assert.deepStrictEqual(strRemoveFirstLine("\n\n"), "\n");
+  assert.deepStrictEqual(strRemoveFirstLine("\r\n\r\n"), "\r\n");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\n\nbar\nbaz\n"), "\nbar\nbaz\n");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\r\n\r\nbar\r\nbaz\r\n"), "\r\nbar\r\nbaz\r\n");
 }
 
-function stringRemoveLastLine(s: string): string {
+function strRemoveLastLine(s: string): string {
   return s.replace(/\r?\n$/, "");
 }
 
-function stringRemovePrefix(s: string, prefix: string): string {
+function strRemovePrefix(s: string, prefix: string): string {
   return s.replace(new RegExp(`^${regExpEscape(prefix)}`), "");
 }
 
-function stringRemoveSuffix(s: string, suffix: string): string {
+function strRemoveSuffix(s: string, suffix: string): string {
   return s.replace(new RegExp(`${regExpEscape(suffix)}$`), "");
 }
 
-function stringSnip(s: string, len: number) {
+function strSnip(s: string, len: number) {
   s = s.replaceAll("\n", "⏎");
   if (s.length <= len) return s;
   len = Math.floor(len / 2);
   return `${s.slice(0, len)} ... ${s.slice(s.length - len)}`;
 }
 
-function stringTrimTrailingSlashes(s: string): string {
+function strTrimTrailingSlashes(s: string): string {
   while (s.at(-1) === "/") {
     s = s.slice(0, -1);
   }
@@ -413,7 +413,7 @@ export async function cliMain(): Promise<void> {
 
 function myParseDuration(value: string, dummyPrevious?: number): number {
   if (value.match(/^\d+$/)) return parseInt(value);
-  const cmd = `date -d ${stringEscapeShell(`19700101 ${value}`)} -u +%s`;
+  const cmd = `date -d ${strEscapeShell(`19700101 ${value}`)} -u +%s`;
   // TODO: before cliCommandInit(), can't output debug log
   const secs = parseInt(sh(cmd));
   if (secs < 0) {
@@ -871,9 +871,9 @@ program
     app.get("/", async (req: express.Request, res: express.Response, next: express.NextFunction) => {
       logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${ii(req.headers)}`);
       res.setHeader("Content-Type", "text/event-stream");
-      const cp = child_process.spawn(`curl -fSs --no-buffer -X ${req.method} ${stringEscapeShell(url)}`, { shell: true });
+      const cp = child_process.spawn(`curl -fSs --no-buffer -X ${req.method} ${strEscapeShell(url)}`, { shell: true });
       cp.stdout.on("data", (data) => {
-        logger.debug(`spawn(): stdout: ${stringSnip(data.toString(), 100)}`);
+        logger.debug(`spawn(): stdout: ${strSnip(data.toString(), 100)}`);
         // res.send(data);
         if (!res.write(data)) { // TODO: res.on("close", ...)
           cp.stdout.destroy(); // kill with SIGPIPE
@@ -911,9 +911,9 @@ program
     app.get("/", async (req: express.Request, res: express.Response, next: express.NextFunction) => {
       logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${ii(req.headers)}`);
       res.setHeader("Content-Type", "text/event-stream");
-      const cp = child_process.spawn(`tail -F ${file ? stringEscapeShell(file) : ""}`, { shell: true });
+      const cp = child_process.spawn(`tail -F ${file ? strEscapeShell(file) : ""}`, { shell: true });
       cp.stdout.on("data", (data) => {
-        logger.debug(`spawn(): stdout: ${stringSnip(data.toString(), 100)}`);
+        logger.debug(`spawn(): stdout: ${strSnip(data.toString(), 100)}`);
         // res.send(data);
         if (!res.write(data)) {
           cp.stdout.destroy(); // kill with SIGPIPE
@@ -1003,7 +1003,7 @@ program
 
     // Ubuntu 20.04: $TERM default is xterm?
     // systemd-run --user -- (which c.js) pty-cmd -- env  # TERM=xterm
-    const ptyProcess = pty.spawn("sh", ["-c", stringCommandsToShC(cmd)], {
+    const ptyProcess = pty.spawn("sh", ["-c", strCommandsToShC(cmd)], {
       // name: 'xterm-color',
       cols: process.stdout.columns,
       rows: process.stdout.rows,
@@ -1730,7 +1730,7 @@ program
 function txtMarkdownCat(txt: string): string {
   while ((reArr = /\[@cat]\(file:\/\/(?<path>[^)]+)\)/.exec(txt)) !== null) {
     const { path } = reArr.groups as { path: string };
-    txt = txt.replace(reArr[0], regExpReplacerEscape(stringRemoveLastLine(fs.readFileSync(path, "utf8"))));
+    txt = txt.replace(reArr[0], regExpReplacerEscape(strRemoveLastLine(fs.readFileSync(path, "utf8"))));
   }
 
   // 0 [@cat:@beg:SECTION](file://PATH) -> <PATH: @beg:SECTION...@end:SECTION>
