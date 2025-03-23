@@ -64,6 +64,18 @@ def debugger_try(frame, &log_cb)
   true
 end
 
+# use test stdin for RubyMine local debug
+#   RubyMine local debug:                              DEBUGGER_HOST: 0.0.0.0 RM_INFO=RM-222.3739.56
+#   rdebug-ide --host 0.0.0.0 + RubyMine remote debug: DEBUGGER_HOST: 0.0.0.0 (RM_INFO not set)
+#     rdebug-ide では Interrupt がハンドリングされてるっぽいくて ^C で終了できない [1]; pkill rdebug-ide で終了する; [1]: test: begin; sleep(100); rescue Exception => e; p(e); end; exit(0)
+# @param [String] str
+def rubymine_debug(str, &block)
+  return unless ENV.key?("DEBUGGER_HOST")
+  return unless ENV.key?("RM_INFO")
+  $stdin = StringIO.new(str)
+  block.call unless block.nil?
+end
+
 # @param [String] str
 # @param [Integer] width
 # @return [String]
@@ -200,15 +212,8 @@ end
 # command - 0sandbox @pub
 
 command("0sandbox") do |opts_g|
-  # use test stdin for RubyMine local debug
-  #   RubyMine local debug:                              DEBUGGER_HOST: 0.0.0.0 RM_INFO=RM-222.3739.56
-  #   rdebug-ide --host 0.0.0.0 + RubyMine remote debug: DEBUGGER_HOST: 0.0.0.0 (RM_INFO not set)
-  #     rdebug-ide では Interrupt がハンドリングされてるっぽいくて ^C で終了できない [1]; pkill rdebug-ide で終了する; [1]: test: begin; sleep(100); rescue Exception => e; p(e); end; exit(0)
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   tmp = command_arg_parse("[ARGF]", "usage: 0sandbox < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
   # echo -en 'a \nb \r\nc ' | ruby ... -> line: "a \n" "b \r\n" "c " -rstrip-> "a" "b" "c"
@@ -226,16 +231,12 @@ end
 # command - c-decrement-line @pub
 
 command("c-decrement-line") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    ARGV[0] = "yacc/tes.l"
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS, &-> { ARGV[0] = "yacc/tes.l" })
 A
 #line 34 "yacc/tes.l"
 #line 35 "yacc/tes.l"
 z
-TEST_INPUT
-  end
-
+EOS
   FILE_L = command_arg_parse("FILE_L", "usage: c-decrement-line FILE_L < FILE_C") # rubocop:disable Lint/ConstantDefinitionInBlock
   print(ARGF.read.gsub(/^#line (\d+) ("#{FILE_L}")$/) { "#line #{$1.to_i - 1} #{$2}" })
   0
@@ -245,15 +246,12 @@ end
 # command - cdb-files @pub
 
 command("cdb-files") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS)
 [
   {"directory":"dir1", "file":"file1"},
   {"directory":"dir2", "file":"file2"}
 ]
-TEST_INPUT
-  end
-
+EOS
   command_arg_parse("[ARGF]", "usage: cdb-files < FILE")
   json = JSON.parse(ARGF.read)
   out = json.map do |entry|
@@ -267,11 +265,8 @@ end
 # command - copy-replace @pub
 
 command("copy-replace") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   FROM, TO = command_arg_parse("FROM TO [ARGF]", "usage: copy-replace FROM TO < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
 
@@ -290,11 +285,8 @@ end
 # command - date-list @pub
 
 command("date-list") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   # https://docs.ruby-lang.org/ja/latest/class/Date.html
 
   Date.new(1970, 1, 1)
@@ -345,11 +337,8 @@ end
 # command - dns-resolve-hosts @pub
 
 command("dns-resolve-hosts") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   command_arg_parse("[ARGF]", "usage: dns-resolve-hosts < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
   begin
@@ -370,8 +359,7 @@ end
 # command - kill-fish @pub
 
 command("kill-fish") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS)
 USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
 wsh        20434  0.0  0.0 263396  9476 pts/3    S+    5月19   0:00 fish
 wsh       888495  0.0  0.0 263576  9836 pts/1    S     5月21   0:00 fish
@@ -379,9 +367,7 @@ wsh      1179690  0.0  0.0 263580  9964 pts/2    S+    5月23   0:00 fish
 wsh      1958229  0.2  0.0 329380 23876 pts/5    S+   17:09   0:05 fish
 wsh      1974475 29.9  0.0 3540916 35384 pts/0   Sl   17:27   5:41 fish <- kill this
 wsh      1983736  1.6  0.0 328792 22784 pts/4    S+   17:43   0:02 fish
-TEST_INPUT
-  end
-
+EOS
   command_arg_parse("", "usage: kill-fish")
   ps = Open3.capture2("ps -Cfish u")
   columns = ps[0].split(/\r?\n/)[0].split(" ")
@@ -427,11 +413,8 @@ opt_parser = OptionParser.new do |parser| # rubocop:disable
 end
 
 command("negate-network", opt_parser) do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   opts = opts_negate_network
   MARKER = command_arg_parse("MARKER [ARGF]", "usage: negate-network [-6] MARKER < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
@@ -557,13 +540,10 @@ end
 # command - notify-fdinfo-find @pub
 
 command("inotify-fdinfo-find") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS)
 inotify wd:1 ino:394027a sdev:fd00001 mask:fc6 ignored_mask:0 fhandle-bytes:8 fhandle-type:1 f_handle:7a029403b8034d62
 inotify wd:1 ino:394027a sdev:fd00001 mask:fc6 ignored_mask:0 fhandle-bytes:8 fhandle-type:1 f_handle:7a029403b8034d62
-TEST_INPUT
-  end
-
+EOS
   command_arg_parse("[ARGF]", "usage: notify-fdinfo-find < FILE")
   # -inum 60031610 -or -inum 60031610
   out = ARGF.read.split(/\r?\n/).map do |line|
@@ -577,15 +557,12 @@ end
 # command - pandoc-json-remove-table-align @pub
 
 command("pandoc-json-remove-table-align") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS)
 aaa[42] [3.14] [3.14e-42] [42,3.14,3.14e-42]xxx
 aaa[42] [3.14] [3.14e-42] [42,3.14,3.14e-42]xxx
 -> []
 should keep: "pandoc-api-version":[1,17,5,4]
-TEST_INPUT
-  end
-
+EOS
   command_arg_parse("[ARGF]", "usage: pandoc-json-remove-table-align < FILE")
   # https://stackoverflow.com/questions/13340717/json-numbers-regular-expression
   number = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/
@@ -597,16 +574,13 @@ end
 # command - systemd-analyze-dot-only-n @pub
 
 command("systemd-analyze-dot-only-n") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    ARGV[0] = "3"
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS, &-> { ARGV[0] = "3" })
 digraph systemd {
 	"blockdev@dev-loop25.target"->"shutdown.target" [color="red"];
 	"fwupd-refresh.timer"->"sysinit.target" [color="green"];
 	"fwupd-refresh.timer"->"time-sync.target" [color="green"];
 }
-TEST_INPUT
-  end
+EOS
 
   N = command_arg_parse("[ARGF]", "usage: systemd-analyze-dot-only-n N < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
   n = N.to_i(10)
@@ -650,11 +624,8 @@ delta ~/qrb/tesrb/c.rb ~/src/scraps/c.rb
 =end
 
 command("z-meta-publish-self") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   command_arg_parse("", "usage: z-meta-publish-self")
 
   File.open(__FILE__) do |f|
