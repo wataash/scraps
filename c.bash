@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: Copyright (c) 2022-2024 Wataru Ashihara <wataash0607@gmail.com>
+# SPDX-FileCopyrightText: Copyright (c) 2022-2025 Wataru Ashihara <wataash0607@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
 # shellcheck disable=SC2317  # Command appears to be unreachable. Check usage (or ignore if invoked indirectly).
@@ -1046,7 +1046,7 @@ cmd::discharging_checker() {
     if [[ "$discharging" == "true" ]]; then
       percentage_=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep -P -o '(?<=percentage:)\s+\S+' | tr -d ' ')
       echo "discharging: $energy_prev Wh -> $energy_curr Wh, $state_prev -> $state_curr ($percentage_)"
-      bash /home/wsh/sh/debug_notify.bash "discharging: $energy_prev Wh -> $energy_curr Wh ($percentage_), $state_prev -> $state_curr"
+      bash /home/wsh/sh/debug_notify.bash ← removed "discharging: $energy_prev Wh -> $energy_curr Wh ($percentage_), $state_prev -> $state_curr"
       interval=$((interval * 2))
       echo "recheck in $interval seconds..."
     else
@@ -1443,8 +1443,6 @@ EOS
 # ------------------------------------------------------------------------------
 # command - linux_kern_make @pub
 
-# TODO: -d CONFIG_DEBUG_INFO_BTF でビルド時間短くなるかやってみる
-
 define_command linux_kern_make
 cmd::linux_kern_make() {
   local -r usage="usage: $PROG linux_kern_make [-h | --help] [TARGET...]"
@@ -1491,11 +1489,12 @@ cmd::linux_kern_make_summary() {
 # ------------------------------------------------------------------------------
 # command - md_code_b64 @pub
 
+# @depracated use c.js txtMarkdownCodeB64
 define_command md_code_b64
 cmd::md_code_b64() {
   local -r usage="usage: $PROG md_code_b64 [-h | --help]"
   arg_parse "$usage" "" "$@"
-  c.js txt-markdown-code-b64
+  c.js txtMarkdownCodeB64
 }
 
 test_md_code_b64() { #@test
@@ -1513,11 +1512,12 @@ test_md_code_b64() { #@test
 # ------------------------------------------------------------------------------
 # command - md_code_b64d @pub
 
+# @depracated use c.js txtMarkdownCodeB64d
 define_command md_code_b64d
 cmd::md_code_b64d() {
   local -r usage="usage: $PROG md_code_b64d [-h | --help]"
   arg_parse "$usage" "" "$@"
-  c.js txt-markdown-code-b64d
+  c.js txtMarkdownCodeB64d
 }
 
 test_md_code_b64d() { #@test
@@ -1539,11 +1539,11 @@ cmd::md_sec() {
   local -r usage="usage: $PROG md_sec [-h | --help] SECTION"
   local SECTION="" && arg_parse "$usage" "SECTION" "$@"
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  cmd md_code_b64 | node -e '
+  c.js txtMarkdownCodeB64 | node -e '
     const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
     let txt = fs.readFileSync("/dev/stdin", "utf8") + "\0";
     const match = txt.match(new RegExp(`^(## ${regExpEscape(process.argv[1])}$[\\s\\S]*?)(?=(\r?\n## |\0))`, "m"));
-    if (match !== null) process.stdout.write(match[1]);' "$SECTION" | cmd md_code_b64d
+    if (match !== null) process.stdout.write(match[1]);' "$SECTION" | c.js txtMarkdownCodeB64d
 }
 
 test_md_sec() { #@test
@@ -1570,7 +1570,7 @@ cmd::md_secsp() {
   local -r usage="usage: $PROG md_secsp [-h | --help] SECTION_PREFIX"
   local SECTION_PREFIX="" && arg_parse "$usage" "SECTION_PREFIX" "$@"
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  cmd md_code_b64 | node -e '
+  c.js txtMarkdownCodeB64 | node -e '
     const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
     const txt = fs.readFileSync("/dev/stdin", "utf8") + "\0eof\0";
     let txt2 = "";
@@ -1586,7 +1586,7 @@ cmd::md_secsp() {
     }
     if (lastSectionIsMatch) process.stdout.write(txt2);
     else process.stdout.write(txt2.slice(0, -1));
-  ' "$SECTION_PREFIX" | cmd md_code_b64d
+  ' "$SECTION_PREFIX" | c.js txtMarkdownCodeB64d
 }
 
 test_md_secsp() { #@test
@@ -1701,7 +1701,7 @@ cmd::pstree() {
       pid=$ppid
     done
   done
-  ps -p "$(IFS=,; echo "${pids[*]}")" -H u -ww
+  ( ((LOG_LEVEL >= LOG_DEBUG)) && set -x; ps -p "$(IFS=,; echo "${pids[*]}")" -H u -ww)
 }
 
 # ------------------------------------------------------------------------------
@@ -1815,6 +1815,8 @@ cmd::qemu_net_setup() {
   sudo nft add table ip nat0
   sudo nft 'add chain nat0 postrouting0 { type nat hook postrouting priority 100 ; }'
   sudo nft add rule ip nat0 postrouting0 ip saddr 172.31.100.0/24 ip daddr != 172.31.100.0/24 counter masquerade
+  sudo nft add rule ip filter FORWARD ip saddr 172.31.100.0/24 counter accept  # 行き
+  sudo nft add rule ip filter FORWARD ip daddr 172.31.100.0/24 counter accept  # 帰り
 
   # sudo iptables -t nat -A POSTROUTING -s 172.31.100.0/24 ! -d 172.31.100.0/24 -j MASQUERADE
   # @ref:iptables-bridge
@@ -2233,7 +2235,7 @@ cmd::txt_bv_ev() {
   local FILE="" && arg_parse "$usage" "[FILE]" "$@"
   [[ $FILE == "" ]] && FILE="/dev/stdin"
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  # from c.js txt-private
+  # from c.js txtPrivate
   node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(new RegExp(`^.*[@]bv\\b.*\r?\n[\\s\\S]*?[@]ev\\b.*(\r?\n|$)`, "gm"), ""))' <"$FILE"
 }
 
