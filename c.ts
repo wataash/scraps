@@ -37,12 +37,12 @@ import * as pty from "node-pty";
 
 import { Logger } from "./src/logger.js";
 
-const logger = new Logger();
+export const logger = new Logger();
 
 // -----------------------------------------------------------------------------
 // lib
 
-class AppError extends Error {
+export class AppError extends Error {
   constructor(message: string, withStack = false) {
     // https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-2.html
     super(message);
@@ -55,18 +55,18 @@ class AppError extends Error {
   }
 }
 
-const DIR_CACHE = envPaths(path.join("wataash", "c.ts")).cache;
-const DIR_TMP = envPaths(path.join("wataash", "c.ts")).temp;
+export const DIR_CACHE = envPaths(path.join("wataash", "c.ts")).cache;
+export const DIR_TMP = envPaths(path.join("wataash", "c.ts")).temp;
 fs.mkdirSync(DIR_CACHE, { recursive: true });
 fs.mkdirSync(DIR_TMP, { recursive: true });
 
 const __filename = url.fileURLToPath(import.meta.url);
 
-function i(object: any): ReturnType<typeof util.inspect> {
+export function i(object: any): ReturnType<typeof util.inspect> {
   return util.inspect(object, { colors: tty.isatty(process.stdout.fd) });
 }
 
-function ii(object: any): ReturnType<typeof util.inspect> {
+export function ii(object: any): ReturnType<typeof util.inspect> {
   return util.inspect(object, { colors: tty.isatty(process.stdout.fd), breakLength: Infinity });
 }
 
@@ -83,7 +83,7 @@ function ii(object: any): ReturnType<typeof util.inspect> {
  * integersSummary([1, 0]); // throws (must be sorted)
  * @param numbers
  */
-function integersSummary(numbers: number[]): string[] {
+export function integersSummary(numbers: number[]): string[] {
   if (numbers.length === 0) return [];
   // if (numbers.length === 1) return `${numbers[0]}`;
   const ret = [];
@@ -109,11 +109,11 @@ function integersSummary(numbers: number[]): string[] {
 }
 
 // https://github.com/jonschlinkert/isobject/blob/master/index.js
-function isObject(value: unknown): value is object {
+export function isObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && Array.isArray(value) === false;
 }
 
-class Queue<T> {
+export class Queue<T> {
   private readonly q: T[];
   private readonly qWaiters: { resolve: (value: "resolved") => void }[];
 
@@ -149,11 +149,11 @@ let reArr: RegExpExecArray | null;
 let reArr2: RegExpExecArray;
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions
-function regExpEscape(s: string): string {
+export function regExpEscape(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
 }
 
-function reExec(regexp: RegExp, string: string): RegExpExecArray {
+export function reExec(regexp: RegExp, string: string): RegExpExecArray {
   const reArr = regexp.exec(string);
   if (reArr === null) {
     throw new AppError(`not match: ${regexp} (string: ${strSnip(string, 30)})`);
@@ -164,19 +164,19 @@ function reExec(regexp: RegExp, string: string): RegExpExecArray {
 // TODO: copy type of argument of String.prototype.replace
 // replace(searchValue: string | RegExp, replaceValue: string): string;
 // replace(searchValue: string | RegExp, replacer: (substring: string, ...args: any[]) => string): string;
-function reReplace(regexp: RegExp, searchValue: string | RegExp, replaceValue: string): RegExp {
+export function reReplace(regexp: RegExp, searchValue: string | RegExp, replaceValue: string): RegExp {
   return new RegExp(regexp.source.replace(searchValue, replaceValue), regexp.flags);
 }
 
 // const regExpReplacerEscape = (s: string): string => s.replaceAll("$", "$$$$"); // avoid special replacement with "$" https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
 // const regExpReplacerEscape = (s) => s.replace(/\$/g, "$$$$"); // avoid special replacement with "$" https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
-function regExpReplacerEscape(s: string): string {
+export function regExpReplacerEscape(s: string): string {
   // avoid special replacement with "$"
   // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
   return s.replaceAll("$", "$$$$");
 }
 
-function sh(cmd: string): string {
+export function sh(cmd: string): string {
   logger.debug(cmd);
   return child_process.execSync(cmd, { encoding: "utf8" });
 }
@@ -202,7 +202,7 @@ export async function sleepForever(): Promise<never> {
 // a.js echo "foo bar"           # ["echo", "foo bar"]         -> `'echo' 'foo bar'`
 // a.js echo ">" "foo bar"       # ["echo", ">", "foo bar"]    -> `'echo' '>' 'foo bar'`
 // a.js "echo 'foo bar' > a.txt" # ["echo 'foo bar' > a.txt"]  -> `'echo '\\''foo bar'\\'' > a.txt'`
-function strCommandsToShC(cmds: string[]): string {
+export function strCommandsToShC(cmds: string[]): string {
   // TODO: implement in js
   const stdout = child_process.execFileSync("bash", ["-c", 'echo "${@@Q}"', "_", ...cmds], { encoding: "utf8" });
   return stdout.trimEnd();
@@ -213,7 +213,7 @@ function strCommandsToShC(cmds: string[]): string {
 // assert.deepStrictEqual(strCommandsToShC(["echo 'foo bar' > a.txt"]), `'echo '\\''foo bar'\\'' > a.txt'`);
 
 // strEmptify("\n a \r\n b \n") // -> "\n\r\n\n"
-function strEmptify(s: string): string {
+export function strEmptify(s: string): string {
   const matches = s.match(/\r?\n/g); // ES2020: .matchAll()
   if (matches === null) return "";
   return matches.join("");
@@ -230,7 +230,7 @@ function strEmptify(s: string): string {
 // "\n a \r\n b| \n" 8  strEmptifyFromIndex("\n a \r\n b \n", 8) // \n a \r\n b\n
 // "\n a \r\n b |\n" 9  strEmptifyFromIndex("\n a \r\n b \n", 9) // \n a \r\n b \n
 // "\n a \r\n b \n|" 10 strEmptifyFromIndex("\n a \r\n b \n", 10) // \n a \r\n b \n
-function strEmptifyFromIndex(s: string, index: number): string {
+export function strEmptifyFromIndex(s: string, index: number): string {
   return s.slice(0, index) + strEmptify(s.slice(index));
 }
 
@@ -245,22 +245,22 @@ function strEmptifyFromIndex(s: string, index: number): string {
 // "\n a \r\n b| \n" 8  strEmptifyUntilIndex("\n a \r\n b \n", 8) // \n\r\n \n
 // "\n a \r\n b |\n" 9  strEmptifyUntilIndex("\n a \r\n b \n", 9) // \n\r\n\n
 // "\n a \r\n b \n|" 10 strEmptifyUntilIndex("\n a \r\n b \n", 10) // same
-function strEmptifyUntilIndex(s: string, index: number): string {
+export function strEmptifyUntilIndex(s: string, index: number): string {
   return strEmptify(s.slice(0, index)) + s.slice(index);
 }
 
 // ]]> -> ]]]]><![CDATA[>
-function strEscapeCdata(str: string): string {
+export function strEscapeCdata(str: string): string {
   // return str.replaceAll("]]>", "]]]]><![CDATA[>"); // es2021
   return str.replace(/]]>/g, "]]]]><![CDATA[>");
 }
 
 // https://stackoverflow.com/questions/1779858/how-do-i-escape-a-string-for-a-shell-command-in-node
-function strEscapeShell(str: string) {
+export function strEscapeShell(str: string) {
   return `"${str.replace(/(["'$`\\])/g, "\\$1")}"`;
 }
 
-function strFirstLine(s: string): string {
+export function strFirstLine(s: string): string {
   const i = s.indexOf("\n");
   if (i === -1) return s;
   if (i === 0) return ""; // "\n..."
@@ -288,11 +288,11 @@ function _strFirstLineTest(): void {
   assert.deepStrictEqual(strFirstLine("xxx\r\nyyy"), "xxx");
 }
 
-function strNumberOfLines(s: string): number {
+export function strNumberOfLines(s: string): number {
   return (s.match(/\n/g) || []).length + 1;
 }
 
-function strRemoveFirstLine(s: string): string {
+export function strRemoveFirstLine(s: string): string {
   const i = s.indexOf("\n");
   if (i === -1) return "";
   return s.slice(i + 1);
@@ -311,33 +311,33 @@ function _strRemoveFirstLineTest(): void {
   assert.deepStrictEqual(strRemoveFirstLine("foo\r\n\r\nbar\r\nbaz\r\n"), "\r\nbar\r\nbaz\r\n");
 }
 
-function strRemoveLastLine(s: string): string {
+export function strRemoveLastLine(s: string): string {
   return s.replace(/\r?\n$/, "");
 }
 
-function strRemovePrefix(s: string, prefix: string): string {
+export function strRemovePrefix(s: string, prefix: string): string {
   return s.replace(new RegExp(`^${regExpEscape(prefix)}`), "");
 }
 
-function strRemoveSuffix(s: string, suffix: string): string {
+export function strRemoveSuffix(s: string, suffix: string): string {
   return s.replace(new RegExp(`${regExpEscape(suffix)}$`), "");
 }
 
-function strSnip(s: string, len: number) {
+export function strSnip(s: string, len: number) {
   s = s.replaceAll("\n", "⏎");
   if (s.length <= len) return s;
   len = Math.floor(len / 2);
   return `${s.slice(0, len)} ... ${s.slice(s.length - len)}`;
 }
 
-function strTrimTrailingSlashes(s: string): string {
+export function strTrimTrailingSlashes(s: string): string {
   while (s.at(-1) === "/") {
     s = s.slice(0, -1);
   }
   return s;
 }
 
-function unreachable(): never {
+export function unreachable(): never {
   throw new AppError("BUG: unreachable", true);
 }
 
