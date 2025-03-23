@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
-
+# SPDX-FileCopyrightText: Copyright (c) 2022-2025 Wataru Ashihara <wataash@wataash.com>
 # SPDX-License-Identifier: Apache-2.0
 
 # rubocop:disable Lint/MissingCopEnableDirective
@@ -127,22 +127,22 @@ end
 # @param [String] arg_spec
 # @param [String] usage
 # @return [Array<String>]
-def command_arg_parse(arg_spec, usage)
+def command_arg_parse(arg_spec, usage) # rubocop:disable Metrics
   # TODO: show usage
 
+  #      ┌→ in_optional_specs
   # ARG1 [ARG2] [ARGF]
-  #     |-> in_optional_specs
   ret = []
   specs = arg_spec.split
   in_optional_specs = false
   specs.each_with_index do |spec, i|
     case spec
     when /^\[(\w+)\]$/
-      return ret if ARGV.empty? # rubocop:disable Lint/NonLocalExitFromIterator
+      return ret if ARGV.empty?
       in_optional_specs = true
       if Regexp.last_match[1] == "ARGF"
         assert(i == specs.length - 1)
-        return ret if ARGV.length in 0..1 # rubocop:disable Lint/NonLocalExitFromIterator
+        return ret if ARGV.length in 0..1
         raise OptionParser::InvalidArgument, "excess argument(s): #{ARGV[1..]}"
       end
       ret.push(ARGV.shift)
@@ -188,18 +188,18 @@ def _test_command_arg_parse
     begin
       arg1, arg2 = command_arg_parse("ARG1 [ARG2]", "usage")
     rescue OptParse::ParseError => e
-      puts("ARG1 [ARG2]        : [#{args}] #{e}")
+      puts("ARG1 [ARG2]        : #{args} #{e}")
     else
-      puts("ARG1 [ARG2]        : [#{args}] OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
+      puts("ARG1 [ARG2]        : #{args} OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
     end
 
     ARGV.replace(args)
     begin
       arg1, arg2 = command_arg_parse("ARG1 [ARG2] [ARGF]", "usage")
     rescue OptParse::ParseError => e
-      puts("ARG1 [ARG2] [ARGF] : [#{args}] #{e}")
+      puts("ARG1 [ARG2] [ARGF] : #{args} #{e}")
     else
-      puts("ARG1 [ARG2] [ARGF] : [#{args}] OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
+      puts("ARG1 [ARG2] [ARGF] : #{args} OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
     end
   end
 
@@ -214,7 +214,7 @@ end
 command("0sandbox") do |opts_g|
   rubymine_debug(<<EOS)
 EOS
-  tmp = command_arg_parse("[ARGF]", "usage: 0sandbox < FILE")
+  command_arg_parse("[ARGF]", "usage: 0sandbox < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
   # echo -en 'a \nb \r\nc ' | ruby ... -> line: "a \n" "b \r\n" "c " -rstrip-> "a" "b" "c"
   begin
@@ -222,7 +222,7 @@ EOS
       logger.info(line)
     end
   rescue Interrupt
-    # Ignored
+    next 1 # just exit with 1 without stack trace
   end
   0
 end
@@ -237,7 +237,7 @@ A
 #line 35 "yacc/tes.l"
 z
 EOS
-  FILE_L = command_arg_parse("FILE_L", "usage: c-decrement-line FILE_L < FILE_C") # rubocop:disable Lint/ConstantDefinitionInBlock
+  FILE_L, = command_arg_parse("FILE_L", "usage: c-decrement-line FILE_L < FILE_C") # rubocop:disable Lint/ConstantDefinitionInBlock
   print(ARGF.read.gsub(/^#line (\d+) ("#{FILE_L}")$/) { "#line #{$1.to_i - 1} #{$2}" })
   0
 end
@@ -276,7 +276,7 @@ EOS
       puts(line.gsub(FROM, TO)) if line.include?(FROM)
     end
   rescue Interrupt
-    # Ignored
+    next 1 # just exit with 1 without stack trace
   end
   0
 end
@@ -289,43 +289,43 @@ command("date-list") do |opts_g|
 EOS
   # https://docs.ruby-lang.org/ja/latest/class/Date.html
 
-  Date.new(1970, 1, 1)
-  Date.new(year = 1970, mon = 1, mday = 1)
-  Date.httpdate("Mon, 01 Jan -4712 00:00:00 GMT") # parse RFC 2616 https://www.rfc-editor.org/rfc/rfc2616#section-3.3
-  Date._httpdate("Mon, 01 Jan -4712 00:00:00 GMT") # as hash
-  Date.iso8601("-4712-01-01") # parse [[ISO:8601]]
-  Date._iso8601("-4712-01-01") # as hash
-  Date.today
-  Date.strptime("-4712-01-01", "%F")
-  Date._strptime("-4712-01-01", "%F")
+  _ = Date.new(1970, 1, 1)
+  _ = Date.new(year = 1970, mon = 1, mday = 1)
+  _ = Date.httpdate("Mon, 01 Jan -4712 00:00:00 GMT") # parse RFC 2616 https://www.rfc-editor.org/rfc/rfc2616#section-3.3
+  _ = Date._httpdate("Mon, 01 Jan -4712 00:00:00 GMT") # as hash
+  _ = Date.iso8601("-4712-01-01") # parse [[ISO:8601]]
+  _ = Date._iso8601("-4712-01-01") # as hash
+  _ = Date.today
+  _ = Date.strptime("-4712-01-01", "%F")
+  _ = Date._strptime("-4712-01-01", "%F")
 
-  Date.today.next_day
-  Date.today + 1 # same
-  Date.today.succ # same
-  Date.today.next # same
-  Date.today.prev_day
-  Date.today - 1 # same
-  Date.today.prev_month
-  Date.today << 1 # same
-  Date.today.next_month
-  Date.today >> 1 # same
-  Date.today === Date.today # same date?
-  Date.today == Date.today # TODO: === と違いあるか調べる
+  _ = Date.today.next_day
+  _ = Date.today + 1 # same
+  _ = Date.today.succ # same
+  _ = Date.today.next # same
+  _ = Date.today.prev_day
+  _ = Date.today - 1 # same
+  _ = Date.today.prev_month
+  _ = Date.today << 1 # same
+  _ = Date.today.next_month
+  _ = Date.today >> 1 # same
+  _ = Date.today === Date.today # same date?
+  _ = Date.today == Date.today # TODO: === と違いあるか調べる
 
-  Date.today.year
-  Date.today.month
-  Date.today.mday # month of day
-  Date.today.day # same
-  Date.today.yday # year of day 1-366
+  _ = Date.today.year
+  _ = Date.today.month
+  _ = Date.today.mday # month of day
+  _ = Date.today.day # same
+  _ = Date.today.yday # year of day 1-366
 
-  Date.today.downto(Date.today.prev_month).to_a
-  Date.today.step(Date.today.prev_month, -1).to_a # same
-  Date.today.upto(Date.today.next_month).to_a
-  Date.today.step(Date.today.next_month, 1).to_a # same
+  _ = Date.today.downto(Date.today.prev_month).to_a
+  _ = Date.today.step(Date.today.prev_month, -1).to_a # same
+  _ = Date.today.upto(Date.today.next_month).to_a
+  _ = Date.today.step(Date.today.next_month, 1).to_a # same
 
-  Date.today.strftime("%F")
-  Date.today.to_datetime # 00:00:00
-  Date.today.wday # weekday 0-6
+  _ = Date.today.strftime("%F")
+  _ = Date.today.to_datetime # 00:00:00
+  _ = Date.today.wday # weekday 0-6
 
   command_arg_parse("", "usage: date-list")
   Date.today.downto(Date.today.prev_month) { |date| puts(date.strftime("%F %a")) }
@@ -341,16 +341,81 @@ command("dns-resolve-hosts") do |opts_g|
 EOS
   command_arg_parse("[ARGF]", "usage: dns-resolve-hosts < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
-  begin
-    txt = ARGF.read.scan(/^__RESOLVE_BEGIN__\r?\n([\s\S]*?)\r?\n__RESOLVE_END__$/)[0][0]
-    hosts = txt.scan(/[-.\w]+/).filter { |host| /^\d+\.\d+\.\d+\.\d+$/.match(host).nil? }.uniq
-    hosts.each do |host|
-      txt = Open3.capture2("host #{host}")[0]
-      txt.scan(/has address (.+)$/) { |matches| puts("#{matches[0]}\t#{host}") }
-      txt.scan(/has IPv6 address (.+)$/) { |matches| puts("#{matches[0]}\t#{host}") }
+
+  # {
+  #   "zzz.com": [["192.0.2.1"], ["2001:db8::1"]],
+  # }
+  # @type [Hash{String=>Array<(Array<String>, Array<String>)>}]
+  addrs = Hash.new { |h, k| h[k] = [[], []] }
+
+  while (line = ARGF.gets&.rstrip)
+    next if line.empty?
+    domain = line
+    if addrs.key?(domain)
+      logger.debug("#{line}\tskip (already resolved)")
+      next
     end
-  rescue Interrupt
-    # Ignored
+    txt = Open3.capture2("host #{domain}")[0]
+    txt.scan(/has address (.+)$/) { |matches| addrs[domain][0] << matches[0] }
+    txt.scan(/has IPv6 address (.+)$/) { |matches| addrs[domain][1] << matches[0] }
+    logger.debug("#{line}\t#{addrs[domain]}")
+  end
+
+  # example.com
+  # subsubdomain.subdomain.example.com
+  # subdomain2.EXAMPLE.com
+  # {
+  #   ".FQDN." => nil,
+  #   "com" => {
+  #     ".FQDN." => nil,
+  #     "example" => {
+  #       ".FQDN." => "example.com.",
+  #       "subdomain" => {
+  #         ".FQDN." => nil,
+  #         "subsubdomain" => {
+  #           ".FQDN." => "subsubdomain.subdomain.example.com.",
+  #         }
+  #       },
+  #       "subdomain2" => {
+  #        ".FQDN." => "subdomain2.EXAMPLE.com.",
+  #       },
+  #     },
+  #   },
+  # }
+  domain_tree_root = { ".FQDN." => nil }
+  addrs.each_key do |domain|
+    domain_tree = domain_tree_root
+    fqdn = ""
+    domain.split(".").reverse_each do |token|
+      fqdn = "#{token}.#{fqdn}"
+      token = token.downcase
+      if domain_tree.key?(token)
+        domain_tree = domain_tree[token]
+      else
+        domain_tree = domain_tree[token] = { ".FQDN." => nil }
+      end
+    end
+    domain_tree[".FQDN."] = fqdn
+  end
+
+  sorted_fqdns = []
+  fqdn_sort = lambda do |domain_tree|
+    sorted_fqdns << domain_tree[".FQDN."] unless domain_tree[".FQDN."].nil?
+    domain_tree.sort.each do |token, tree|
+      next if token == ".FQDN."
+      fqdn_sort[tree]
+    end
+  end
+  fqdn_sort[domain_tree_root]
+
+  sorted_fqdns.each do |fqdn|
+    domain = fqdn[...-1]
+    addrs[domain][0].sort.each { |addr| puts("#{addr}\t#{domain}") }
+  end
+  puts
+  sorted_fqdns.each do |fqdn|
+    domain = fqdn[...-1]
+    addrs[domain][1].sort.each { |addr| puts("#{addr}\t#{domain}") }
   end
   0
 end
@@ -387,10 +452,11 @@ end
 # ------------------------------------------------------------------------------
 # command - negate-network @pub
 
+# 2025-03-07 Fri "negate-network" removed from homedir
 # この複雑さはrubyでやるべきではなかった
 
 # dummy type definition for IDEs
-# @attr_reader [Boolean] _6
+# @attr_reader [Boolean] ipv6
 class OptsNegateNetwork < Struct; end
 
 real_opts_class = Struct.new(
@@ -416,7 +482,7 @@ command("negate-network", opt_parser) do |opts_g|
   rubymine_debug(<<EOS)
 EOS
   opts = opts_negate_network
-  MARKER = command_arg_parse("MARKER [ARGF]", "usage: negate-network [-6] MARKER < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
+  MARKER, = command_arg_parse("MARKER [ARGF]", "usage: negate-network [-6] MARKER < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
 
   require "ipaddr"
@@ -439,7 +505,7 @@ EOS
       exclude_networks.push(IPAddr.new(match_data[1], af))
     end
   rescue Interrupt
-    # Ignored
+    next 1 # just exit with 1 without stack trace
   end
 
   pairs_exclude_begin_end = [[-Float::INFINITY, -1]]
@@ -581,8 +647,7 @@ digraph systemd {
 	"fwupd-refresh.timer"->"time-sync.target" [color="green"];
 }
 EOS
-
-  N = command_arg_parse("[ARGF]", "usage: systemd-analyze-dot-only-n N < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
+  N, = command_arg_parse("[ARGF]", "usage: systemd-analyze-dot-only-n N < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
   n = N.to_i(10)
 
   txt = ARGF.read
@@ -661,14 +726,14 @@ Release = "2023-03-05" # rubocop:disable Naming/ConstantName
 # @attr_reader [Integer] verbose
 class OptsGlobal < Struct; end
 
-OptsGlobal_ = Struct.new(
+real_opts_class = Struct.new(
   :quiet,
   :verbose,
 )
 
 # @type [OptsGlobal]
 opts_g = lambda do
-  OptsGlobal_.new(
+  real_opts_class.new(
     quiet: false,
     verbose: 0,
   )
@@ -743,7 +808,7 @@ if $PROGRAM_NAME == __FILE__
   # @type [OptionParser]
   opt_parser = $opt_parsers[command_] # rubocop:disable Style/GlobalVars
   begin
-    argv_command_rest = opt_parser.parse!
+    opt_parser.parse!
     exit($commands[command_].call(opts_g)) # rubocop:disable Style/GlobalVars
   rescue OptionParser::ParseError => e
     warn("\e[31m#{e}\e[0m")
