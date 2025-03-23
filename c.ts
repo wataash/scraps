@@ -443,8 +443,7 @@ function myParseIntPort(value: string, dummyPrevious?: number): number {
 // command - 0template @pub
 // DON'T FORGET TO REMOVE @pub
 
-program
-  .command("0template")
+program.command("0template")
   .description("0template description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -458,8 +457,7 @@ program
 // -----------------------------------------------------------------------------
 // command - countdown @pub
 
-program
-  .command("countdown")
+program.command("countdown")
   .description("countdown description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<duration>", "e.g. 300, 3hour 4min 5sec (GNU date(1) style)").argParser(myParseDuration))
@@ -484,8 +482,7 @@ program
 // -----------------------------------------------------------------------------
 // command - exec-slow-paste @pub
 
-program
-  .command("exec-slow-paste")
+program.command("exec-slow-paste")
   .description("exec-slow-paste description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -554,8 +551,7 @@ class ExecTSServerDefsHTTPReader {
   }
 }
 
-program
-  .command("exec-tsserver-defs")
+program.command("exec-tsserver-defs")
   .description("exec-tsserver-defs description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .allowExcessArguments(false)
@@ -629,8 +625,7 @@ program
 // -----------------------------------------------------------------------------
 // command - fs-link-hard @pub
 
-program
-  .command("fs-link-hard")
+program.command("fs-link-hard")
   .description("fs-link-hard description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<dir>"))
@@ -679,8 +674,7 @@ program
 // -----------------------------------------------------------------------------
 // command - fs-link-sym @pub
 
-program
-  .command("fs-link-sym")
+program.command("fs-link-sym")
   .description("fs-link-sym description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<dir>"))
@@ -733,8 +727,7 @@ program
 // -----------------------------------------------------------------------------
 // command - fs-link-sym-async @pub
 
-program
-  .command("fs-link-sym-async")
+program.command("fs-link-sym-async")
   .description("fs-link-sym-async description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<dir>"))
@@ -791,8 +784,7 @@ program
 // -----------------------------------------------------------------------------
 // command - fs-md-code-blocks @pub
 
-program
-  .command("fs-md-code-blocks")
+program.command("fs-md-code-blocks")
   .description("fs-md-code-blocks description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -818,8 +810,7 @@ program
 // -----------------------------------------------------------------------------
 // command - http-clipboard-server @pub
 
-program
-  .command("http-clipboard-server")
+program.command("http-clipboard-server")
   .description("http-clipboard-server description")
   .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(myParseIntPort))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
@@ -858,8 +849,7 @@ program
 // -----------------------------------------------------------------------------
 // command - http-sse-proxy @pub
 
-program
-  .command("http-sse-proxy")
+program.command("http-sse-proxy")
   .description("http-sse-proxy description")
   .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(myParseIntPort))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
@@ -898,8 +888,7 @@ program
 // -----------------------------------------------------------------------------
 // command - http-sse-tailf @pub
 
-program
-  .command("http-sse-tailf")
+program.command("http-sse-tailf")
   .description("http-sse-tailf description")
   .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(myParseIntPort))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
@@ -938,8 +927,7 @@ program
 // -----------------------------------------------------------------------------
 // command - net-etc-hosts @pub
 
-program
-  .command("net-etc-hosts")
+program.command("net-etc-hosts")
   .description("net-etc-hosts description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<host...>", "e.g. example.com http://www.example.com/foo/ https://www.example.com/foo/"))
@@ -990,8 +978,7 @@ program
 // -----------------------------------------------------------------------------
 // command - pty-cmd @pub
 
-program
-  .command("pty-cmd")
+program.command("pty-cmd")
   .description("pty-cmd description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<cmd...>", "run <cmd> in a new pty"))
@@ -1095,8 +1082,7 @@ function ptyCmdHandleEscape(ptyProcess: pty.IPty, data: Buffer, previousTilde: b
 // -----------------------------------------------------------------------------
 // command - txt-color-complementary @pub
 
-program
-  .command("txt-color-complementary")
+program.command("txt-color-complementary")
   .description("txt-color-complementary description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[color]"))
@@ -1120,8 +1106,7 @@ program
 // -----------------------------------------------------------------------------
 // command - txt-color-invert @pub
 
-program
-  .command("txt-color-invert")
+program.command("txt-color-invert")
   .description("txt-color-invert description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[color]"))
@@ -1143,8 +1128,7 @@ program
 // -----------------------------------------------------------------------------
 // command - txt-confluence-html-format @pub
 
-program
-  .command("txt-confluence-html-format")
+program.command("txt-confluence-html-format")
   .description("txt-confluence-html-format description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -1246,8 +1230,7 @@ if (false) {
   text.match(emojiRegex).map((emoji) => [...emoji].length); // [1, 1, 2, 2, 1, 1, 2, 2] code points
 }
 
-program
-  .command("txt-emoji")
+program.command("txt-emoji")
   .description("txt-emoji description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -1264,8 +1247,7 @@ program
 // -----------------------------------------------------------------------------
 // command - txt-emoji-count @pub
 
-program
-  .command("txt-emoji-count")
+program.command("txt-emoji-count")
   .description("txt-emoji-count description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -1303,8 +1285,7 @@ program
  ...
 */
 
-program
-  .command("txt-extrace-prettify")
+program.command("txt-extrace-prettify")
   .description("prettify `sudo extrace -tu | ts` output")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -1334,8 +1315,7 @@ program
 // -----------------------------------------------------------------------------
 // command - txt-file-backup-sha1-hash-analyze @pub
 
-program
-  .command("txt-file-backup-sha1-hash-analyze")
+program.command("txt-file-backup-sha1-hash-analyze")
   .description("txt-file-backup-sha1-hash-analyze description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -1374,8 +1354,7 @@ program
 // -----------------------------------------------------------------------------
 // command - txt-fish-history-edit @pub
 
-program
-  .command("txt-fish-history-edit")
+program.command("txt-fish-history-edit")
   .description("txt-fish-history-edit description")
   .addOption(new commander.Option("--grep <pattern>").conflicts(["merge", "sort-len"]))
   .addOption(new commander.Option("--merge <file>").conflicts(["grep", "sort-len"]))
@@ -1451,8 +1430,7 @@ program
 // -----------------------------------------------------------------------------
 // command - txt-html-cdata-b64 @pub
 
-program
-  .command("txt-html-cdata-b64")
+program.command("txt-html-cdata-b64")
   .description("txt-html-cdata-b64 description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
@@ -1488,8 +1466,7 @@ function txtHTMLCDataB64(html: string): string {
 // -----------------------------------------------------------------------------
 // command - txt-html-cdata-b64d @pub
 
-program
-  .command("txt-html-cdata-b64d")
+program.command("txt-html-cdata-b64d")
   .description("txt-html-cdata-b64d description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
@@ -1529,8 +1506,7 @@ function txtHTMLCDataB64d(html: string): string {
 
 // abort
 
-program
-  .command("txt-html-break")
+program.command("txt-html-break")
   .description("txt-html-break description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
@@ -1670,8 +1646,7 @@ function txtHTMLBreakOld(html: string): string {
 // -----------------------------------------------------------------------------
 // command - txt-json-flatten @pub
 
-program
-  .command("txt-json-flatten")
+program.command("txt-json-flatten")
   .description("txt-json-flatten description")
   .addOption(new commander.Option("--width <number>").default(80).argParser(myParseIntPort))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
@@ -1715,8 +1690,7 @@ function strJSONFlat(key: string, j: unknown, opts: { width: number }): string[]
 // [@cat:@beg:SECTION](file://PATH) -> <PATH: @beg:SECTION...@end:SECTION>
 // [@cat:@sec:SECTION](file://PATH) -> <PATH: ## ... @sec:SECTION ...>
 
-program
-  .command("txt-markdown-cat")
+program.command("txt-markdown-cat")
   .description("txt-markdown-cat description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -1763,8 +1737,7 @@ code
 -> @__code_block__:YGBgc2gKY29kZQpgYGA=
 */
 
-program
-  .command("txt-markdown-code-b64")
+program.command("txt-markdown-code-b64")
   .description("txt-markdown-code-b64 description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
@@ -1785,8 +1758,7 @@ function txtMarkdownCodeB64(txt: string): string {
 // -----------------------------------------------------------------------------
 // command - txt-markdown-code-b64d @pub
 
-program
-  .command("txt-markdown-code-b64d")
+program.command("txt-markdown-code-b64d")
   .description("txt-markdown-code-b64d description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
@@ -1807,8 +1779,7 @@ function txtMarkdownCodeB64d(txt: string): string {
 // -----------------------------------------------------------------------------
 // command - txt-markdown-h2-sec @pub
 
-program
-  .command("txt-markdown-h2-sec")
+program.command("txt-markdown-h2-sec")
   .description("txt-markdown-h2-sec description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("<section>", "## @sec:<section>"))
@@ -1893,8 +1864,7 @@ EOF
 ### z
 */
 
-program
-  .command("txt-markdown-h2-section-reduce")
+program.command("txt-markdown-h2-section-reduce")
   .description("txt-markdown-h2-section-reduce description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -1926,8 +1896,7 @@ program
 // -----------------------------------------------------------------------------
 // command - txt-markdown-headers @pub
 
-program
-  .command("txt-markdown-headers")
+program.command("txt-markdown-headers")
   .description("txt-markdown-headers description")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
@@ -2013,8 +1982,7 @@ program
 // -----------------------------------------------------------------------------
 // command - txt-private @pub
 
-program
-  .command("txt-private")
+program.command("txt-private")
   .description("txt-private description")
   .addArgument(new commander.Argument("[file]"))
   .allowExcessArguments(false)
@@ -2055,8 +2023,7 @@ echo -e "foo\nbar" | node -e 'console.log(fs.readFileSync("/dev/stdin", "utf8").
 echo -e "foo\nbar" | node -e 'console.log(fs.readFileSync("/dev/stdin", "utf8").match(new RegExp(process.argv[1], process.argv[2] ?? "m"))[0]);' '^foo$' "m"
 */
 
-program
-  .command("txt-regexp-search").alias("re")
+program.command("txt-regexp-search").alias("re")
   .description("txt-regexp-search description")
   .addOption(new commander.Option("-f, --flags <flags>").default("m"))
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
@@ -2084,8 +2051,7 @@ program
 // -----------------------------------------------------------------------------
 // command - z-meta-command-list @pub
 
-program
-  .command("z-meta-command-list")
+program.command("z-meta-command-list")
   .description("meta command - list subcommands")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .allowExcessArguments(false)
@@ -2099,8 +2065,7 @@ program
 // -----------------------------------------------------------------------------
 // command - z-meta-publish-self @pub
 
-program
-  .command("z-meta-publish-self")
+program.command("z-meta-publish-self")
   .description("meta command - publish self")
   .addOption(new commander.Option("--z-test").hideHelp().default(false))
   .allowExcessArguments(false)
