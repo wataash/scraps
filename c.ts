@@ -6,8 +6,10 @@
 
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-constant-condition */
+/* eslint-disable no-debugger */
 /* eslint-disable no-regex-spaces */
 
 /*
@@ -950,7 +952,7 @@ export class CLI {
 }
 
 // -----------------------------------------------------------------------------
-// command - aTemplate (at) @pub
+// command - aTemplate (at)
 // draft: other template candidates: execGitDiffPatch txtGitDiffPatch
 
 program.command("aTemplate").alias("at").description("aTemplate description")
@@ -1086,7 +1088,7 @@ Node.js v22.12.0
 }
 
 // -----------------------------------------------------------------------------
-// command - aTxtParseTemplate @pub
+// command - aTxtParseTemplate
 
 program.command("aTxtParseTemplate").description("aTxtParseTemplate description")
   .addArgument(new commander.Argument("[file]"))
@@ -1105,7 +1107,7 @@ function  aTxtParseTemplate(txt: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - cflmd @pub
+// command - cflmd
 
 /*
 Works only with Confluence API version 1.
@@ -2004,7 +2006,7 @@ function cflmdWrite(txts: { name: string; txt: string }[], name: string, txt: st
 }
 
 // -----------------------------------------------------------------------------
-// command - countdown @pub
+// command - countdown
 
 program.command("countdown").description("countdown description")
   .addArgument(new commander.Argument("<duration>", "e.g. 300, 3hour 4min 5sec (GNU date(1) style)").argParser(CLI.parseDuration))
@@ -2032,7 +2034,7 @@ cliCmds["countdown"] = async function countdown(
 }
 
 // -----------------------------------------------------------------------------
-// command - exec-gdbproxy @pub
+// command - exec-gdbproxy
 
 program.command("exec-gdbproxy").description("exec-gdbproxy description")
   .addOption(new commander.Option("--gdb <path>", "gdb path").default("gdb"))
@@ -2149,7 +2151,7 @@ cliCmds["exec-gdbproxy"] = async function (arg: string[], opts: { gdb: string })
 };
 
 // -----------------------------------------------------------------------------
-// command - execGitDiffPatch @pub
+// command - execGitDiffPatch
 
 program.command("execGitDiffPatch").description("execGitDiffPatch description")
   .addArgument(new commander.Argument("<commit>"))
@@ -2178,7 +2180,7 @@ async function  execGitDiffPatch(
 }
 
 // -----------------------------------------------------------------------------
-// command - exec-kill-orphan-script-fish @pub
+// command - exec-kill-orphan-script-fish
 
 /*
 USER     TT          PPID    SESS    PGID     PID CMD
@@ -2329,7 +2331,7 @@ async function  execDiffPipe(
 }
 
 // -----------------------------------------------------------------------------
-// command - exec-slow-paste @pub
+// command - exec-slow-paste
 
 program.command("exec-slow-paste").description("exec-slow-paste description")
   .addArgument(new commander.Argument("[file]"))
@@ -2351,7 +2353,7 @@ cliCmds["exec-slow-paste"] = async function (file: string | undefined, opts: {})
 };
 
 // -----------------------------------------------------------------------------
-// command - exec-ssh-kill-sleeps @pub
+// command - exec-ssh-kill-sleeps
 
 /*
 ubuntu@tk2-214-16769 ~> ps -e -o user,lstart,tty,ppid,sess,pgid,pid,cmd -H -ww
@@ -2455,7 +2457,7 @@ cliCmds["exec-ssh-kill-sleeps"] = async function (host, opts: {}) {
 };
 
 // -----------------------------------------------------------------------------
-// command - exec-tsserver-defs @pub
+// command - exec-tsserver-defs
 // @ref:qjs-vscode-extension-dev-update
 
 class ExecTSServerDefsHTTPReader {
@@ -2575,7 +2577,7 @@ cliCmds["exec-tsserver-defs"] = async function (opts: {}) {
 };
 
 // -----------------------------------------------------------------------------
-// command - fs-diff @pub
+// command - fs-diff
 
 program.command("fs-diff").description("fs-diff description")
   .addOption(new commander.Option("--sudo").default(false))
@@ -2619,7 +2621,7 @@ cliCmds["fs-diff"] = async function (...args) {
 };
 
 // -----------------------------------------------------------------------------
-// command - fs-large-files @pub
+// command - fs-large-files
 
 program.command("fs-large-files").description("fs-large-files description")
   .addOption(new commander.Option("--entries <n>").default(1000).argParser(CLI.parseInt))
@@ -2637,7 +2639,7 @@ cliCmds["fs-large-files"] = async function (dir: string, opts: { entries: number
 };
 
 // -----------------------------------------------------------------------------
-// command - fs-link-hard @pub
+// command - fs-link-hard
 
 program.command("fs-link-hard").description("fs-link-hard description")
   .addArgument(new commander.Argument("<dir>"))
@@ -2685,7 +2687,7 @@ cliCmds["fs-link-hard"] = async function (dir: string, dirSHA1: string, opts: {}
 };
 
 // -----------------------------------------------------------------------------
-// command - fs-link-sym @pub
+// command - fs-link-sym
 
 program.command("fs-link-sym").description("fs-link-sym description")
   .addArgument(new commander.Argument("<dir>"))
@@ -2737,7 +2739,7 @@ cliCmds["fs-link-sym"] = async function (dir: string, dirSHA1: string, opts: {})
 };
 
 // -----------------------------------------------------------------------------
-// command - fs-link-sym-async @pub
+// command - fs-link-sym-async
 
 program.command("fs-link-sym-async").description("fs-link-sym-async description")
   .addArgument(new commander.Argument("<dir>"))
@@ -2793,7 +2795,7 @@ cliCmds["fs-link-sym-async"] = async function (dir: string, dirSHA1: string, opt
 };
 
 // -----------------------------------------------------------------------------
-// command - fs-md-code-blocks @pub
+// command - fs-md-code-blocks
 
 program.command("fs-md-code-blocks").description("fs-md-code-blocks description")
   .addArgument(new commander.Argument("[file]"))
@@ -2820,7 +2822,7 @@ cliCmds["fs-md-code-blocks"] = async function (file: string | undefined, opts: {
 
 
 // -----------------------------------------------------------------------------
-// command - fs-sponge-if-changed (sponge) @pub
+// command - fs-sponge-if-changed (sponge)
 
 program.command("fs-sponge-if-changed").alias("sponge").description("fs-sponge-if-changed description")
   .addArgument(new commander.Argument("<file>"))
@@ -2840,7 +2842,7 @@ cliCmds["fs-sponge-if-changed"] = async function (file: string, opts: {}) {
 };
 
 // -----------------------------------------------------------------------------
-// command - http-clipboard-server @pub
+// command - http-clipboard-server
 
 program.command("http-clipboard-server").description("http-clipboard-server description")
   .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(CLI.parseIntPort))
@@ -2881,7 +2883,7 @@ cliCmds["http-clipboard-server"] = async function (opts: { port: number }) {
 };
 
 // -----------------------------------------------------------------------------
-// command - http-sse-proxy @pub
+// command - http-sse-proxy
 
 program.command("http-sse-proxy").description("http-sse-proxy description")
   .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(CLI.parseIntPort))
@@ -2921,7 +2923,7 @@ cliCmds["http-sse-proxy"] = async function (url: string, opts: { port: number })
 };
 
 // -----------------------------------------------------------------------------
-// command - http-sse-tailf @pub
+// command - http-sse-tailf
 
 program.command("http-sse-tailf").description("http-sse-tailf description")
   .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(CLI.parseIntPort))
@@ -2961,7 +2963,7 @@ cliCmds["http-sse-tailf"] = async function (file: string | undefined, opts: { po
 };
 
 // -----------------------------------------------------------------------------
-// command - net-etc-hosts @pub
+// command - net-etc-hosts
 
 program.command("net-etc-hosts").description("net-etc-hosts description")
   .addArgument(new commander.Argument("<host...>", "e.g. example.com http://www.example.com/foo/ https://www.example.com/foo/"))
@@ -3012,7 +3014,7 @@ cliCmds["net-etc-hosts"] = async function (host: string[], opts: { connectUrl: s
 };
 
 // -----------------------------------------------------------------------------
-// command - pty-cmd @pub
+// command - pty-cmd
 
 program.command("pty-cmd").description("pty-cmd description")
   .addArgument(new commander.Argument("<cmd...>", "run <cmd> in a new pty"))
@@ -3116,7 +3118,7 @@ function ptyCmdHandleEscape(ptyProcess: pty_.IPty, data: Buffer, previousTilde: 
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-color-complementary @pub
+// command - txt-color-complementary
 
 program.command("txt-color-complementary").description("txt-color-complementary description")
   .addArgument(new commander.Argument("[color]"))
@@ -3140,7 +3142,7 @@ cliCmds["txt-color-complementary"] = async function (color: string | undefined, 
 };
 
 // -----------------------------------------------------------------------------
-// command - txt-color-invert @pub
+// command - txt-color-invert
 
 program.command("txt-color-invert").description("txt-color-invert description")
   .addArgument(new commander.Argument("[color]"))
@@ -3162,7 +3164,7 @@ cliCmds["txt-color-invert"] = async function (color: string | undefined, opts: {
 };
 
 // -----------------------------------------------------------------------------
-// command - txt-confluence-html-format @pub
+// command - txt-confluence-html-format
 
 program.command("txt-confluence-html-format").description("txt-confluence-html-format description")
   .addArgument(new commander.Argument("[file]"))
@@ -3247,7 +3249,7 @@ cliCmds["txt-confluence-html-format"] = async function (file: string | undefined
 };
 
 // -----------------------------------------------------------------------------
-// command - txt-emoji @pub
+// command - txt-emoji
 
 // https://github.com/mathiasbynens/emoji-regex/blob/v10.3.0/index.js#L3
 const emojiRegex =
@@ -3285,7 +3287,7 @@ cliCmds["txt-emoji"] = async function (file: string | undefined, opts: {}) {
 };
 
 // -----------------------------------------------------------------------------
-// command - txt-emoji-count @pub
+// command - txt-emoji-count
 
 program.command("txt-emoji-count").description("txt-emoji-count description")
   .addArgument(new commander.Argument("[file]"))
@@ -3309,7 +3311,7 @@ cliCmds["txt-emoji-count"] = async function (file: string | undefined, opts: {})
 };
 
 // -----------------------------------------------------------------------------
-// command - txt-extrace-prettify @pub
+// command - txt-extrace-prettify
 
 /*
  2月 11 22:36:07     13261+ <root> /usr/lib/snapd/snap-device-helper change snap_cups_cupsd /devices/pci0000:00/0000:00:14.0/usb1/1-9 189:2
@@ -3354,7 +3356,7 @@ cliCmds["txt-extrace-prettify"] = async function (file: string | undefined, opts
 };
 
 // -----------------------------------------------------------------------------
-// command - txt-file-backup-sha1-hash-analyze @pub
+// command - txt-file-backup-sha1-hash-analyze
 
 program.command("txt-file-backup-sha1-hash-analyze").description("txt-file-backup-sha1-hash-analyze description")
   .addArgument(new commander.Argument("[file]"))
@@ -3393,7 +3395,7 @@ cliCmds["txt-file-backup-sha1-hash-analyze"] = async function (file: string | un
 };
 
 // -----------------------------------------------------------------------------
-// command - txtFishHistoryEdit @pub
+// command - txtFishHistoryEdit
 
 program.command("txtFishHistoryEdit").description("txtFishHistoryEdit description")
   .addOption(new commander.Option("--grep <pattern>").conflicts(["merge", "sort-len"]))
@@ -3477,7 +3479,7 @@ async function txtFishHistoryEdit(file: string | undefined, opts: { grep?: strin
 };
 
 // -----------------------------------------------------------------------------
-// command - txtFishHistMerge @pub
+// command - txtFishHistMerge
 
 /*
 Merge several ~/.local/share/fish/fish_history files.
@@ -3544,7 +3546,7 @@ async function  txtFishHistMerge(
 }
 
 // -----------------------------------------------------------------------------
-// command - txtGitDiffPatch @pub
+// command - txtGitDiffPatch
 
 program.command("txtGitDiffPatch").description("txtGitDiffPatch description")
   .addArgument(new commander.Argument("<patchPathA>"))
@@ -3575,7 +3577,7 @@ async function txtGitDiffPatchStr(
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-html-break @pub
+// command - txt-html-break
 
 // abort
 
@@ -3719,7 +3721,7 @@ function txtHTMLBreakOld(html: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-html-cdata-b64 @pub
+// command - txt-html-cdata-b64
 
 program.command("txt-html-cdata-b64").description("txt-html-cdata-b64 description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
@@ -3757,7 +3759,7 @@ function txtHTMLCDataB64(html: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-html-cdata-b64d @pub
+// command - txt-html-cdata-b64d
 
 program.command("txt-html-cdata-b64d").description("txt-html-cdata-b64d description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
@@ -3796,7 +3798,7 @@ function txtHTMLCDataB64d(html: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-json-flatten @pub
+// command - txt-json-flatten
 
 program.command("txt-json-flatten").description("txt-json-flatten description")
   .addOption(new commander.Option("--width <number>").default(80).argParser(CLI.parseIntPort))
@@ -3837,7 +3839,7 @@ function strJSONFlat(key: string, j: unknown, opts: { width: number }): string[]
 }
 
 // -----------------------------------------------------------------------------
-// command - txtMarkdownCat @pub
+// command - txtMarkdownCat
 // [@cat](file://PATH) -> <PATH content>
 // [@cat:@beg:SECTION](file://PATH) -> <PATH: @beg:SECTION...@end:SECTION>
 // [@cat:@sec:SECTION](file://PATH) -> <PATH: ## ... @sec:SECTION ...>
@@ -3883,7 +3885,7 @@ export function txtMarkdownCat(txt: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - txtMarkdownCodeB64 @pub
+// command - txtMarkdownCodeB64
 
 /*
 ```sh
@@ -3911,7 +3913,7 @@ export function txtMarkdownCodeB64(txt: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - txtMarkdownCodeB64d @pub
+// command - txtMarkdownCodeB64d
 
 program.command("txtMarkdownCodeB64d").description("txtMarkdownCodeB64d description")
   .addArgument(new commander.Argument("[file]"))
@@ -3933,7 +3935,7 @@ export function txtMarkdownCodeB64d(txt: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-markdown-h2-sec @pub
+// command - txt-markdown-h2-sec
 
 program.command("txt-markdown-h2-sec").description("txt-markdown-h2-sec description")
   .addOption(new commander.Option("--z-test").default(false).hideHelp())
@@ -4003,7 +4005,7 @@ EOF
 `;
 
 // -----------------------------------------------------------------------------
-// command - txtMarkdownH2SectionReduce @pub
+// command - txtMarkdownH2SectionReduce
 
 /*
 ## z1
@@ -4060,7 +4062,7 @@ export function txtMarkdownH2SectionReduce(txt: string): string {
 };
 
 // -----------------------------------------------------------------------------
-// command - txt-markdown-headers @pub
+// command - txt-markdown-headers
 
 program.command("txt-markdown-headers").description("txt-markdown-headers description")
   .addArgument(new commander.Argument("[file]"))
@@ -4146,7 +4148,7 @@ cliCmds["txt-markdown-headers"] = async function (file: string | undefined, opts
 };
 
 // -----------------------------------------------------------------------------
-// command - txtPrivate @pub
+// command - txtPrivate
 
 program.command("txtPrivate").alias(/*compatibility*/"txt-private").description("txtPrivate description")
   .addOption(new commander.Option("--preserve-plp").default(false))
@@ -4202,7 +4204,7 @@ export function txtPrivate(txt: string, opts?: { preservePlp?: boolean }): strin
 };
 
 // -----------------------------------------------------------------------------
-// command - txt-regexp-search (re) @pub
+// command - txt-regexp-search (re)
 
 /*
 echo -e "foo\nbar" | c.js -q re -f m '^\w+$'                                     # [["foo"],["bar"]]
@@ -4240,7 +4242,7 @@ cliCmds["txt-regexp-search"] = async function (pattern: string, file: string | u
 };
 
 // -----------------------------------------------------------------------------
-// command - txt-replace (rep) @pub
+// command - txt-replace (rep)
 
 program.command("txt-replace").alias("rep").description("txt-replace description")
   .addOption(new commander.Option("-m, --max-count <num>").argParser(CLI.parseIntPositive))
@@ -4267,7 +4269,7 @@ cliCmds["txt-replace"] = async function (from: string, to: string, file: string 
 };
 
 // -----------------------------------------------------------------------------
-// command - txtSortSection @pub
+// command - txtSortSection
 
 /*
 sort:
@@ -4341,7 +4343,7 @@ export function txtSortSection(
 }
 
 // -----------------------------------------------------------------------------
-// command - z-meta-command-list @pub
+// command - z-meta-command-list
 
 program.command("z-meta-command-list")
   .description("meta command - list subcommands")
@@ -4352,47 +4354,6 @@ cliCmds["z-meta-command-list"] = async function (opts: {}) {
   // TODO: dedent
     const names = program.commands.map((command) => command.name());
     process.stdout.write(`${names.join("\n")}\n`);
-    return cliCommandExit(0);
-};
-
-// -----------------------------------------------------------------------------
-// command - z-meta-publish-self @pub
-
-program.command("z-meta-publish-self")
-  .description("meta command - publish self")
-  // @ts-expect-error
-  .action((...args) => cliCmds[args.at(-1).name()](...args));
-
-cliCmds["z-meta-publish-self"] = async function (opts: {}) {
-  // TODO: dedent
-    let match: RegExpMatchArray | null;
-
-    const txtJs = fs.readFileSync(__filename, "utf8");
-    // //# sourceMappingURL=data:application/json;base64,<base64>
-    match = txtJs.match(/^\/\/# sourceMappingURL=data:application\/json;base64,([\w=]+)$/m);
-    if (match === null) throw new AppError(`${__filename}: source map not found`);
-    const sourceMap = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
-    if (sourceMap.sources.length !== 1) throw new AppError(`${__filename}: source map.sources.length !== 1; ${sourceMap.sources}`);
-    const tsPath = path.resolve(path.dirname(__filename), sourceMap.sources[0]);
-    const txtTs = fs.readFileSync(tsPath, "utf8");
-
-    let pub = true;
-    const blocks = txtTs.split("\n// -----------------------------------------------------------------------------\n");
-    for (let [i, block] of blocks.entries()) {
-      if (block.match(/^(\/\/ command - .+)(\r?\n)/)) {
-        if (!RegExp.$1.endsWith("@pub")) {
-          continue;
-        }
-      }
-      while ((reArr = /^.*@(pl)\b.*(\r?\n|$)/m.exec(block)) !== null) {
-        block = block.replace(reArr[0], "");
-      }
-      if (i !== 0) {
-        process.stdout.write("\n// -----------------------------------------------------------------------------\n");
-      }
-      process.stdout.write(block);
-    }
-
     return cliCommandExit(0);
 };
 
