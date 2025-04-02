@@ -1125,7 +1125,6 @@ Cache files:
 /home/wsh/.cache/wataash/c.ts-nodejs/cflmd/api/content/{spaceKey}/{webuiTitle}      content?spaceKey={spaceKey}&title={webuiTitle}
 /home/wsh/.cache/wataash/c.ts-nodejs/cflmd/download/attachments/{id}/{filename}?version={version}&modificationDate={modificationDate(epochMilliseconds)}&api=v2
 /home/wsh/.cache/wataash/c.ts-nodejs/cflmd/download/attachments/{id}/{filename}?version={version}&modificationDate={modificationDate(epochMilliseconds)}&api=v2.json  {"at":1136214845000, "at2":"2006-01-02 15:14:05", "id":42, "type":"attachment", ...} (from attachment.json)
-maybe old:
 /home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/0.original.md
 /home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/0_hack.html
 /home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/0_hack.html.diff
@@ -1137,27 +1136,17 @@ maybe old:
 /home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/2.pandoc.html.diff
 /home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/3.postp.link.html
 /home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/3.postp.link.html.diff
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/3.postp.table.html
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/3.postp.table.html.diff
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/3.postp.z_macro_id.html
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/3.postp.z_macro_id.html.diff
-TODO: update
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/4.format.html
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/4.format.html.diff
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/4.format.html.with_title.html
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/4.format.html.with_title.html.diff
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/remote.0.html
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/remote.4.format.html
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/remote.4.format.html.with_title.html
-/home/wsh/.cache/wataash/c.ts-nodejs/cflmd/last/remote.4.format.html.with_title.html.diff
+...
 */
 
 program.command("cflmd").description("cflmd description")
+  // .addOption(new commander.Option("--diff-cmd <cmd>").default("diff -u"))
   .addOption(new commander.Option("--user <user>", "Confluence user name (required)").env("CFLMD_USER").makeOptionMandatory(true))
   .addOption(new commander.Option("--token <token>", "Confluence API token or password (required)").env("CFLMD_TOKEN").makeOptionMandatory(true))
   .addOption(new commander.Option("--cache-secs-page <number>", "http GET cache seconds for pages").env("CFLMD_CACHE_SECS_PAGE").default(300).argParser(CLI.parseInt))
   .addOption(new commander.Option("--cache-secs-img <number>", "http GET cache seconds for images").env("CFLMD_CACHE_SECS_IMG").default(86400 * 30).argParser(CLI.parseInt))
-  .addOption(new commander.Option("--diff-no-macro-id", "diff without ac:macro-id").default(false))
+  .addOption(new commander.Option("--diff-cmd <cmd>").default("delta --paging=never"))
+  .addOption(new commander.Option("--z-test-as-possible-without-network").default(false).hideHelp())
   .addArgument(new commander.Argument("<file>"))
   .addHelpText("afterAll", `
 ==================================================
@@ -1199,9 +1188,13 @@ async function cflmd(
     token: string,
     cacheSecsPage: number,
     cacheSecsImg: number,
-    diffNoMacroId: boolean,
+    diffCmd: string, // not shell-escaped
+    zTestAsPossibleWithoutNetwork: boolean, // not used yet
   },
 ) {
+  const diffCmdMaybeDangerous = opts.diffCmd;
+  // @ts-expect-error
+  delete opts.diffCmd;
   fs.mkdirSync(`${DIR_CACHE}/cflmd/last/`, { recursive: true });
   // old
   if (0) {
@@ -1226,7 +1219,7 @@ async function cflmd(
   const { title, url } = match.groups!;
   const cflmdFile: CflmdFile = { path: file, title, url: cflmdParseURL(url) };
 
-  const pagePromise = cflmdPageGet(opts, cflmdFile.url).then((page) => {
+  const pagePromise = cflmdPageGet({ ...opts, cacheSecsPage: 0 /* force GET */ }, cflmdFile.url).then((page) => {
     if (cflmdFile.title !== page.title) {
       logger.info(`update title: (${page.title} -> ${cflmdFile.title})`);
     }
@@ -1262,15 +1255,9 @@ async function cflmd(
   cflmdWrite(txts, "4.minify.html", txt, true);
   // TODO: assert.ok(dom equal)
 
-  // txt = await cflmdProcess4FormatHtml({ file: cflmdFile, opts, pagePromise, txts });
-  // cflmdWrite(txts, "4.format.html", txt, true);
-  //
-  // txt = `<!--\n[${title}](${url})\n-->\n\n${txt}`;
-  // cflmdWrite(txts, "4.format.html.with_title.html", txt, true);
-
   txt = `title: ${title}\nurl: ${url}\n\n` + txt.replaceAll("><", ">\n<");
-  txt = txt.replaceAll(" <ac:link>", "<ac:link>");  // reduce diff with remote.4.minify.html.title.linebreak.maybe_invalid_html.html
-  cflmdWrite(txts, "4.minify.html.title.linebreak.maybe_invalid_html.html", txt, true);
+  txt = txt.replaceAll(" <ac:link>", "<ac:link>");  // reduce diff with remote.4.minify.html.pretty_maybe_invalid.html
+  cflmdWrite(txts, "4.minify.html.pretty_maybe_invalid.html", txt, true);
 
   // remote
   {
@@ -1292,37 +1279,116 @@ async function cflmd(
     const url = cflmdFile.url.type === "id" ? `${cflmdFile.url.urlConfluenceTop}/pages/viewpage.action?pageId=${page.id}` : `${cflmdFile.url.urlConfluenceTop}${page._links.webui}`;
     txt = `title: ${title}\nurl: ${url}\n\n` + txt.replaceAll("><", ">\n<");
     txt = txt.replaceAll("&quot;", '"'); // PUT: <p>"a"</p> -> remote: <p>&quot;a&quot;</p>  at the PUT stage, converting " to &quot; is tough (needs HTML-parsing), so only reducing the diff
-    cflmdWrite(txts, "remote.4.minify.html.title.linebreak.maybe_invalid_html.html", txt, true);
+    cflmdWrite(txts, "remote.4.minify.html.pretty_maybe_invalid.html", txt, true);
+  }
+
+  // @__cflmd:macro_id:0000 -> set remote UUID (as possible)
+  //
+  // 4.minify.html
+  // 4.minify.html.pretty_maybe_invalid.html
+  // remote.4.minify.html
+  // remote.4.minify.html.pretty_maybe_invalid.html
+  // ↓
+  // 5.macro_id.html
+  // 5.macro_id.html.pretty_maybe_invalid.html
+  {
+    const macroIDMap: Record<string, string> = { "9999": `550e8400-e29b-41d4-a716-446655440000` };
+    const Diff = await import("diff");
+    let diff = Diff.createPatch("__filename__", fs.readFileSync(`${DIR_CACHE}/cflmd/last/4.minify.html.pretty_maybe_invalid.html`, "utf8"), fs.readFileSync(`${DIR_CACHE}/cflmd/last/remote.4.minify.html.pretty_maybe_invalid.html`, "utf8"));
+    // -<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="@__cflmd:macro_id:0">
+    // +<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="550e8400-e29b-41d4-a716-446655440000">
+    let match;
+    while ((match = diff.match(/^-.* ac:macro-id="@__cflmd:macro_id:(?<tmpID>\d+)".*(\r?\n)\+.* ac:macro-id="(?<uuid>[^"]+)"/m)) !== null) {
+      assert.ok(match.groups !== undefined);
+      macroIDMap[match.groups.tmpID] = match.groups.uuid;
+      diff = diff.replace(`@__cflmd:macro_id:${match.groups.tmpID}`, `@__cflmd:macro_id:${match.groups.uuid}`);
+    }
+    let txt1 = fs.readFileSync(`${DIR_CACHE}/cflmd/last/4.minify.html`, "utf8");
+    let txt2 = fs.readFileSync(`${DIR_CACHE}/cflmd/last/4.minify.html.pretty_maybe_invalid.html`, "utf8");
+    for (const [tmpID, uuid] of Object.entries(macroIDMap)) {
+      txt1 = txt1.replace(`ac:macro-id="@__cflmd:macro_id:${tmpID}"`, `ac:macro-id="${uuid}"`);
+      txt2 = txt2.replace(`ac:macro-id="@__cflmd:macro_id:${tmpID}"`, `ac:macro-id="${uuid}"`);
+    }
+    fs.writeFileSync(`${DIR_CACHE}/cflmd/last/5.macro_id.html`, txt1);
+    fs.writeFileSync(`${DIR_CACHE}/cflmd/last/5.macro_id.html.pretty_maybe_invalid.html`, txt2);
+    cflmdMaybeWriteDiff(`${DIR_CACHE}/cflmd/last/4.minify.html`, `${DIR_CACHE}/cflmd/last/5.macro_id.html`, `${DIR_CACHE}/cflmd/last/5.macro_id.html.diff`);
+    cflmdMaybeWriteDiff(`${DIR_CACHE}/cflmd/last/4.minify.html.pretty_maybe_invalid.html`, `${DIR_CACHE}/cflmd/last/5.macro_id.html.pretty_maybe_invalid.html`, `${DIR_CACHE}/cflmd/last/5.macro_id.html.pretty_maybe_invalid.html.diff`);
   }
 
   // diff
   {
-    const out = child_process.execSync(`cmp -s ${DIR_CACHE}/cflmd/last/remote.4.minify.html.title.linebreak.maybe_invalid_html.html ${DIR_CACHE}/cflmd/last/4.minify.html.title.linebreak.maybe_invalid_html.html || echo "differ"`, { encoding: "utf8" });
+    const out = child_process.execSync(`cmp -s ${DIR_CACHE}/cflmd/last/remote.4.minify.html.pretty_maybe_invalid.html ${DIR_CACHE}/cflmd/last/5.macro_id.html.pretty_maybe_invalid.html || echo "differ"`, { encoding: "utf8" });
     if (out === "") {
       logger.info("up-to-date");
       return cliCommandExit(0);
     }
     assert.match(out, /^differ(\r?\n)$/);
   }
-  // TODO: --diff-cmd="diff -u" --diff-cmd="delta --paging=never"
-  if (opts.diffNoMacroId) {
-    fs.writeFileSync(`${DIR_CACHE}/cflmd/last/remote.4.minify.html.title.linebreak.maybe_invalid_html.html.macro_id_0.html`, fs.readFileSync(`${DIR_CACHE}/cflmd/last/remote.4.minify.html.title.linebreak.maybe_invalid_html.html`, "utf8").replace(/ac:macro-id="[^"]+"/g, 'ac:macro-id="0"'));
-    fs.writeFileSync(`${DIR_CACHE}/cflmd/last/4.minify.html.title.linebreak.maybe_invalid_html.html.macro_id_0.html`, fs.readFileSync(`${DIR_CACHE}/cflmd/last/4.minify.html.title.linebreak.maybe_invalid_html.html`, "utf8").replace(/ac:macro-id="[^"]+"/g, 'ac:macro-id="0"'));
-    child_process.execSync(`delta --paging=never ${DIR_CACHE}/cflmd/last/remote.4.minify.html.title.linebreak.maybe_invalid_html.html.macro_id_0.html ${DIR_CACHE}/cflmd/last/4.minify.html.title.linebreak.maybe_invalid_html.html.macro_id_0.html || true`, { stdio: "inherit" });
-  } else {
-    child_process.execSync(`delta --paging=never ${DIR_CACHE}/cflmd/last/remote.4.minify.html.title.linebreak.maybe_invalid_html.html ${DIR_CACHE}/cflmd/last/4.minify.html.title.linebreak.maybe_invalid_html.html || true`, { stdio: "inherit" });
-  }
+  child_process.execSync(`${diffCmdMaybeDangerous} ${DIR_CACHE}/cflmd/last/remote.4.minify.html.pretty_maybe_invalid.html ${DIR_CACHE}/cflmd/last/5.macro_id.html.pretty_maybe_invalid.html || true`, { stdio: "inherit" });
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const page = await pagePromise;
-  const ans = await rl.question(`update? [y/N] (url: ${cflmdFile.url.urlConfluenceTop}${page._links.webui})`);
-  rl.close(); // without this, cannot quit with Ctrl+C
-  if (ans.toLowerCase() !== "y" && ans.toLowerCase() !== "yes") {
-    logger.warn(`do nothing`);
-    return cliCommandExit(1);
+  fs.copyFileSync(`${DIR_CACHE}/cflmd/last/5.macro_id.html`, `${DIR_CACHE}/cflmd/last/6.edit.html`);
+  fs.copyFileSync(`${DIR_CACHE}/cflmd/last/5.macro_id.html.pretty_maybe_invalid.html`, `${DIR_CACHE}/cflmd/last/6.edit.html.pretty_maybe_invalid.html`);
+  while (true) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      const ans = await rl.question(`update? Yes/[No]/Edit/Reload (url: ${cflmdFile.url.urlConfluenceTop}${page._links.webui})`);
+      if (ans.toLowerCase() === "y" || ans.toLowerCase() === "yes") {
+        break;
+      }
+      if (ans.toLowerCase() === "n" || ans.toLowerCase() === "no") {
+        logger.debug(`bye`);
+        return cliCommandExit(0);
+      }
+      if (ans.toLowerCase() === "e" || ans.toLowerCase() === "edit" || ans.toLowerCase() === "r" || ans.toLowerCase() === "reload") {
+        if (ans.toLowerCase() === "e" || ans.toLowerCase() === "edit") {
+          logger.debug(`rl.close() to release SIGINT handler`);
+          rl.close();
+          // process.env.EDITOR ?? process.env.VISUAL ?? "vi" // https://github.com/git/git/blob/v2.49.0/editor.c
+          child_process.execSync(`${process.env.EDITOR ?? process.env.VISUAL ?? "vi"} ${DIR_CACHE}/cflmd/last/6.edit.html`, { stdio: "inherit" });
+        } else {
+          logger.debug("reload");
+        }
+        {
+          let txt = fs.readFileSync(`${DIR_CACHE}/cflmd/last/6.edit.html`, "utf8");
+          txt = `title: ${title}\nurl: ${url}\n\n` + txt.replaceAll("><", ">\n<");
+          txt = txt.replaceAll(" <ac:link>", "<ac:link>");  // reduce diff with remote.4.minify.html.pretty_maybe_invalid.html
+          fs.writeFileSync(`${DIR_CACHE}/cflmd/last/6.edit.html.pretty_maybe_invalid.html`, txt);
+        }
+        cflmdMaybeWriteDiff(`${DIR_CACHE}/cflmd/last/5.macro_id.html`, `${DIR_CACHE}/cflmd/last/6.edit.html`, `${DIR_CACHE}/cflmd/last/6.edit.html.diff`);
+        cflmdMaybeWriteDiff(`${DIR_CACHE}/cflmd/last/5.macro_id.html.pretty_maybe_invalid.html`, `${DIR_CACHE}/cflmd/last/6.edit.html.pretty_maybe_invalid.html`, `${DIR_CACHE}/cflmd/last/6.edit.html.pretty_maybe_invalid.html.diff`);
+        child_process.execSync(`${diffCmdMaybeDangerous} ${DIR_CACHE}/cflmd/last/remote.4.minify.html.pretty_maybe_invalid.html ${DIR_CACHE}/cflmd/last/6.edit.html.pretty_maybe_invalid.html || true`, { stdio: "inherit" });
+        continue;
+      }
+      logger.debug(`invalid choice: ${ans}`);
+    } finally {
+      logger.debug(`rl.close()`);
+      rl.close();
+    }
   }
 
-  txt = fs.readFileSync(`${DIR_CACHE}/cflmd/last/4.minify.html`, "utf8");
+  txt = fs.readFileSync(`${DIR_CACHE}/cflmd/last/6.edit.html`, "utf8");
+
+  // <ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="@__cflmd:macro_id:0000">
+  // -> <ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="UUID">
+  {
+    let match;
+    while ((match = txt.match(/ac:macro-id="@__cflmd:macro_id:(?<tmpID>\d+)"/)) !== null) {
+      // NOTE: if two macro IDs have the same value, the second one will be changed to a random UUID
+      const uuid = crypto.randomUUID();
+      assert.ok(match.groups !== undefined);
+      logger.debug(`@__cflmd:macro_id:${match.groups.tmpID} -> ${uuid}`);
+      txt = txt.replace(`@__cflmd:macro_id:${match.groups.tmpID}`, `${uuid}`);
+    }
+  }
+  // ensure @cflmd does not exist
+  {
+    const matches = [...txt.matchAll(/@cflmd|@cfmd|@__cflmd\b/g)];
+    if (matches.length !== 0) {
+      const lines = matches.map((m) => txt.slice(m.index - 50, m.index + m[0].length + 50).replaceAll(/\r?\n/g, "⏎"));
+      throw new AppError(`@cflmd|@cfmd|@__cflmd found in ${file}:\n${lines.join("\n")}`);
+    }
+  }
   if (0) {
     //
     txt = `<p>line 1</p>\n<p>line 2</p>\n\n`
@@ -1337,7 +1403,7 @@ async function cflmd(
 
 async function cflmdFetchJSON(url: Parameters<typeof fetch>[0], init: NonNullable<Parameters<typeof fetch>[1]>, opts: {
   logFetch: typeof logger.debug,
-  cache?: { type: "rw", path: string, validSecs: number, validSecsOpt: string } | { type: "w", path: string }
+  cache?: { path: string, validSecs?: { value: number, opt: string } }
 }): Promise<any & { at: number, at2: string }> {
   const d = new Date();
   const now = Number(d); // Date.now()
@@ -1345,18 +1411,18 @@ async function cflmdFetchJSON(url: Parameters<typeof fetch>[0], init: NonNullabl
 
   const jsonCache = (() => {
     if (opts.cache === undefined) return null;
-    if (opts.cache.type !== "rw") return null;
+    if (opts.cache.validSecs === undefined) return null;
     if (!fs.existsSync(opts.cache.path)) return null;
     const json = jsonParsePath(opts.cache.path);
     if (typeof json.at !== "number") {
       logger.warn(`${opts.cache.path}: invalid cache file: ".at": ${json.at}`);
       return null;
     }
-    if (now - json.at > opts.cache.validSecs * 1000) {
-      logger.debug(`cache expired: ${opts.cache.path} (${((now - json.at) / 1000).toFixed(1)}s ago > ${opts.cache.validSecs}s) (${opts.cache.validSecsOpt})`);
+    if (now - json.at > opts.cache.validSecs.value * 1000) {
+      logger.debug(`cache expired: ${opts.cache.path} (${((now - json.at) / 1000).toFixed(1)}s ago > ${opts.cache.validSecs.value}s) (${opts.cache.validSecs.opt})`);
       return null;
     }
-    logger.debug(`use cache: ${opts.cache.path} (${((now - json.at) / 1000).toFixed(1)}s ago <= ${opts.cache.validSecs}s) (${opts.cache.validSecsOpt})`);
+    logger.debug(`use cache: ${opts.cache.path} (${((now - json.at) / 1000).toFixed(1)}s ago <= ${opts.cache.validSecs.value}s) (${opts.cache.validSecs.opt})`);
     return json;
   })();
   if (jsonCache !== null) {
@@ -1388,7 +1454,7 @@ async function cflmdFetchJSON(url: Parameters<typeof fetch>[0], init: NonNullabl
 
 async function cflmdFetchBuffer(url: Parameters<typeof fetch>[0], init: NonNullable<Parameters<typeof fetch>[1]>, opts: {
   logFetch: typeof logger.debug,
-  cache?: { type: "rw", path: string, validSecs: number, validSecsOpt: string } | { type: "w", path: string }
+  cache: { path: string, validSecs?: { value: number, opt: string } }
 }): Promise<Buffer> {
   const d = new Date();
   const now = Number(d); // Date.now()
@@ -1396,14 +1462,14 @@ async function cflmdFetchBuffer(url: Parameters<typeof fetch>[0], init: NonNulla
 
   const bufferCache = (() => {
     if (opts.cache === undefined) return null;
-    if (opts.cache.type !== "rw") return null;
+    if (opts.cache.validSecs === undefined) return null;
     if (!fs.existsSync(opts.cache.path)) return null;
     const stat = fs.statSync(opts.cache.path);
-    if (now - stat.mtimeMs > opts.cache.validSecs * 1000) {
-      logger.debug(`cache expired: ${opts.cache.path} (${((now - stat.mtimeMs) / 1000).toFixed(1)}s ago > ${opts.cache.validSecs}s) (${opts.cache.validSecsOpt})`);
+    if (now - stat.mtimeMs > opts.cache.validSecs.value * 1000) {
+      logger.debug(`cache expired: ${opts.cache.path} (${((now - stat.mtimeMs) / 1000).toFixed(1)}s ago > ${opts.cache.validSecs.value}s) (${opts.cache.validSecs.opt})`);
       return null;
     }
-    logger.debug(`use cache: ${opts.cache.path} (${((now - stat.mtimeMs) / 1000).toFixed(1)}s ago <= ${opts.cache.validSecs}s) (${opts.cache.validSecsOpt})`);
+    logger.debug(`use cache: ${opts.cache.path} (${((now - stat.mtimeMs) / 1000).toFixed(1)}s ago <= ${opts.cache.validSecs.value}s) (${opts.cache.validSecs.opt})`);
     const buffer = fs.readFileSync(opts.cache.path);
     return buffer;
   })();
@@ -1526,14 +1592,14 @@ async function cflmdPagePut(opts: Parameters<typeof cflmd>[1], file: CflmdFile, 
   });
   const fetchJSONOpts = {
     logFetch: (...params: any) => logger.info(...params, `(current title: ${page.title})`),
-    cache: { type: "w" as const, path: `${DIR_CACHE}/cflmd/api/content/${page.id}.json.PUT` },
+    cache: { path: `${DIR_CACHE}/cflmd/api/content/${page.id}.json.PUT` },
   }
   const json = await cflmdFetchJSON(`${file.url.urlConfluenceTop}/rest/api/content/${page.id}?expand=body.storage,space,version`, { method: "PUT", headers, body }, fetchJSONOpts);
   // update GET cache file
   {
     const fetchJSONOpts = {
       logFetch: logger.debug.bind(logger),
-      cache: { type: "w" as const, path: `${DIR_CACHE}/cflmd/api/content/${json.id}.json` },
+      cache: { path: `${DIR_CACHE}/cflmd/api/content/${json.id}.json` },
     };
     const json2 = await cflmdFetchJSON(`${file.url.urlConfluenceTop}/rest/api/content/${json.id}?expand=body.storage,space,version`, { method: "GET", headers }, fetchJSONOpts);
     bp();
@@ -1547,7 +1613,7 @@ async function cflmdPageGet(opts: Parameters<typeof cflmd>[1], urlParsed: CflmdF
   if (urlParsed.type === "id") {
     const fetchJSONOpts = {
       logFetch: logger.debug.bind(logger),
-      cache: { type: "rw" as const, path: `${DIR_CACHE}/cflmd/api/content/${urlParsed.id}.json`, validSecs: opts.cacheSecsPage, validSecsOpt: "--cache-secs-page/CFLMD_CACHE_SECS_PAGE" },
+      cache: { path: `${DIR_CACHE}/cflmd/api/content/${urlParsed.id}.json`, validSecs: { value: opts.cacheSecsPage, opt: "--cache-secs-page/CFLMD_CACHE_SECS_PAGE" } }
     };
     const json = await cflmdFetchJSON(`${urlParsed.urlConfluenceTop}/rest/api/content/${urlParsed.id}?expand=body.storage,space,version`, { method: "GET", headers }, fetchJSONOpts);
     return json;
@@ -1555,7 +1621,7 @@ async function cflmdPageGet(opts: Parameters<typeof cflmd>[1], urlParsed: CflmdF
     const fetchJSONOpts = {
       logFetch: logger.debug.bind(logger),
       // NOTE: spaceKey and webuiTitle may contain special characters so may cause errors
-      cache: { type: "rw" as const, path: `${DIR_CACHE}/cflmd/api/content/${urlParsed.spaceKey}/${urlParsed.webuiTitle}.json`, validSecs: opts.cacheSecsPage, validSecsOpt: "--cache-secs-page/CFLMD_CACHE_SECS_PAGE" },
+      cache: { path: `${DIR_CACHE}/cflmd/api/content/${urlParsed.spaceKey}/${urlParsed.webuiTitle}.json`, validSecs: { value: opts.cacheSecsPage, opt: "--cache-secs-page/CFLMD_CACHE_SECS_PAGE" } },
     };
     const json = await cflmdFetchJSON(`${urlParsed.urlConfluenceTop}/rest/api/content?spaceKey=${urlParsed.spaceKey}&title=${urlParsed.webuiTitle}&expand=body.storage,space,version`, { method: "GET", headers }, fetchJSONOpts);
     if (json.results.length === 0) {
@@ -1625,17 +1691,14 @@ async function cflmdProcess1MarkdownPreProcess(args: CflmdProcessArgs): Promise<
 
 // remove: ## @cflmd:hidden
 function cflmdProcess1MarkdownPreProcessCflmdHidden(txt: string, args: CflmdProcessArgs): string {
+  txt = txt.replaceAll(/@cfmd:hidden\b/g, "@cflmd:hidden"); // compatibility
   txt = txt + "\0";
   // eslint-disable-next-line no-control-regex
   for (const match of txt.matchAll(/^## .*@cflmd:hidden\b.*$[\s\S]+?(?=(^## |\x00))/gm)) {
     txt = txt.replace(match[0], "");
   }
-  for (const match of txt.matchAll(/^## .*@private\b.*$[\s\S]+?(?=(^## |\x00))/gm)) {
-    txt = txt.replace(match[0], "");
-  }
-  // compatibility: @cfmd:hidden
   // eslint-disable-next-line no-control-regex
-  for (const match of txt.matchAll(/^## .*@cfmd:hidden.*$[\s\S]+?(?=(^## |\x00))/gm)) {
+  for (const match of txt.matchAll(/^## .*@private\b.*$[\s\S]+?(?=(^## |\x00))/gm)) {
     txt = txt.replace(match[0], "");
   }
   txt = txt.slice(0, -1);
@@ -1669,7 +1732,7 @@ async function cflmdProcess1MarkdownPreProcessImages(txt: string, args: CflmdPro
   const headers = { "Authorization": `Basic ${Buffer.from(`${args.opts.user}:${args.opts.token}`).toString("base64")}`, "Accept": "application/json" };
   const fetchJSONOpts = {
     logFetch: logger.debug.bind(logger),
-    cache: { type: "rw" as const, path: `${DIR_CACHE}/cflmd/api/content/${page.id}/child/attachment.json`, validSecs: args.opts.cacheSecsPage, validSecsOpt: "--cache-secs-page/CFLMD_CACHE_SECS_PAGE" },
+    cache: { path: `${DIR_CACHE}/cflmd/api/content/${page.id}/child/attachment.json`, validSecs: { value: args.opts.cacheSecsPage, opt: "--cache-secs-page/CFLMD_CACHE_SECS_PAGE" } },
   };
   const attachmentJSONPromise = cflmdFetchJSON(`${args.file.url.urlConfluenceTop}/rest/api/content/${page.id}/child/attachment`, { method: "GET", headers }, fetchJSONOpts);
   const attachmentJSON = await attachmentJSONPromise as {
@@ -1686,11 +1749,12 @@ async function cflmdProcess1MarkdownPreProcessImages(txt: string, args: CflmdPro
   };
 
   for (const attachment of attachmentJSON.results) {
-    // attachment._links.download; // /download/attachments/{pageId}/{fileName}?version=1&modificationDate={epochMilliseconds}&api=v2
-    const fsPath = `${DIR_CACHE}/cflmd${attachment._links.download}`;
+    // attachment._links.download: /download/attachments/{pageId}/{fileName}?version=1&modificationDate={epochMilliseconds}&api=v2
+    //   {fileName} is URL-encoded
+    const fsPath = `${DIR_CACHE}/cflmd${decodeURIComponent(attachment._links.download)}`;
     const fetchJSONOpts = {
       logFetch: logger.debug.bind(logger),
-      cache: { type: "rw" as const, path: fsPath, validSecs: args.opts.cacheSecsImg, validSecsOpt: "--cache-secs-img/CFLMD_CACHE_SECS_IMG" },
+      cache: { path: fsPath, validSecs: { value: args.opts.cacheSecsImg, opt: "--cache-secs-img/CFLMD_CACHE_SECS_IMG" } },
     }
     const buffer = await cflmdFetchBuffer(`${args.file.url.urlConfluenceTop}${attachment._links.download}`, { method: "GET", headers }, fetchJSONOpts);
     const sha1 = crypto.createHash("sha1").update(buffer).digest("hex");
@@ -1752,6 +1816,8 @@ async function cflmdProcess1MarkdownPreProcessImages(txt: string, args: CflmdPro
 // </ac:rich-text-body></ac:structured-macro>
 // ```
 function cflmdProcess1MarkdownPreProcessInfo(txt: string, args: CflmdProcessArgs): string {
+  txt = txt.replaceAll(/cfmd:(info|note|tip|warning)\b/g, "cflmd:$1"); // compatibility: <cfmd:info> <cfmd:note> <cfmd:tip> <cfmd:warning>
+
   let reArr;
   while ((reArr = /<cflmd:(info|note|tip|warning)( title="(.+)")?>/.exec(txt)) !== null) {
     if (reArr[3] === undefined) txt = txt.replace(reArr[0], `\n\`\`\`{=html}\n<ac:structured-macro ac:name="${reArr[1]}" ac:schema-version="1" ac:macro-id="@cflmd:macro_id">\n<ac:rich-text-body>\n\`\`\`\n`);
@@ -1787,11 +1853,8 @@ function cflmdProcess1MarkdownPreProcessMisc(txt: string, args: CflmdProcessArgs
 
 // @cflmd:toc -> <ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="@cflmd:macro_id" />
 function cflmdProcess1MarkdownPreProcessTOC(txt: string, args: CflmdProcessArgs): string {
+  txt = txt.replaceAll(/@cfmd:toc\b/g, "@cflmd:toc"); // compatibility
   for (const match of txt.matchAll(/^@cflmd:toc$/gm)) {
-    txt = txt.replace(match[0], `<ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="@cflmd:macro_id" />`);
-  }
-  // compatibility: @cfmd:toc
-  for (const match of txt.matchAll(/^@cfmd:toc$/gm)) {
     txt = txt.replace(match[0], `<ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="@cflmd:macro_id" />`);
   }
   return txt;
@@ -1808,6 +1871,8 @@ function cflmdProcess1MarkdownPreProcessTOC(txt: string, args: CflmdProcessArgs)
 //
 // TODO: code blocks in Pandoc’s Markdown tables (|```lang|)
 function cflmdProcess1MarkdownPreProcessZZCodeMacro(txt: string, args: CflmdProcessArgs): string {
+  txt = txt.replaceAll(/@cfmd:collapse\b/g, "@cflmd:collapse"); // compatibility: @cfmd:collapse
+  txt = txt.replaceAll(/@cfmd:title:/g, "@cflmd:title:"); // compatibility @cfmd:title
   for (const match of txt.matchAll(/^```(?<l>.+)?\r?\n(?<c>^@cflmd:collapse\r?\n)?(^@cflmd:title:(?<t>.+)\r?\n)?(?<b>[\s\S]+?)\r?\n```$/gm)) {
     assert.ok(match.groups !== undefined);
     const codeBlockLang = match.groups.l; // string?
@@ -1967,16 +2032,12 @@ async function cflmdProcess3HTMLPostProcess(args: CflmdProcessArgs): Promise<str
   }
   cflmdWrite(args.txts, "3.postp.table.html", txt, true);
 
-  // z @cflmd:macro_id
-  // if two macro IDs have the same value, the second one will be changed to a random value;
-  // avoid using duplicate IDs
+  // z @cflmd:macro_id -> @__cflmd:macro_id:0000
+  txt = txt.replaceAll(/@cfmd:macro_id\b/g, "@cflmd:macro_id"); // compatibility: @cfmd:macro_id
   let macroID = 0;
   while ((match = txt.match(/@cflmd:macro_id\b/g)) !== null) {
-    txt = txt.replace(/@cflmd:macro_id\b/, `00000000-0000-0000-0000-${String(++macroID).padStart(12, "0")}`); // starts from 1: 00000000-0000-0000-0000-000000000001
-  }
-  // compatibility: @cfmd:macro_id
-  while ((match = txt.match(/@cfmd:macro_id\b/g)) !== null) {
-    txt = txt.replace(/@cfmd:macro_id\b/, `00000000-0000-0000-0000-${String(++macroID).padStart(12, "0")}`);
+    // txt = txt.replace(/@cflmd:macro_id\b/, `00000000-0000-0000-0000-${String(++macroID).padStart(12, "0")}`); // starts from 1: 00000000-0000-0000-0000-000000000001
+    txt = txt.replace(/@cflmd:macro_id\b/, `@__cflmd:macro_id:${String(macroID++).padStart(4, "0")}`);
   }
   cflmdWrite(args.txts, "3.postp.z_macro_id.html", txt, true);
 
@@ -1990,19 +2051,28 @@ async function cflmdProcess4FormatHtml(args: CflmdProcessArgs): Promise<string> 
   return txt;
 }
 
+function cflmdMaybeWriteDiff(pathA: string, pathB: string, pathOut: string) {
+  // without maxBuffer or maxBuffer: 2**21 (2Mi): ENOBUFS
+  // 2**26: 64Mi
+  const diff = child_process.execSync(`diff -u ${strEscapeShell(pathA)} ${strEscapeShell(pathB)} || true`, { encoding: "utf8", maxBuffer: 2 ** 26 });
+  if (diff === "") {
+    if (fs.existsSync(pathOut)) {
+      fs.unlinkSync(pathOut);
+    }
+    return;
+  }
+  logger.debug(`${pathOut} : ${diff.split(/\r?\n/).length - 1} lines`);
+  fs.writeFileSync(pathOut, diff);
+}
+
 function cflmdWrite(txts: { name: string; txt: string }[], name: string, txt: string, doDiff: boolean) {
   txts.push({ name, txt });
   fs.writeFileSync(`${DIR_CACHE}/cflmd/last/${name}`, txt);
   if (!doDiff) return;
-  // without maxBuffer or maxBuffer: 2**21 (2Mi): ENOBUFS
-  // 2**26: 64Mi
-  const diff = child_process.execSync(`diff -u ${DIR_CACHE}/cflmd/last/${txts.at(-2)!.name} ${DIR_CACHE}/cflmd/last/${name} || true`, { encoding: "utf8", maxBuffer: 2 ** 26 });
-  fs.writeFileSync(`${DIR_CACHE}/cflmd/last/${name}.diff`, diff);
-  if (diff === "") {
-    fs.unlinkSync(`${DIR_CACHE}/cflmd/last/${name}.diff`);
-  } else {
-    logger.debug(`${DIR_CACHE}/cflmd/last/${name}.diff : ${diff.split(/\r?\n/).length - 1} lines`);
-  }
+  const pathA = `${DIR_CACHE}/cflmd/last/${txts.at(-2)!.name}`;
+  const pathB = `${DIR_CACHE}/cflmd/last/${name}`;
+  const pathOut = `${DIR_CACHE}/cflmd/last/${name}.diff`;
+  cflmdMaybeWriteDiff(pathA, pathB, pathOut);
 }
 
 // -----------------------------------------------------------------------------
@@ -2292,20 +2362,22 @@ cliCmds["exec-kill-orphan-script-fish"] = async function (opts: {}) {
 
 program.command("execDiffPipe").description("execDiffPipe description")
   .addArgument(new commander.Argument("<cmd...>"))
-  // .addOption(new commander.Option("--diff-cmd").default("diff -u"))
-  .addOption(new commander.Option("--diff-cmd").default("delta --paging=never")) // XXX: .makeOptionMandatory(true) just for typing
+  // .addOption(new commander.Option("--diff-cmd <cmd>").default("diff -u"))
+  .addOption(new commander.Option("--diff-cmd <cmd>").default("delta --paging=never"))
   .addOption(new commander.Option("--keep-tmp").default(false))
-  // @ts-expect-error inferred type `diffCmd: string | boolean` is wrong
   .action((cmd, opts) => execDiffPipe(cmd, { _cli: true, ...opts }));
 
 async function  execDiffPipe(
   cmd: string[],
   opts: {
     _cli?: boolean,
-    diffCmd: string,
+    diffCmd: string, // not shell-escaped
     keepTmp: boolean,
   },
 ) {
+  const diffCmdMaybeDangerous = opts.diffCmd;
+  // @ts-expect-error
+  delete opts.diffCmd;
   logger.info(`reading from stdin...`);
   const txt = await readStdin();
   logger.info(`length: ${txt.length}`);
@@ -2319,7 +2391,7 @@ async function  execDiffPipe(
   logger.debug(`${b.name} ${txt2.length}`)
   fs.writeFileSync(a.fd, txt);
   fs.writeFileSync(b.fd, txt2);
-  const spawnSyncReturns = child_process.spawnSync(`${opts.diffCmd} ${a.name} ${b.name}`, { shell: true, stdio: "inherit" });
+  const spawnSyncReturns = child_process.spawnSync(`${diffCmdMaybeDangerous} ${a.name} ${b.name}`, { shell: true, stdio: "inherit" });
   if (spawnSyncReturns.error !== undefined) throw spawnSyncReturns.error;
   if (spawnSyncReturns.status === null) {
     assert.ok(spawnSyncReturns.signal !== null);
