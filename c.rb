@@ -452,9 +452,6 @@ end
 # ------------------------------------------------------------------------------
 # command - negate-network @pub
 
-# 2025-03-07 Fri "negate-network" removed from homedir
-# この複雑さはrubyでやるべきではなかった
-
 # dummy type definition for IDEs
 # @attr_reader [Boolean] ipv6
 class OptsNegateNetwork < Struct; end
