@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: Copyright (c) 2022-2024 Wataru Ashihara <wataash0607@gmail.com>
+# SPDX-FileCopyrightText: Copyright (c) 2022-2025 Wataru Ashihara <wataash0607@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
 # shellcheck disable=SC2317  # Command appears to be unreachable. Check usage (or ignore if invoked indirectly).
@@ -720,7 +720,7 @@ test_arg_parse() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - 0template @pub
+# command - 0template
 
 define_command 0template
 cmd::0template() {
@@ -746,7 +746,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - apt_changelog @pub
+# command - apt_changelog
 
 define_command apt_changelog
 cmd::apt_changelog() {
@@ -761,7 +761,7 @@ cmd::apt_changelog() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl - lib @pub
+# command - cfl - lib
 
 cfl_env_check() {
   local ok="true"
@@ -777,7 +777,7 @@ cfl_env_check() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_attachment_get @pub
+# command - cfl_content_attachment_get
 
 # saves to ~/.cache/wataash/c.bash/cfl_content_attachment_get/*
 define_command cfl_content_attachment_get
@@ -802,7 +802,7 @@ cmd::cfl_content_attachment_get() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_attachment_get_json @pub
+# command - cfl_content_attachment_get_json
 
 define_command cfl_content_attachment_get_json
 cmd::cfl_content_attachment_get_json() {
@@ -829,7 +829,7 @@ cmd::cfl_content_attachment_get_json() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_attachment_post @pub
+# command - cfl_content_attachment_post
 
 define_command cfl_content_attachment_post
 cmd::cfl_content_attachment_post() {
@@ -843,7 +843,7 @@ cmd::cfl_content_attachment_post() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_delete @pub
+# command - cfl_content_delete
 
 define_command cfl_content_delete
 cmd::cfl_content_delete() {
@@ -854,7 +854,7 @@ cmd::cfl_content_delete() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_format_with_actual_update_abort @pub
+# command - cfl_content_format_with_actual_update_abort
 
 define_command cfl_content_format_with_actual_update_abort
 cmd::cfl_content_format_with_actual_update_abort() {
@@ -874,7 +874,7 @@ cmd::cfl_content_format_with_actual_update_abort() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_get @pub
+# command - cfl_content_get
 
 # echo:
 # title
@@ -891,7 +891,7 @@ cmd::cfl_content_get() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_get_id @pub
+# command - cfl_content_get_id
 
 define_command cfl_content_get_id
 cmd::cfl_content_get_id() {
@@ -901,7 +901,7 @@ cmd::cfl_content_get_id() {
   (set -o pipefail; ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE") | jq -er ".results[0].id")
 }
 # ------------------------------------------------------------------------------
-# command - cfl_content_update @pub
+# command - cfl_content_update
 # TODO: rename: cfl_content_update
 
 # stdout: JSON from PUT "$CONFLUENCE_URL/rest/api/content/$ID"
@@ -922,7 +922,7 @@ cmd::cfl_content_update() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_curl @pub
+# command - cfl_curl
 
 define_command cfl_curl
 cmd::cfl_curl() {
@@ -939,7 +939,7 @@ false && pre_main() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cmd_intercept @pub
+# command - cmd_intercept
 
 : <<'DOC'
 echo -e '#!/bin/sh\n/home/wsh/sh/c.bash -vv cmd_intercept bash "$@"' >~/bin/bash_
@@ -981,7 +981,7 @@ cmd::cmd_intercept() {
 }
 
 # ------------------------------------------------------------------------------
-# command - discharging_checker @pub
+# command - discharging_checker
 
 # upower -i /org/freedesktop/UPower/devices/battery_BAT0
 #  native-path:          BAT0
@@ -1046,7 +1046,7 @@ cmd::discharging_checker() {
     if [[ "$discharging" == "true" ]]; then
       percentage_=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep -P -o '(?<=percentage:)\s+\S+' | tr -d ' ')
       echo "discharging: $energy_prev Wh -> $energy_curr Wh, $state_prev -> $state_curr ($percentage_)"
-      bash /home/wsh/sh/debug_notify.bash "discharging: $energy_prev Wh -> $energy_curr Wh ($percentage_), $state_prev -> $state_curr"
+      bash /home/wsh/sh/debug_notify.bash ← removed "discharging: $energy_prev Wh -> $energy_curr Wh ($percentage_), $state_prev -> $state_curr"
       interval=$((interval * 2))
       echo "recheck in $interval seconds..."
     else
@@ -1081,7 +1081,7 @@ EOF
 fi
 
 # ------------------------------------------------------------------------------
-# command - file_sync_watch @pub
+# command - file_sync_watch
 
 define_command file_sync_watch
 cmd::file_sync_watch() {
@@ -1099,7 +1099,7 @@ cmd::file_sync_watch() {
 }
 
 # ------------------------------------------------------------------------------
-# command - file_timestamp @pub
+# command - file_timestamp
 
 define_command file_timestamp
 cmd::file_timestamp() {
@@ -1121,7 +1121,7 @@ cmd::file_timestamp() {
 }
 
 # ------------------------------------------------------------------------------
-# command - grep_multiline (gm) @pub
+# command - grep_multiline (gm)
 
 # c.bash gm -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash
 # c.bash gm -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash | sed '1d;$d'
@@ -1153,7 +1153,7 @@ cmd::grep_multiline() {
 }
 
 # ------------------------------------------------------------------------------
-# command - grep_multiline_greedy (gm_greedy) @pub
+# command - grep_multiline_greedy (gm_greedy)
 
 # c.bash gm_greedy -P "^define_command grep_multiline_greedy" "cat" < /home/wsh/sh/c.bash
 
@@ -1178,7 +1178,7 @@ cmd::grep_multiline_greedy() {
 }
 
 # ------------------------------------------------------------------------------
-# command - journalctl @pub
+# command - journalctl
 
 : <<'DOC'
 # Ubuntu 20.04:
@@ -1195,7 +1195,7 @@ cmd::journalctl() {
 }
 
 # ------------------------------------------------------------------------------
-# command - kill_clangd @pub
+# command - kill_clangd
 
 define_command kill_clangd
 cmd::kill_clangd() {
@@ -1264,7 +1264,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - kill_code_md_ext @pub
+# command - kill_code_md_ext
 
 define_command kill_code_md_ext
 cmd::kill_code_md_ext() {
@@ -1291,7 +1291,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_dmesg_time0 @pub
+# command - linux_dmesg_time0
 
 define_command linux_dmesg_time0
 cmd::linux_dmesg_time0() {
@@ -1301,7 +1301,7 @@ cmd::linux_dmesg_time0() {
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_kern_config @pub
+# command - linux_kern_config
 
 define_command linux_kern_config
 cmd::linux_kern_config() {
@@ -1359,7 +1359,7 @@ cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT() {
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_kern_initramfs @pub
+# command - linux_kern_initramfs
 
 : <<'DOC'
 https://hernandigiorgi.com/how-to-create-an-initramfs-after-you-compile-a-linux-kernel/
@@ -1441,9 +1441,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_kern_make @pub
-
-# TODO: -d CONFIG_DEBUG_INFO_BTF でビルド時間短くなるかやってみる
+# command - linux_kern_make
 
 define_command linux_kern_make
 cmd::linux_kern_make() {
@@ -1467,7 +1465,7 @@ cmd::linux_kern_make() {
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_kern_make_summary @pub
+# command - linux_kern_make_summary
 
 define_command linux_kern_make_summary
 cmd::linux_kern_make_summary() {
@@ -1489,13 +1487,14 @@ cmd::linux_kern_make_summary() {
 }
 
 # ------------------------------------------------------------------------------
-# command - md_code_b64 @pub
+# command - md_code_b64
 
+# @depracated use c.js txtMarkdownCodeB64
 define_command md_code_b64
 cmd::md_code_b64() {
   local -r usage="usage: $PROG md_code_b64 [-h | --help]"
   arg_parse "$usage" "" "$@"
-  c.js txt-markdown-code-b64
+  c.js txtMarkdownCodeB64
 }
 
 test_md_code_b64() { #@test
@@ -1511,13 +1510,14 @@ test_md_code_b64() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - md_code_b64d @pub
+# command - md_code_b64d
 
+# @depracated use c.js txtMarkdownCodeB64d
 define_command md_code_b64d
 cmd::md_code_b64d() {
   local -r usage="usage: $PROG md_code_b64d [-h | --help]"
   arg_parse "$usage" "" "$@"
-  c.js txt-markdown-code-b64d
+  c.js txtMarkdownCodeB64d
 }
 
 test_md_code_b64d() { #@test
@@ -1532,18 +1532,18 @@ test_md_code_b64d() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - md_sec @pub
+# command - md_sec
 
 define_command md_sec
 cmd::md_sec() {
   local -r usage="usage: $PROG md_sec [-h | --help] SECTION"
   local SECTION="" && arg_parse "$usage" "SECTION" "$@"
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  cmd md_code_b64 | node -e '
+  c.js txtMarkdownCodeB64 | node -e '
     const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
     let txt = fs.readFileSync("/dev/stdin", "utf8") + "\0";
     const match = txt.match(new RegExp(`^(## ${regExpEscape(process.argv[1])}$[\\s\\S]*?)(?=(\r?\n## |\0))`, "m"));
-    if (match !== null) process.stdout.write(match[1]);' "$SECTION" | cmd md_code_b64d
+    if (match !== null) process.stdout.write(match[1]);' "$SECTION" | c.js txtMarkdownCodeB64d
 }
 
 test_md_sec() { #@test
@@ -1562,7 +1562,7 @@ test_md_sec() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - md_secsp @pub
+# command - md_secsp
 # sections starting with the specified prefix
 
 define_command md_secsp
@@ -1570,7 +1570,7 @@ cmd::md_secsp() {
   local -r usage="usage: $PROG md_secsp [-h | --help] SECTION_PREFIX"
   local SECTION_PREFIX="" && arg_parse "$usage" "SECTION_PREFIX" "$@"
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  cmd md_code_b64 | node -e '
+  c.js txtMarkdownCodeB64 | node -e '
     const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
     const txt = fs.readFileSync("/dev/stdin", "utf8") + "\0eof\0";
     let txt2 = "";
@@ -1586,7 +1586,7 @@ cmd::md_secsp() {
     }
     if (lastSectionIsMatch) process.stdout.write(txt2);
     else process.stdout.write(txt2.slice(0, -1));
-  ' "$SECTION_PREFIX" | cmd md_code_b64d
+  ' "$SECTION_PREFIX" | c.js txtMarkdownCodeB64d
 }
 
 test_md_secsp() { #@test
@@ -1610,7 +1610,7 @@ test_md_secsp() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - netbsd_makefile_expand_vars @pub
+# command - netbsd_makefile_expand_vars
 
 define_command netbsd_makefile_expand_vars
 cmd::netbsd_makefile_expand_vars() {
@@ -1651,7 +1651,7 @@ cmd::netbsd_makefile_expand_vars() {
 }
 
 # ------------------------------------------------------------------------------
-# command - net_if_rename @pub
+# command - net_if_rename
 
 define_command net_if_rename
 cmd::net_if_rename() {
@@ -1669,7 +1669,7 @@ cmd::net_if_rename() {
 }
 
 # ------------------------------------------------------------------------------
-# command - pkill (pk) @pub
+# command - pkill (pk)
 # sudo -v && [ -e /usr/local/bin/pk ] && printf "\e[37m""exists\n\e[0m" || echo -e '#!/bin/sh \n exec /home/wsh/sh/c.bash pkill "$@"' | sudo tee /usr/local/bin/pk && sudo chmod +x /usr/local/bin/pk
 
 define_command pkill pk
@@ -1683,7 +1683,7 @@ cmd::pkill() {
 }
 
 # ------------------------------------------------------------------------------
-# command - pstree @pub
+# command - pstree
 
 define_command pstree
 cmd::pstree() {
@@ -1701,11 +1701,11 @@ cmd::pstree() {
       pid=$ppid
     done
   done
-  ps -p "$(IFS=,; echo "${pids[*]}")" -H u -ww
+  ( ((LOG_LEVEL >= LOG_DEBUG)) && set -x; ps -p "$(IFS=,; echo "${pids[*]}")" -H u -ww)
 }
 
 # ------------------------------------------------------------------------------
-# command - pty_qemu @pub
+# command - pty_qemu
 
 # @ref:qemu-pty
 
@@ -1748,7 +1748,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - pty_usb @pub
+# command - pty_usb
 
 define_command pty_usb
 cmd::pty_usb() {
@@ -1787,7 +1787,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - qemu_net_setup @pub
+# command - qemu_net_setup
 
 define_command qemu_net_setup
 cmd::qemu_net_setup() {
@@ -1815,6 +1815,8 @@ cmd::qemu_net_setup() {
   sudo nft add table ip nat0
   sudo nft 'add chain nat0 postrouting0 { type nat hook postrouting priority 100 ; }'
   sudo nft add rule ip nat0 postrouting0 ip saddr 172.31.100.0/24 ip daddr != 172.31.100.0/24 counter masquerade
+  sudo nft add rule ip filter FORWARD ip saddr 172.31.100.0/24 counter accept  # 行き
+  sudo nft add rule ip filter FORWARD ip daddr 172.31.100.0/24 counter accept  # 帰り
 
   # sudo iptables -t nat -A POSTROUTING -s 172.31.100.0/24 ! -d 172.31.100.0/24 -j MASQUERADE
   # @ref:iptables-bridge
@@ -1826,7 +1828,7 @@ cmd::qemu_net_setup() {
 }
 
 # ------------------------------------------------------------------------------
-# command - qemu_pty @pub
+# command - qemu_pty
 
 # compat
 
@@ -1836,7 +1838,7 @@ cmd::qemu_pty() {
 }
 
 # ------------------------------------------------------------------------------
-# command - smux @pub
+# command - smux
 
 # @ref:socat-pty-exec-mux
 
@@ -1901,7 +1903,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - spotify_code_to_token @pub
+# command - spotify_code_to_token
 
 : <<'EOS'
 c.bash -v spotify_http_server &
@@ -1931,7 +1933,7 @@ cmd::spotify_code_to_token() {
 }
 
 # ------------------------------------------------------------------------------
-# command - spotify_http_server @pub
+# command - spotify_http_server
 
 # google-chrome https://accounts.spotify.com/authorize?client_id=c78a65c5fb94462997b01eeeaf524324&response_type=code&redirect_uri=http://localhost:15350&scope=user-read-currently-playing
 # -> http://localhost:15350/?code={CODE}
@@ -1969,7 +1971,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - spotify_say_song @pub
+# command - spotify_say_song
 
 define_command spotify_say_song
 cmd::spotify_say_song() {
@@ -2049,7 +2051,7 @@ cmd::spotify_say_song() {
 }
 
 # ------------------------------------------------------------------------------
-# command - strace_prettify @pub
+# command - strace_prettify
 
 : <<'DOC'
 @beg:strace_prettify:tcase
@@ -2080,7 +2082,7 @@ cmd::strace_prettify() {
 }
 
 # ------------------------------------------------------------------------------
-# command - time_sub @pub
+# command - time_sub
 
 define_command time_sub
 cmd::time_sub() {
@@ -2101,7 +2103,7 @@ test_time_sub() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_begin_end (be) @pub
+# command - txt_begin_end (be)
 #
 # prints:
 # @beg:NAME
@@ -2143,7 +2145,7 @@ cmd::txt_begin_end() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_begin_end_fast (bef) @pub
+# command - txt_begin_end_fast (bef)
 
 define_command txt_begin_end_fast bef
 cmd::txt_begin_end_fast() {
@@ -2155,7 +2157,7 @@ cmd::txt_begin_end_fast() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_begin_end_v (bev) @pub
+# command - txt_begin_end_v (bev)
 #
 # excludes (like grep -v):
 # @beg:NAMEV  from here
@@ -2195,7 +2197,7 @@ cmd::txt_begin_end_v() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_begin_end_v_fast (bevf) @pub
+# command - txt_begin_end_v_fast (bevf)
 #
 # excludes (like grep -v):
 # @beg:NAMEV  from here
@@ -2217,7 +2219,7 @@ cmd::txt_begin_end_v_fast() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_bv_ev (bv) @pub
+# command - txt_bv_ev (bv)
 #
 # excludes (like grep -v):
 # @ bv  from here
@@ -2233,12 +2235,12 @@ cmd::txt_bv_ev() {
   local FILE="" && arg_parse "$usage" "[FILE]" "$@"
   [[ $FILE == "" ]] && FILE="/dev/stdin"
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  # from c.js txt-private
+  # from c.js txtPrivate
   node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(new RegExp(`^.*[@]bv\\b.*\r?\n[\\s\\S]*?[@]ev\\b.*(\r?\n|$)`, "gm"), ""))' <"$FILE"
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_eval @pub
+# command - txt_eval
 
 define_command txt_eval
 cmd::txt_eval() {
@@ -2271,7 +2273,7 @@ cmd::txt_eval() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_replace (rep) @pub
+# command - txt_replace (rep)
 
 # c.bash rep "$(c.bash grep_multiline -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash)" "hi there" < /home/wsh/sh/c.bash > /tmp/c.bash.d/rep.test.bash
 # delta /home/wsh/sh/c.bash /tmp/c.bash.d/rep.test.bash
@@ -2288,7 +2290,7 @@ cmd::txt_replace() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_replace_all (repa) @pub
+# command - txt_replace_all (repa)
 
 define_command txt_replace_all repa DEPRECATED:replace_all
 cmd::txt_replace_all() {
@@ -2300,7 +2302,7 @@ cmd::txt_replace_all() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_replace_line (repl) @pub
+# command - txt_replace_line (repl)
 
 define_command txt_replace_line repl DEPRECATED:replace_line
 cmd::txt_replace_line() {
@@ -2311,7 +2313,7 @@ cmd::txt_replace_line() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_replace_line_all (repla) @pub
+# command - txt_replace_line_all (repla)
 
 define_command txt_replace_line_all repla DEPRECATED:replace_line_all
 cmd::txt_replace_line_all() {
@@ -2323,7 +2325,7 @@ cmd::txt_replace_line_all() {
 }
 
 # ------------------------------------------------------------------------------
-# command - xargs_delay @pub
+# command - xargs_delay
 
 define_command xargs_delay
 cmd::xargs_delay() {
@@ -2402,7 +2404,7 @@ cmd::repl() {
 }
 
 # ------------------------------------------------------------------------------
-# command - z_meta_command_list @pub
+# command - z_meta_command_list
 
 define_command z_meta_command_list
 cmd::z_meta_command_list() {
@@ -2415,7 +2417,7 @@ cmd::z_meta_command_list() {
 }
 
 # ------------------------------------------------------------------------------
-# command - z_meta_command_list_no_alias @pub
+# command - z_meta_command_list_no_alias
 
 define_command z_meta_command_list_no_alias
 cmd::z_meta_command_list_no_alias() {
@@ -2424,42 +2426,6 @@ cmd::z_meta_command_list_no_alias() {
   for cmd in "${_command_list_stable_no_deprecated_no_alias[@]}"; do
     echo "$cmd"
   done
-}
-
-# ------------------------------------------------------------------------------
-# command - z_meta_publish_self @pub
-
-: <<'DOC'
-diff -u "$(c.bash z_meta_command_list_no_alias | psub)" "$(c.bash z_meta_command_list_no_alias | sort | psub)"
-c.bash -v z_meta_publish_self | c.bash bv >~/src/scraps/c.bash
-cd ~/src/scraps/
-git ...
-DOC
-
-define_command z_meta_publish_self
-cmd::z_meta_publish_self() {
-  local -r usage="usage: $PROG z_meta_publish_self [-h | --help]"
-  arg_parse "$usage" "" "$@"
-  local public_cmd="true"
-  cmd bev "private_v" <"$(self_real_path)" | while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
-    # # section @pub
-    if [[ $line =~ ^#.+@pub$ ]]; then
-      log_info "[public_cmd: $public_cmd -> true] $line"
-      public_cmd="true"
-    # # command - COMMAND  (private unless explicitly marked as @pub)
-    # # section @private
-    elif [[ $line =~ ^"# command - " ]] || [[ $line =~ ^#.+[@]private$ ]]; then
-      log_info "[public_cmd: $public_cmd -> false] $line"
-      public_cmd="false"
-    else
-      log_debug "$line"
-    fi
-    [[ $public_cmd == "false" ]] && continue
-    [[ $line =~ [@]"pl"$ || $line =~ [@]"pl"[^0-9A-Za-z_] ]] && continue  # private line
-    echo "$line"
-  done
-
-  return 0
 }
 
 # ------------------------------------------------------------------------------
