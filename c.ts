@@ -1,73 +1,147 @@
 #!/usr/bin/env node
-// SPDX-FileCopyrightText: Copyright (c) 2023-2024 Wataru Ashihara <wataash0607@gmail.com>
+// SPDX-FileCopyrightText: Copyright (c) 2021-2025 Wataru Ashihara <wataash0607@gmail.com>
 // SPDX-License-Identifier: Apache-2.0
 // for WebStorm:
 // noinspection RegExpRepeatedSpace
 
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-/* eslint-disable @typescript-eslint/ban-types */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-expressions */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-constant-condition */
+/* eslint-disable no-debugger */
 /* eslint-disable no-regex-spaces */
+
+/*
+add newcmd:
+fn() { { c.js -q z-meta-command-list; echo "$1"; } | sort | grep -C9999 --color "$1"; }; fn newcmd
+bash -c 'fn() { { c.js -q z-meta-command-list; echo "$1"; } | sort | grep -C9999 --color "$1"; }; fn newcmd'
+*/
 
 import * as assert from "node:assert/strict";
 import * as child_process from "node:child_process";
+import * as cp from "node:child_process";
 import * as crypto from "node:crypto";
 import * as dns from "node:dns";
 import * as fs from "node:fs";
 import * as fsPromise from "node:fs/promises";
+import * as http from "node:http";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as readline from "node:readline/promises";
 import * as repl from "node:repl";
 import * as stream from "node:stream";
 import * as tty from "node:tty";
 import * as url from "node:url";
 import * as util from "node:util";
 
-import * as commander from "commander";
-import { program } from "commander";
+import * as commander from "@commander-js/extra-typings";
 import envPaths from "env-paths";
 import esMain from "es-main";
-import express from "express";
-import * as nodeHtmlParser from "node-html-parser";
-import * as parse5 from "parse5";
-import * as pty from "node-pty";
-// import * as puppeteer from "puppeteer-core";
+import type express from "express";
+import type pty_ from "node-pty";
+import fetchSync from "sync-fetch";
+const fetchSync_ = fetchSync; // avoid unused-removal
+import * as tmp from "tmp";
 
-import { Logger } from "./src/logger.js";
+import { Logger } from "./logger.js";
 
-const logger = new Logger();
+const __filename = url.fileURLToPath(import.meta.url);
+const progname = path.basename(__filename);
+export const logger = new Logger();
+export const program = new commander.Command();
 
 // -----------------------------------------------------------------------------
 // lib
 
-class AppError extends Error {
-  constructor(message: string, withStack = false) {
-    // https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-2.html
-    super(message);
-    Object.setPrototypeOf(this, new.target.prototype);
-    if (withStack) {
-      logger.errors(message);
-    } else {
-      logger.error(message);
-    }
-  }
-}
+export class AppError extends Error {}
 
-const DIR_CACHE = envPaths(path.join("wataash", "c.ts")).cache;
-const DIR_TMP = envPaths(path.join("wataash", "c.ts")).temp;
+export const DIR_CACHE = envPaths(path.join("wataash", "c.ts")).cache;
+export const DIR_TMP = envPaths(path.join("wataash", "c.ts")).temp;
 fs.mkdirSync(DIR_CACHE, { recursive: true });
 fs.mkdirSync(DIR_TMP, { recursive: true });
 
-const __filename = url.fileURLToPath(import.meta.url);
-
-function i(object: any): ReturnType<typeof util.inspect> {
-  return util.inspect(object, { colors: tty.isatty(process.stdout.fd) });
+/**
+ * breakpoint
+ */
+export function bp(): void {
+  return;
 }
 
-function ii(object: any): ReturnType<typeof util.inspect> {
-  return util.inspect(object, { colors: tty.isatty(process.stdout.fd), breakLength: Infinity });
+// https://github.com/nodejs/node/blob/v18.12.1/lib/child_process.js#L861
+// Copyright Joyent, Inc. and other Node contributors.
+// prettier-ignore
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error
+function child_process_checkExecSyncError(ret, args, cmd) {
+  let err;
+  if (ret.error) {
+    // I guess this is set by SetError()
+    // https://github.com/nodejs/node/blob/v18.12.1/src/spawn_sync.cc
+    // , almost never reached
+    err = ret.error;
+    Object.assign(err, ret);
+  } else if (ret.status !== 0) {
+    let msg = 'Command failed: ';
+    msg += cmd || args.join(args, ' ');
+    if (ret.stderr && ret.stderr.length > 0)
+      msg += `\n${ret.stderr.toString()}`;
+    err = new Error(msg, ret);
+  }
+  return err;
+}
+
+// Copyright Joyent, Inc. and other Node contributors.
+// prettier-ignore
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error
+function child_process_checkExecSyncErrorThrow(ret, args, cmd) {
+  const err = child_process_checkExecSyncError(ret, args, cmd);
+  if (err)
+    throw err;
+}
+
+async function fetchCheckTxt(url: Parameters<typeof fetch>[0], init: NonNullable<Parameters<typeof fetch>[1]>): Promise<[Awaited<ReturnType<typeof fetch>>, string]> {
+  const resp = await fetch(url, init);
+  const respTxt = await resp.text();
+  if (!resp.ok) {
+    logger.error(`${init.method} ${url}: ${resp.status} ${resp.statusText}`);
+    logger.warn(`respTxt: ${respTxt}`);
+    throw new AppError(`${init.method} ${url}: ${resp.status} ${resp.statusText}`);
+  }
+  return [resp, respTxt];
+}
+if (0) {
+  const [resp, txt] = await fetchCheckTxt(`https://wataash.com/nonexistent`, { method: "GET" });
+}
+
+/**
+ * util.inspect(), maybe with colors (with respect to stderr)
+ */
+export function ie(object: any): ReturnType<typeof util.inspect> {
+  return util.inspect(object, { colors: streamShouldColorize(process.stderr) });
+}
+
+/**
+ * util.inspect(), maybe with colors (with respect to stdout)
+ */
+export function io(object: any): ReturnType<typeof util.inspect> {
+  return util.inspect(object, { colors: streamShouldColorize(process.stdout) });
+}
+
+/**
+ * util.inspect(), maybe with colors (with respect to stderr), with infinity width (no line break)
+ */
+export function iie(object: any): ReturnType<typeof util.inspect> {
+  return util.inspect(object, { colors: streamShouldColorize(process.stderr), breakLength: Infinity });
+}
+
+/**
+ * util.inspect(), maybe with colors (with respect to stdout), with infinity width (no line break)
+ */
+export function iio(object: any): ReturnType<typeof util.inspect> {
+  return util.inspect(object, { colors: streamShouldColorize(process.stdout), breakLength: Infinity });
 }
 
 /**
@@ -83,7 +157,7 @@ function ii(object: any): ReturnType<typeof util.inspect> {
  * integersSummary([1, 0]); // throws (must be sorted)
  * @param numbers
  */
-function integersSummary(numbers: number[]): string[] {
+export function integersSummary(numbers: number[]): string[] {
   if (numbers.length === 0) return [];
   // if (numbers.length === 1) return `${numbers[0]}`;
   const ret = [];
@@ -109,11 +183,25 @@ function integersSummary(numbers: number[]): string[] {
 }
 
 // https://github.com/jonschlinkert/isobject/blob/master/index.js
-function isObject(value: unknown): value is object {
+export function isObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && Array.isArray(value) === false;
 }
 
-class Queue<T> {
+export function jsonParsePath(path: string): ReturnType<typeof JSON.parse> {
+  try {
+    return JSON.parse(fs.readFileSync(path, "utf8"));
+  } catch (e) {
+    if (!(e instanceof SyntaxError)) throw e;
+    e.message = `invalid JSON: ${path}: ${e.message}`;
+    throw e;
+  }
+}
+if (0) {
+  jsonParsePath(`/etc/hosts`);
+  unreachable();
+}
+
+export class Queue<T> {
   private readonly q: T[];
   private readonly qWaiters: { resolve: (value: "resolved") => void }[];
 
@@ -145,43 +233,152 @@ class Queue<T> {
 }
 
 let re;
-let reArr: RegExpExecArray | null;
-let reArr2: RegExpExecArray;
+let reArrNull: RegExpExecArray | null;
+let reArr_: RegExpExecArray;
+let reArr: RegExpExecArray | null; // @depracated
+let reArr2: RegExpExecArray; // @depracated
 
-// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions
-function regExpEscape(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
+// @deprecated use strEscapeRe()
+export function regExpEscape(s: string): string {
+  return strEscapeRe(s);
 }
 
-function reExec(regexp: RegExp, string: string): RegExpExecArray {
+export function reExec(regexp: RegExp, string: string): RegExpExecArray | string {
   const reArr = regexp.exec(string);
-  if (reArr === null) {
-    throw new AppError(`not match: ${regexp} (string: ${stringSnip(string, 30)})`);
+  if (reArr !== null) return reArr;
+  let regexpPartSource = regexp.source;
+  let matchedPart;
+  while (true) {
+    regexpPartSource = regexpPartSource.slice(0, -1);
+    try {
+      const regexpPart = new RegExp(regexpPartSource, regexp.flags);
+      const reArr2 = regexpPart.exec(string);
+      if (reArr2 === null)
+        continue;
+      matchedPart = reArr2[0];
+      break;
+    } catch (e) {
+      // SyntaxError: Invalid regular expression: ...
+      if (!(e instanceof SyntaxError)) throw e;
+      continue;
+    }
+    // unreachable();
   }
-  return reArr;
+  const ret = `not matched:
+${regexp}
+${" ".repeat(`${regexpPartSource}`.length)}^ matched until here (${strSnip(matchedPart, 50)})
+(input string: ${strSnip(string, 50)})`;
+  // console.log(ret);
+  return ret;
 }
 
-// TODO: copy type of argument of String.prototype.replace
-// replace(searchValue: string | RegExp, replaceValue: string): string;
-// replace(searchValue: string | RegExp, replacer: (substring: string, ...args: any[]) => string): string;
-function reReplace(regexp: RegExp, searchValue: string | RegExp, replaceValue: string): RegExp {
+if (0) {
+  assert.equal(reExec(/^(foo)(?<b>bar)x(x)x/, "foobarbaz"), `not matched:
+/^(foo)(?<b>bar)x(x)x/
+               ^ matched until here (foobar)
+(input string: foobarbaz)`);
+  assert.equal(reExec(/^(foo)(?<b>bar)x(x)x/gm, "foobarbaz"), `not matched:
+/^(foo)(?<b>bar)x(x)x/gm
+               ^ matched until here (foobar)
+(input string: foobarbaz)`);
+  assert.equal(reExec(new RegExp(String.raw`^(foo)(?<b>bar)x/x/x`), "foobarbaz"), `not matched:
+/^(foo)(?<b>bar)x\\/x\\/x/
+               ^ matched until here (foobar)
+(input string: foobarbaz)`);
+  assert.equal(reExec(new RegExp(String.raw`^(foo)(?<b>bar)x/x/x`, "gm"), "foobarbaz"), `not matched:
+/^(foo)(?<b>bar)x\\/x\\/x/gm
+               ^ matched until here (foobar)
+(input string: foobarbaz)`);
+}
+
+export function reExecThrowAppError(regexp: RegExp, string: string): RegExpExecArray {
+  const reArr = reExec(regexp, string);
+  if (Array.isArray(reArr)) return reArr;
+  throw new AppError(reArr);
+}
+
+/**
+ * Do String.prototype.replace() without special replacement patterns (e.g. "$1")
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
+ */
+export function reReplace(regexp: RegExp, searchValue: string | RegExp, replaceValue: string): RegExp {
+  return new RegExp(strReplace(regexp.source, searchValue, replaceValue), regexp.flags);
+}
+
+export function reReplaceAll(regexp: RegExp, searchValue: string | RegExp, replaceValue: string): RegExp {
+  return new RegExp(strReplaceAll(regexp.source, searchValue, replaceValue), regexp.flags);
+}
+
+/**
+ * Do String.prototype.replace() with special replacement patterns (e.g. "$1")
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
+ */
+export function reReplaceWithSpecial$(regexp: RegExp, searchValue: string | RegExp, replaceValue: string): RegExp {
   return new RegExp(regexp.source.replace(searchValue, replaceValue), regexp.flags);
 }
 
-// const regExpReplacerEscape = (s: string): string => s.replaceAll("$", "$$$$"); // avoid special replacement with "$" https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
-// const regExpReplacerEscape = (s) => s.replace(/\$/g, "$$$$"); // avoid special replacement with "$" https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
-function regExpReplacerEscape(s: string): string {
-  // avoid special replacement with "$"
-  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
-  return s.replaceAll("$", "$$$$");
+if (0) {
+  reReplace(/foo/, /(f)/, "$1"); // /$1oo/
+  reReplaceWithSpecial$(/foo/, /(f)/, "$1"); // /foo/
 }
 
-function sh(cmd: string): string {
+/**
+ * @deprecated use strReplace
+ */
+export function regExpReplacerEscape(replacerString: string): string {
+  return replacerString.replaceAll("$", "$$$$");
+}
+
+// c.js aTemplate --z-dangerous-eval 'child_process.execSync(`NODE_OPTIONS=--inspect-wait c.js aTemplate`, { stdio: ["pipe", "inherit", "inherit"] })'
+// c.js aTemplate --z-dangerous-eval 'child_process.execSync(`NODE_OPTIONS=--inspect-wait c.js aTemplate`, { input: "xxx" })'
+// echo xxx | c.js aTemplate --z-dangerous-eval 'child_process.execSync(`NODE_OPTIONS=--inspect-wait c.js aTemplate`, { stdio: "inherit" })'
+async function readStdin(): Promise<string> {
+  if (0) {
+    return fs.readFileSync(`/dev/stdin`, "utf8");
+    // on Linux, this throws ENXIO when executed from child_process with fd0:pipe:
+    //
+    // c.js aTemplate --z-dangerous-eval 'child_process.execSync(`c.js aTemplate`, { stdio: ["pipe", "inherit", "inherit"] })'
+    // -> readStdin()
+    // -> fs.readFileSync(`/dev/stdin`, "utf8")
+    // Error: ENXIO: no such device or address, open '/dev/stdin'
+    //
+    // I guess it's because /dev/stdin is a unix socket (not a pipe!):
+    // child_process.execSync(`lsof -nP -p ${process.pid}`, { stdio: "inherit" });
+    // COMMAND PID USER   FD      TYPE             DEVICE  SIZE/OFF     NODE NAME
+    // node     42  wsh    0u     unix 0x0000000000000000       0t0 17537637 type=STREAM (CONNECTED)
+    // node     42  wsh    1u      CHR             136,51       0t0       54 /dev/pts/51
+    // node     42  wsh    2u      CHR             136,51       0t0       54 /dev/pts/51
+  }
+
+  const decoder = new TextDecoder();
+  let s = "";
+  for await (const chunk of process.stdin) {
+    s += decoder.decode(chunk, { stream: true });
+  }
+  return s;
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set/intersection
+// https://qiita.com/toshihikoyanase/items/7b07ca6a94eb72164257
+/*
+Set.prototype.intersection = function(setB) {
+  var intersection = new Set();
+  // @ts-expect-error
+  for (var elem of setB) {
+    if (this.has(elem)) {
+      intersection.add(elem);
+    }
+  }
+  return intersection;
+}
+*/
+
+export function sh(cmd: string): string {
   logger.debug(cmd);
   return child_process.execSync(cmd, { encoding: "utf8" });
 }
 
-export function sleep(milliSeconds: number): Promise<void> {
+export async function sleep(milliSeconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliSeconds));
 }
 
@@ -193,7 +390,54 @@ export async function sleepForever(): Promise<never> {
   }
 }
 
-// `sh -c ${stringCommandsToShC(["echo", "foo bar"])}`
+export function strColsWhichAre(s: string, c: string, opts?: { ignoreToTheRightOfShortLine: boolean }): number[] {
+  // TODO: full width characters
+
+  if (c.length !== 1) {
+    throw new Error(`c.length:${c.length} !== 1 (c: ${c})`);
+  }
+
+  s = s.replace(/(\r?\n)$/, "");
+  const maxLen = Math.max(...s.split(/\r?\n/).map((line) => line.length));
+
+  let ret: Set<number> = new Set();
+  for (let [iLine, line] of s.split(/\r?\n/).entries()) {
+    const cols: Set<number> = new Set();
+    if (opts?.ignoreToTheRightOfShortLine && line.length < maxLen) {
+      line = line.padEnd(maxLen, c);
+    }
+    for (const match of line.matchAll(/ /dg)) {
+      assert.ok(match.indices !== undefined);
+      for (const [colStart, colEnd] of match.indices) {
+        assert.ok(colStart + 1 === colEnd);
+        cols.add(colStart);
+      }
+    }
+    if ((iLine) === 0) {
+      ret = cols;
+    } else {
+      ret = ret.intersection(cols);
+    }
+  }
+  return [...ret].sort((a, b) => a - b);
+}
+
+if (0) {
+  const tcase = `\
+0         1         2         3         4         5         6         7         8
+012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+    ↓↓↓↓↓   ↓   ↓  ↓             ↓  ↓↓↓↓↓↓↓↓↓↓    ↓↓↓↓    ↓↓↓↓    ↓↓↓↓↓   ↓
+USER                      STARTED TT          PPID    SESS    PGID     PID CMD
+root     Sun Aug 11 11:17:10 2024 ?              0       0       0       2 [kthreadd]
+root     Sun Aug 11 11:17:10 2024 ?              2       0       0       3   [rcu_gp]
+root     Sun Aug 11 11:17:10 2024 ?              2       0       0       4   [rcu_par_gp]
+                    short_line
+`.split(/r?\n/).slice(3).join("\n");
+  assert.deepEqual(strColsWhichAre(tcase, " "), [4, 5, 6, 7, 8, 12, 16, 19]);
+  assert.deepEqual(strColsWhichAre(tcase, " ", { ignoreToTheRightOfShortLine: true }), [4, 5, 6, 7, 8, 12, 16, 19, 33, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 50, 51, 52, 53, 58, 59, 60, 61, 66, 67, 68, 69, 70, 74]);
+}
+
+// `sh -c ${strCommandsToShC(["echo", "foo bar"])}`
 //
 // bash -c 'echo "${@@Q}"' _ echo "foo bar"            # 'echo' 'foo bar'
 // bash -c 'echo "${@@Q}"' _ echo ">" "foo bar"        # 'echo' '>' 'foo bar'
@@ -202,143 +446,415 @@ export async function sleepForever(): Promise<never> {
 // a.js echo "foo bar"           # ["echo", "foo bar"]         -> `'echo' 'foo bar'`
 // a.js echo ">" "foo bar"       # ["echo", ">", "foo bar"]    -> `'echo' '>' 'foo bar'`
 // a.js "echo 'foo bar' > a.txt" # ["echo 'foo bar' > a.txt"]  -> `'echo '\\''foo bar'\\'' > a.txt'`
-function stringCommandsToShC(cmds: string[]): string {
+export function strCommandsToShC(cmds: string[]): string {
   // TODO: implement in js
   const stdout = child_process.execFileSync("bash", ["-c", 'echo "${@@Q}"', "_", ...cmds], { encoding: "utf8" });
   return stdout.trimEnd();
 }
 
-// assert.deepStrictEqual(stringCommandsToShC(["echo", "foo bar"]), `'echo' 'foo bar'`);
-// assert.deepStrictEqual(stringCommandsToShC(["echo", ">", "foo bar"]), `'echo' '>' 'foo bar'`);
-// assert.deepStrictEqual(stringCommandsToShC(["echo 'foo bar' > a.txt"]), `'echo '\\''foo bar'\\'' > a.txt'`);
+// assert.deepStrictEqual(strCommandsToShC(["echo", "foo bar"]), `'echo' 'foo bar'`);
+// assert.deepStrictEqual(strCommandsToShC(["echo", ">", "foo bar"]), `'echo' '>' 'foo bar'`);
+// assert.deepStrictEqual(strCommandsToShC(["echo 'foo bar' > a.txt"]), `'echo '\\''foo bar'\\'' > a.txt'`);
 
-// stringEmptify("\n a \r\n b \n") // -> "\n\r\n\n"
-function stringEmptify(s: string): string {
+// strEmptify("\n a \r\n b \n") // -> "\n\r\n\n"
+export function strEmptify(s: string): string {
   const matches = s.match(/\r?\n/g); // ES2020: .matchAll()
   if (matches === null) return "";
   return matches.join("");
 }
 
-// "|\n a \r\n b \n" 0  stringEmptifyFromIndex("\n a \r\n b \n", 0) // \n\r\n\n
-// "\n| a \r\n b \n" 1  stringEmptifyFromIndex("\n a \r\n b \n", 1) // same
-// "\n |a \r\n b \n" 2  stringEmptifyFromIndex("\n a \r\n b \n", 2) // \n \r\n\n
-// "\n a| \r\n b \n" 3  stringEmptifyFromIndex("\n a \r\n b \n", 3) // \n a\r\n\n
-// "\n a |\r\n b \n" 4  stringEmptifyFromIndex("\n a \r\n b \n", 4) // \n a \r\n\n
-// "\n a \r|\n b \n" 5  stringEmptifyFromIndex("\n a \r\n b \n", 5) // same
-// "\n a \r\n| b \n" 6  stringEmptifyFromIndex("\n a \r\n b \n", 6) // same
-// "\n a \r\n |b \n" 7  stringEmptifyFromIndex("\n a \r\n b \n", 7) // \n a \r\n \n
-// "\n a \r\n b| \n" 8  stringEmptifyFromIndex("\n a \r\n b \n", 8) // \n a \r\n b\n
-// "\n a \r\n b |\n" 9  stringEmptifyFromIndex("\n a \r\n b \n", 9) // \n a \r\n b \n
-// "\n a \r\n b \n|" 10 stringEmptifyFromIndex("\n a \r\n b \n", 10) // \n a \r\n b \n
-function stringEmptifyFromIndex(s: string, index: number): string {
-  return s.slice(0, index) + stringEmptify(s.slice(index));
+// "|\n a \r\n b \n" 0  strEmptifyFromIndex("\n a \r\n b \n", 0) // \n\r\n\n
+// "\n| a \r\n b \n" 1  strEmptifyFromIndex("\n a \r\n b \n", 1) // same
+// "\n |a \r\n b \n" 2  strEmptifyFromIndex("\n a \r\n b \n", 2) // \n \r\n\n
+// "\n a| \r\n b \n" 3  strEmptifyFromIndex("\n a \r\n b \n", 3) // \n a\r\n\n
+// "\n a |\r\n b \n" 4  strEmptifyFromIndex("\n a \r\n b \n", 4) // \n a \r\n\n
+// "\n a \r|\n b \n" 5  strEmptifyFromIndex("\n a \r\n b \n", 5) // same
+// "\n a \r\n| b \n" 6  strEmptifyFromIndex("\n a \r\n b \n", 6) // same
+// "\n a \r\n |b \n" 7  strEmptifyFromIndex("\n a \r\n b \n", 7) // \n a \r\n \n
+// "\n a \r\n b| \n" 8  strEmptifyFromIndex("\n a \r\n b \n", 8) // \n a \r\n b\n
+// "\n a \r\n b |\n" 9  strEmptifyFromIndex("\n a \r\n b \n", 9) // \n a \r\n b \n
+// "\n a \r\n b \n|" 10 strEmptifyFromIndex("\n a \r\n b \n", 10) // \n a \r\n b \n
+export function strEmptifyFromIndex(s: string, index: number): string {
+  return s.slice(0, index) + strEmptify(s.slice(index));
 }
 
-// "|\n a \r\n b \n" 0  stringEmptifyUntilIndex("\n a \r\n b \n", 0) // \n a \r\n b \n
-// "\n| a \r\n b \n" 1  stringEmptifyUntilIndex("\n a \r\n b \n", 1) // same
-// "\n |a \r\n b \n" 2  stringEmptifyUntilIndex("\n a \r\n b \n", 2) // \na \r\n b \n
-// "\n a| \r\n b \n" 3  stringEmptifyUntilIndex("\n a \r\n b \n", 3) // \n \r\n b \n
-// "\n a |\r\n b \n" 4  stringEmptifyUntilIndex("\n a \r\n b \n", 4) // \n\r\n b \n
-// "\n a \r|\n b \n" 5  stringEmptifyUntilIndex("\n a \r\n b \n", 5) // \n\n b \n    ! \r\n -> \r
-// "\n a \r\n| b \n" 6  stringEmptifyUntilIndex("\n a \r\n b \n", 6) // \n\r\n b \n
-// "\n a \r\n |b \n" 7  stringEmptifyUntilIndex("\n a \r\n b \n", 7) // \n\r\nb \n
-// "\n a \r\n b| \n" 8  stringEmptifyUntilIndex("\n a \r\n b \n", 8) // \n\r\n \n
-// "\n a \r\n b |\n" 9  stringEmptifyUntilIndex("\n a \r\n b \n", 9) // \n\r\n\n
-// "\n a \r\n b \n|" 10 stringEmptifyUntilIndex("\n a \r\n b \n", 10) // same
-function stringEmptifyUntilIndex(s: string, index: number): string {
-  return stringEmptify(s.slice(0, index)) + s.slice(index);
+// "|\n a \r\n b \n" 0  strEmptifyUntilIndex("\n a \r\n b \n", 0) // \n a \r\n b \n
+// "\n| a \r\n b \n" 1  strEmptifyUntilIndex("\n a \r\n b \n", 1) // same
+// "\n |a \r\n b \n" 2  strEmptifyUntilIndex("\n a \r\n b \n", 2) // \na \r\n b \n
+// "\n a| \r\n b \n" 3  strEmptifyUntilIndex("\n a \r\n b \n", 3) // \n \r\n b \n
+// "\n a |\r\n b \n" 4  strEmptifyUntilIndex("\n a \r\n b \n", 4) // \n\r\n b \n
+// "\n a \r|\n b \n" 5  strEmptifyUntilIndex("\n a \r\n b \n", 5) // \n\n b \n    ! \r\n -> \r
+// "\n a \r\n| b \n" 6  strEmptifyUntilIndex("\n a \r\n b \n", 6) // \n\r\n b \n
+// "\n a \r\n |b \n" 7  strEmptifyUntilIndex("\n a \r\n b \n", 7) // \n\r\nb \n
+// "\n a \r\n b| \n" 8  strEmptifyUntilIndex("\n a \r\n b \n", 8) // \n\r\n \n
+// "\n a \r\n b |\n" 9  strEmptifyUntilIndex("\n a \r\n b \n", 9) // \n\r\n\n
+// "\n a \r\n b \n|" 10 strEmptifyUntilIndex("\n a \r\n b \n", 10) // same
+export function strEmptifyUntilIndex(s: string, index: number): string {
+  return strEmptify(s.slice(0, index)) + s.slice(index);
 }
 
 // ]]> -> ]]]]><![CDATA[>
-function stringEscapeCdata(str: string): string {
+export function strEscapeCdata(str: string): string {
   // return str.replaceAll("]]>", "]]]]><![CDATA[>"); // es2021
   return str.replace(/]]>/g, "]]]]><![CDATA[>");
 }
 
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions
+export function strEscapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
+}
+
 // https://stackoverflow.com/questions/1779858/how-do-i-escape-a-string-for-a-shell-command-in-node
-function stringEscapeShell(str: string) {
+export function strEscapeShell(str: string) {
   return `"${str.replace(/(["'$`\\])/g, "\\$1")}"`;
 }
 
-function stringFirstLine(s: string): string {
-  const i = s.indexOf("\n");
-  if (i === -1) return s;
-  if (i === 0) return ""; // "\n..."
-  // s.at(): es2022
-  // if (s.at(i - 1) === "\r") return s.slice(0, i - 1); // "...\r\n..."
-  if (s.slice(i - 1, i) === "\r") return s.slice(0, i - 1); // "...\r\n..."
-  return s.slice(0, i); // "...\n..."
+export function strFirstLine(s: string): string {
+  return /^(.*)(\r?\n)/.exec(s)?.[1] ?? s;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _stringFirstLineTest(): void {
-  assert.deepStrictEqual(stringFirstLine(""), "");
-  assert.deepStrictEqual(stringFirstLine("\r"), "\r");
-  assert.deepStrictEqual(stringFirstLine("\x01"), "\x01"); // ^A
-  assert.deepStrictEqual(stringFirstLine("\n"), "");
-  assert.deepStrictEqual(stringFirstLine("\r\n"), "");
-  assert.deepStrictEqual(stringFirstLine("\n\r"), "");
-  assert.deepStrictEqual(stringFirstLine("xxx"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("xxx\n"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("xxx\r\n"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("xxx\n\r"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("\nyyy"), "");
-  assert.deepStrictEqual(stringFirstLine("\r\nyyy"), "");
-  assert.deepStrictEqual(stringFirstLine("xxx\nyyy"), "xxx");
-  assert.deepStrictEqual(stringFirstLine("xxx\r\nyyy"), "xxx");
+function _strFirstLineTest(): void {
+  assert.deepStrictEqual(strFirstLine(""), "");
+  assert.deepStrictEqual(strFirstLine("\r"), "\r");
+  assert.deepStrictEqual(strFirstLine("\x01"), "\x01"); // ^A
+  assert.deepStrictEqual(strFirstLine("\n"), "");
+  assert.deepStrictEqual(strFirstLine("\r\n"), "");
+  assert.deepStrictEqual(strFirstLine("\n\r"), "");
+  assert.deepStrictEqual(strFirstLine("xxx"), "xxx");
+  assert.deepStrictEqual(strFirstLine("xxx\n"), "xxx");
+  assert.deepStrictEqual(strFirstLine("xxx\r\n"), "xxx");
+  assert.deepStrictEqual(strFirstLine("xxx\n\r"), "xxx");
+  assert.deepStrictEqual(strFirstLine("\nyyy"), "");
+  assert.deepStrictEqual(strFirstLine("\r\nyyy"), "");
+  assert.deepStrictEqual(strFirstLine("xxx\nyyy"), "xxx");
+  assert.deepStrictEqual(strFirstLine("xxx\r\nyyy"), "xxx");
 }
 
-function stringNumberOfLines(s: string): number {
-  return (s.match(/\n/g) || []).length + 1;
+// ref: https://github.com/tj/commander.js/blob/v12.1.0/lib/command.js
+export function strNodeOptionsRemoveInspect(arg: string): string {
+  // Remove:
+  //  --inspect[=[host:]port]
+  //  --inspect-brk[=[host:]port]
+  //  --inspect-port=[host:]port
+  //  --inspect-publish-uid=stderr,http
+  //  --inspect-wait=[host:]port
+  //  --inspect=[host:]port
+  // ↑ "=" may be [ \t]+
+
+  // --inspect* [host:]port
+  for (const match of arg.matchAll(/(?<=^| )--inspect\S* (\d+:)?\d+(?=$| )/g)) { // not tested
+    arg = arg.replace(match[0], ``);
+  }
+  // --inspect-publish-uid stderr,http
+  for (const match of arg.matchAll(/(?<=^| )--inspect-publish-uid\S*(stderr|http)(?=$| )/g)) { // not tested
+    arg = arg.replace(match[0], ``);
+  }
+  // --inspect*
+  for (const match of arg.matchAll(/(?<=^| )--inspect\S*(?=$| )/g)) {
+    arg = arg.replace(match[0], ``);
+  }
+  return arg;
 }
 
-function stringRemoveFirstLine(s: string): string {
+export function strNodeOptionsRemoveInspectEnv(env: typeof process.env): typeof process.env {
+  if (env.NODE_OPTIONS === undefined) return env;
+  const env_ = { ...env, NODE_OPTIONS: strNodeOptionsRemoveInspect(env.NODE_OPTIONS) };
+  return env_;
+}
+if (0) {
+  strNodeOptionsRemoveInspectEnv(process.env);
+}
+
+export function strNumberOfLines(s: string): number {
+  return (s.match(/\n/g) ?? []).length + 1;
+  // return (s.match(/\n/g)?.length ?? 0) + 1;
+}
+
+export interface StrParseSSVEntry {
+  value: string;
+  colStart: number;
+  colEnd: number;
+  valueTrimmed: string;
+  colStartTrimmed: number;
+  colEndTrimmed: number;
+};
+
+/**
+ * Parse space separated values
+ */
+export function strParseSSV(s: string, opts?: { ignoreToTheRightOfShortLine: boolean }): StrParseSSVEntry[][] {
+  // TODO: full width characters
+
+  // ↓       ↓     ↓↓↓↓↓      ↓↓      ↓↓      ↓↓                   ↓ (Number.MAX_SAFE_INTEGER)  colsDelimiter
+  // ↓       ↓     ↓          ↓       ↓       ↓                    ↓ (Number.MAX_SAFE_INTEGER)  colsDelimiterReduced
+  // USER     TT          PPID    SESS    PGID     PID CMD
+  // root     ?              0       0       0       2 [kthreadd]
+
+  let colsDelimiter = [...strColsWhichAre(s, " ", opts), Number.MAX_SAFE_INTEGER];
+  if (colsDelimiter[0] !== 0)
+    colsDelimiter = [0, ...colsDelimiter];
+
+  const colsDelimiterReduced = [colsDelimiter[0]]; // [0]
+  for (let i = 1; i < colsDelimiter.length; i++) {
+    if (colsDelimiter[i - 1] + 1 !== colsDelimiter[i])
+      colsDelimiterReduced.push(colsDelimiter[i]);
+  }
+
+  const ret: { value: string, colStart: number, colEnd: number, valueTrimmed: string, colStartTrimmed: number, colEndTrimmed: number }[][] = [];
+  for (const line of s.replace(/(\r?\n)$/, "").split(/\r?\n/)) {
+    const retLine: { value: string, colStart: number, colEnd: number, valueTrimmed: string, colStartTrimmed: number, colEndTrimmed: number }[] = [];
+    for (let i = 0; i < colsDelimiterReduced.length - 1; i++) {
+      const colStart = colsDelimiterReduced[i];
+      let colEnd = colsDelimiterReduced[i + 1];
+      const value = line.slice(colStart, colEnd);
+      if (colEnd === Number.MAX_SAFE_INTEGER) colEnd = colStart + value.length;
+      const valueTrimmed = value.trim();
+      if (/^ *$/.test(value)) {
+        const colStartTrimmed = colStart;
+        const colEndTrimmed = colStart;
+        retLine.push({ value, colStart, colEnd, valueTrimmed, colStartTrimmed, colEndTrimmed });
+      } else {
+        const colStartTrimmed = colStart + /^ */.exec(value)![0].length;
+        const colEndTrimmed = colEnd - / *$/.exec(value)![0].length;
+        retLine.push({ value, colStart, colEnd, valueTrimmed, colStartTrimmed, colEndTrimmed });
+      }
+    }
+    ret.push(retLine);
+  }
+  return ret;
+}
+
+if (0) {
+  const tcase = `\
+USER     TT          PPID    SESS    PGID     PID CMD
+root     ?              0       0       0       2 [kthreadd]
+root     ?              2       0       0       3   [rcu_gp]
+               short_line
+`;
+
+  const expected1 = [
+    [
+      { value: 'USER', colStart: 0, colEnd: 4, valueTrimmed: 'USER', colStartTrimmed: 0, colEndTrimmed: 4 },
+      { value: '     TT', colStart: 4, colEnd: 11, valueTrimmed: 'TT', colStartTrimmed: 9, colEndTrimmed: 11 },
+      { value: '          PPID    SESS    PGID     PID CMD', colStart: 11, colEnd: 53, valueTrimmed: 'PPID    SESS    PGID     PID CMD', colStartTrimmed: 21, colEndTrimmed: 53 }
+    ],
+    [
+      { value: 'root', colStart: 0, colEnd: 4, valueTrimmed: 'root', colStartTrimmed: 0, colEndTrimmed: 4 },
+      { value: '     ? ', colStart: 4, colEnd: 11, valueTrimmed: '?', colStartTrimmed: 9, colEndTrimmed: 10 },
+      { value: '             0       0       0       2 [kthreadd]', colStart: 11, colEnd: 60, valueTrimmed: '0       0       0       2 [kthreadd]', colStartTrimmed: 24, colEndTrimmed: 60 }
+    ],
+    [
+      { value: 'root', colStart: 0, colEnd: 4, valueTrimmed: 'root', colStartTrimmed: 0, colEndTrimmed: 4 },
+      { value: '     ? ', colStart: 4, colEnd: 11, valueTrimmed: '?', colStartTrimmed: 9, colEndTrimmed: 10 },
+      { value: '             2       0       0       3   [rcu_gp]', colStart: 11, colEnd: 60, valueTrimmed: '2       0       0       3   [rcu_gp]', colStartTrimmed: 24, colEndTrimmed: 60 }
+    ],
+    [
+      { value: '    ', colStart: 0, colEnd: 4, valueTrimmed: '', colStartTrimmed: 0, colEndTrimmed: 0 },
+      { value: '       ', colStart: 4, colEnd: 11, valueTrimmed: '', colStartTrimmed: 4, colEndTrimmed: 4 },
+      { value: '    short_line', colStart: 11, colEnd: 25, valueTrimmed: 'short_line', colStartTrimmed: 15, colEndTrimmed: 25 }
+    ]
+  ];
+  assert.deepEqual(strParseSSV(tcase).at(0), expected1.at(0));
+  assert.deepEqual(strParseSSV(tcase).at(1), expected1.at(1));
+  assert.deepEqual(strParseSSV(tcase).at(2), expected1.at(2));
+  assert.deepEqual(strParseSSV(tcase).at(3), expected1.at(3));
+  assert.deepEqual(strParseSSV(tcase), expected1);
+
+  const expected2 = [
+    [
+      { value: 'USER', colStart: 0, colEnd: 4, valueTrimmed: 'USER', colStartTrimmed: 0, colEndTrimmed: 4 },
+      { value: '     TT', colStart: 4, colEnd: 11, valueTrimmed: 'TT', colStartTrimmed: 9, colEndTrimmed: 11 },
+      { value: '          PPID', colStart: 11, colEnd: 25, valueTrimmed: 'PPID', colStartTrimmed: 21, colEndTrimmed: 25 },
+      { value: '    SESS', colStart: 25, colEnd: 33, valueTrimmed: 'SESS', colStartTrimmed: 29, colEndTrimmed: 33 },
+      { value: '    PGID', colStart: 33, colEnd: 41, valueTrimmed: 'PGID', colStartTrimmed: 37, colEndTrimmed: 41 },
+      { value: '     PID', colStart: 41, colEnd: 49, valueTrimmed: 'PID', colStartTrimmed: 46, colEndTrimmed: 49 },
+      { value: ' CMD', colStart: 49, colEnd: 53, valueTrimmed: 'CMD', colStartTrimmed: 50, colEndTrimmed: 53 }
+    ],
+    [
+      { value: 'root', colStart: 0, colEnd: 4, valueTrimmed: 'root', colStartTrimmed: 0, colEndTrimmed: 4 },
+      { value: '     ? ', colStart: 4, colEnd: 11, valueTrimmed: '?', colStartTrimmed: 9, colEndTrimmed: 10 },
+      { value: '             0', colStart: 11, colEnd: 25, valueTrimmed: '0', colStartTrimmed: 24, colEndTrimmed: 25 },
+      { value: '       0', colStart: 25, colEnd: 33, valueTrimmed: '0', colStartTrimmed: 32, colEndTrimmed: 33 },
+      { value: '       0', colStart: 33, colEnd: 41, valueTrimmed: '0', colStartTrimmed: 40, colEndTrimmed: 41 },
+      { value: '       2', colStart: 41, colEnd: 49, valueTrimmed: '2', colStartTrimmed: 48, colEndTrimmed: 49 },
+      { value: ' [kthreadd]', colStart: 49, colEnd: 60, valueTrimmed: '[kthreadd]', colStartTrimmed: 50, colEndTrimmed: 60 }
+    ],
+    [
+      { value: 'root', colStart: 0, colEnd: 4, valueTrimmed: 'root', colStartTrimmed: 0, colEndTrimmed: 4 },
+      { value: '     ? ', colStart: 4, colEnd: 11, valueTrimmed: '?', colStartTrimmed: 9, colEndTrimmed: 10 },
+      { value: '             2', colStart: 11, colEnd: 25, valueTrimmed: '2', colStartTrimmed: 24, colEndTrimmed: 25 },
+      { value: '       0', colStart: 25, colEnd: 33, valueTrimmed: '0', colStartTrimmed: 32, colEndTrimmed: 33 },
+      { value: '       0', colStart: 33, colEnd: 41, valueTrimmed: '0', colStartTrimmed: 40, colEndTrimmed: 41 },
+      { value: '       3', colStart: 41, colEnd: 49, valueTrimmed: '3', colStartTrimmed: 48, colEndTrimmed: 49 },
+      { value: '   [rcu_gp]', colStart: 49, colEnd: 60, valueTrimmed: '[rcu_gp]', colStartTrimmed: 52, colEndTrimmed: 60 }
+    ],
+    [
+      { value: '    ', colStart: 0, colEnd: 4, valueTrimmed: '', colStartTrimmed: 0, colEndTrimmed: 0 },
+      { value: '       ', colStart: 4, colEnd: 11, valueTrimmed: '', colStartTrimmed: 4, colEndTrimmed: 4 },
+      { value: '    short_line', colStart: 11, colEnd: 25, valueTrimmed: 'short_line', colStartTrimmed: 15, colEndTrimmed: 25 },
+      { value: '', colStart: 25, colEnd: 33, valueTrimmed: '', colStartTrimmed: 25, colEndTrimmed: 25 },
+      { value: '', colStart: 33, colEnd: 41, valueTrimmed: '', colStartTrimmed: 33, colEndTrimmed: 33 },
+      { value: '', colStart: 41, colEnd: 49, valueTrimmed: '', colStartTrimmed: 41, colEndTrimmed: 41 },
+      { value: '', colStart: 49, colEnd: 49, valueTrimmed: '', colStartTrimmed: 49, colEndTrimmed: 49 }
+    ]
+  ];
+  assert.deepEqual(strParseSSV(tcase, { ignoreToTheRightOfShortLine: true }).at(0), expected2.at(0));
+  assert.deepEqual(strParseSSV(tcase, { ignoreToTheRightOfShortLine: true }).at(1), expected2.at(1));
+  assert.deepEqual(strParseSSV(tcase, { ignoreToTheRightOfShortLine: true }).at(2), expected2.at(2));
+  assert.deepEqual(strParseSSV(tcase, { ignoreToTheRightOfShortLine: true }).at(3), expected2.at(3));
+  assert.deepEqual(strParseSSV(tcase, { ignoreToTheRightOfShortLine: true }), expected2);
+
+  const tcaseIndented = `\
+  USER     TT          PPID    SESS    PGID     PID CMD
+  root     ?              0       0       0       2 [kthreadd]
+  root     ?              2       0       0       3   [rcu_gp]
+                 short_line
+`;
+  const expectedIndented2 = [
+    [
+      { value: '  USER', colStart: 0, colEnd: 6, valueTrimmed: 'USER', colStartTrimmed: 2, colEndTrimmed: 6 },
+      { value: '     TT', colStart: 6, colEnd: 13, valueTrimmed: 'TT', colStartTrimmed: 11, colEndTrimmed: 13 },
+      { value: '          PPID', colStart: 13, colEnd: 27, valueTrimmed: 'PPID', colStartTrimmed: 23, colEndTrimmed: 27 },
+      { value: '    SESS', colStart: 27, colEnd: 35, valueTrimmed: 'SESS', colStartTrimmed: 31, colEndTrimmed: 35 },
+      { value: '    PGID', colStart: 35, colEnd: 43, valueTrimmed: 'PGID', colStartTrimmed: 39, colEndTrimmed: 43 },
+      { value: '     PID', colStart: 43, colEnd: 51, valueTrimmed: 'PID', colStartTrimmed: 48, colEndTrimmed: 51 },
+      { value: ' CMD', colStart: 51, colEnd: 55, valueTrimmed: 'CMD', colStartTrimmed: 52, colEndTrimmed: 55 }
+    ],
+    [
+      { value: '  root', colStart: 0, colEnd: 6, valueTrimmed: 'root', colStartTrimmed: 2, colEndTrimmed: 6 },
+      { value: '     ? ', colStart: 6, colEnd: 13, valueTrimmed: '?', colStartTrimmed: 11, colEndTrimmed: 12 },
+      { value: '             0', colStart: 13, colEnd: 27, valueTrimmed: '0', colStartTrimmed: 26, colEndTrimmed: 27 },
+      { value: '       0', colStart: 27, colEnd: 35, valueTrimmed: '0', colStartTrimmed: 34, colEndTrimmed: 35 },
+      { value: '       0', colStart: 35, colEnd: 43, valueTrimmed: '0', colStartTrimmed: 42, colEndTrimmed: 43 },
+      { value: '       2', colStart: 43, colEnd: 51, valueTrimmed: '2', colStartTrimmed: 50, colEndTrimmed: 51 },
+      { value: ' [kthreadd]', colStart: 51, colEnd: 62, valueTrimmed: '[kthreadd]', colStartTrimmed: 52, colEndTrimmed: 62 }
+    ],
+    [
+      { value: '  root', colStart: 0, colEnd: 6, valueTrimmed: 'root', colStartTrimmed: 2, colEndTrimmed: 6 },
+      { value: '     ? ', colStart: 6, colEnd: 13, valueTrimmed: '?', colStartTrimmed: 11, colEndTrimmed: 12 },
+      { value: '             2', colStart: 13, colEnd: 27, valueTrimmed: '2', colStartTrimmed: 26, colEndTrimmed: 27 },
+      { value: '       0', colStart: 27, colEnd: 35, valueTrimmed: '0', colStartTrimmed: 34, colEndTrimmed: 35 },
+      { value: '       0', colStart: 35, colEnd: 43, valueTrimmed: '0', colStartTrimmed: 42, colEndTrimmed: 43 },
+      { value: '       3', colStart: 43, colEnd: 51, valueTrimmed: '3', colStartTrimmed: 50, colEndTrimmed: 51 },
+      { value: '   [rcu_gp]', colStart: 51, colEnd: 62, valueTrimmed: '[rcu_gp]', colStartTrimmed: 54, colEndTrimmed: 62 }
+    ],
+    [
+      { value: '      ', colStart: 0, colEnd: 6, valueTrimmed: '', colStartTrimmed: 0, colEndTrimmed: 0 },
+      { value: '       ', colStart: 6, colEnd: 13, valueTrimmed: '', colStartTrimmed: 6, colEndTrimmed: 6 },
+      { value: '    short_line', colStart: 13, colEnd: 27, valueTrimmed: 'short_line', colStartTrimmed: 17, colEndTrimmed: 27 },
+      { value: '', colStart: 27, colEnd: 35, valueTrimmed: '', colStartTrimmed: 27, colEndTrimmed: 27 },
+      { value: '', colStart: 35, colEnd: 43, valueTrimmed: '', colStartTrimmed: 35, colEndTrimmed: 35 },
+      { value: '', colStart: 43, colEnd: 51, valueTrimmed: '', colStartTrimmed: 43, colEndTrimmed: 43 },
+      { value: '', colStart: 51, colEnd: 51, valueTrimmed: '', colStartTrimmed: 51, colEndTrimmed: 51 }
+    ]
+  ];
+  assert.deepEqual(strParseSSV(tcaseIndented, { ignoreToTheRightOfShortLine: true }), expectedIndented2);
+}
+
+export function strRemoveFirstLine(s: string): string {
   const i = s.indexOf("\n");
   if (i === -1) return "";
   return s.slice(i + 1);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _stringRemoveFirstLineTest(): void {
-  assert.deepStrictEqual(stringRemoveFirstLine(""), "");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo"), "");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\n"), "");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\r\n"), "");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\n\r"), "\r");
-  assert.deepStrictEqual(stringRemoveFirstLine("\n\n"), "\n");
-  assert.deepStrictEqual(stringRemoveFirstLine("\r\n\r\n"), "\r\n");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\n\nbar\nbaz\n"), "\nbar\nbaz\n");
-  assert.deepStrictEqual(stringRemoveFirstLine("foo\r\n\r\nbar\r\nbaz\r\n"), "\r\nbar\r\nbaz\r\n");
+function _strRemoveFirstLineTest(): void {
+  assert.deepStrictEqual(strRemoveFirstLine(""), "");
+  assert.deepStrictEqual(strRemoveFirstLine("foo"), "");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\n"), "");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\r\n"), "");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\n\r"), "\r");
+  assert.deepStrictEqual(strRemoveFirstLine("\n\n"), "\n");
+  assert.deepStrictEqual(strRemoveFirstLine("\r\n\r\n"), "\r\n");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\n\nbar\nbaz\n"), "\nbar\nbaz\n");
+  assert.deepStrictEqual(strRemoveFirstLine("foo\r\n\r\nbar\r\nbaz\r\n"), "\r\nbar\r\nbaz\r\n");
 }
 
-function stringRemoveLastLine(s: string): string {
+export function strRemoveLastLine(s: string): string {
   return s.replace(/\r?\n$/, "");
 }
 
-function stringRemovePrefix(s: string, prefix: string): string {
+export function strRemovePrefix(s: string, prefix: string): string {
   return s.replace(new RegExp(`^${regExpEscape(prefix)}`), "");
 }
 
-function stringRemoveSuffix(s: string, suffix: string): string {
+export function strRemoveSuffix(s: string, suffix: string): string {
   return s.replace(new RegExp(`${regExpEscape(suffix)}$`), "");
 }
 
-function stringSnip(s: string, len: number) {
-  s = s.replaceAll("\n", "⏎");
+/**
+ * String.prototype.replace() without special replacement patterns (e.g. "$1")
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
+ * @example
+ *   "foo".replace(/(f)/, "$1"); // "foo"
+ *   strReplace("foo", /(f)/, "$1"); // "$1oo"
+ */
+export function strReplace(s: string, searchValue: string | RegExp, replaceValue: string): string {
+  // replaceValue = replaceValue.replace(/\$/g, "$$$$"); // before ES2021
+  replaceValue = replaceValue.replaceAll("$", "$$$$"); // ES2021
+  return s.replace(searchValue, replaceValue);
+}
+
+export function strReplaceAll(s: string, searchValue: string | RegExp, replaceValue: string): string {
+  // replaceValue = replaceValue.replace(/\$/g, "$$$$"); // before ES2021
+  replaceValue = replaceValue.replaceAll("$", "$$$$"); // ES2021
+  return s.replaceAll(searchValue, replaceValue);
+}
+
+export function strSnip(s: string, len: number) {
+  s = s.replaceAll(/\r?\n/g, "⏎");
   if (s.length <= len) return s;
   len = Math.floor(len / 2);
   return `${s.slice(0, len)} ... ${s.slice(s.length - len)}`;
 }
 
-function stringTrimTrailingSlashes(s: string): string {
+export function strTrimTrailingSlashes(s: string): string {
   while (s.at(-1) === "/") {
     s = s.slice(0, -1);
   }
   return s;
 }
 
-function unreachable(): never {
-  throw new AppError("BUG: unreachable", true);
+export function streamShouldColorize(stream: NodeJS.WriteStream): boolean {
+  // https://github.com/nodejs/node/blob/v22.13.0/lib/util.js styleText()
+  // https://github.com/nodejs/node/blob/v22.13.0/lib/internal/util/colors.js shouldColorize()
+  // @ts-expect-error util.d.ts is wrong
+  return util.styleText("reset", "", { stream }) !== "";
+}
+
+export function shouldColorizeWithoutUtilStyleText(stream: NodeJS.WriteStream): boolean {
+  // https://github.com/nodejs/node/blob/v22.13.0/lib/util.js styleText()
+  // https://github.com/nodejs/node/blob/v22.13.0/lib/internal/util/colors.js shouldColorize()
+  if (process.env.FORCE_COLOR !== undefined) {
+    // https://github.com/nodejs/node/blob/v22.13.0/lib/internal/tty.js getColorDepth()
+    if (["", "1", "true", "2", "3"].includes(process.env.FORCE_COLOR)) return true;
+    return false; // any string, including: "true", "on", "foo", and even: "0", "false", "off"
+  }
+  if (!stream.isTTY) return false;
+  // I think this is always true
+  if (typeof stream.getColorDepth === "function") {
+    return stream.getColorDepth() > 2;
+  }
+  // unreachable?
+  return false;
+}
+
+export class TextLineDecoder {
+  #decoder = new TextDecoder();
+  #buf = "";
+  decode(input: Parameters<TextDecoder["decode"]>[0]): ReturnType<TextDecoder["decode"]> {
+    this.#buf += this.#decoder.decode(input, { stream: true });
+    const match = this.#buf.match(/^[\s\S]*\n/);
+    if (match === null)
+      return "";
+    this.#buf = this.#buf.slice(match[0].length);
+    return match[0];
+  }
+}
+
+export function unreachable(): never {
+  throw new Error("BUG: unreachable");
 }
 
 // -----------------------------------------------------------------------------
@@ -346,152 +862,602 @@ function unreachable(): never {
 
 export const VERSION = "0.1.0";
 
-export interface OptsGlobal {
-  quiet: boolean;
-  verbose: number;
-  ZHiddenGlobalOption: boolean;
-}
+// @ts-expect-error
+const cliOptsGlobal: {
+  quiet: number;
+  zHiddenGlobalOption: boolean;
+} = {};
 
-// prettier-ignore
 program
   .name("c.js")
   .description("mini CLIs")
   .version(VERSION)
-  .addOption(new commander.Option("-q, --quiet", "quiet mode").default(false).conflicts("verbose"))
-  .addOption(new commander.Option("-v, --verbose", "print verbose output; -vv to print debug output").default(0).argParser(cliIncreaseVerbosity).conflicts("quiet"))
-  .addOption(new commander.Option("   ---z-hidden-global-option").hideHelp().default(false))
-  .alias(); // dummy
+  .addOption(new commander.Option("-q, --quiet", "quiet mode; -q to suppress debug log, -qq to suppress info log, -qqq to suppress warn log, -qqqq to suppress error log").default(0).argParser((_undefined, previous: number) => previous + 1))
+  .addOption(new commander.Option("--z-hidden-global-option").hideHelp().default(false))
+  .hook("preAction", async (thisCommand, actionCommand) => {
+    Object.freeze(Object.assign(cliOptsGlobal, thisCommand.opts()));
+    switch (true) {
+      case cliOptsGlobal.quiet === 0: logger.level = Logger.Level.Debug; break;
+      case cliOptsGlobal.quiet === 1: logger.level = Logger.Level.Info; break;
+      case cliOptsGlobal.quiet === 2: logger.level = Logger.Level.Warn; break;
+      case cliOptsGlobal.quiet === 3: logger.level = Logger.Level.Error; break;
+      case cliOptsGlobal.quiet >= 4: logger.level = Logger.Level.Silent; break;
+    }
+    logger.debug(`PID ${process.pid}`, process.argv);
+  });
 
-let cliCommandExit: (exitStatus: number) => void;
-const cliCommandExitStatusPromise = new Promise<number>((resolve) => {
-  cliCommandExit = resolve;
-});
-
-function cliCommandInit(): OptsGlobal {
-  if (program.opts().quiet === true) {
-    logger.level = Logger.Level.Error;
-  } else if (program.opts().verbose === 0) {
-    logger.level = Logger.Level.Warn;
-  } else if (program.opts().verbose === 1) {
-    logger.level = Logger.Level.Info;
-  } else if (program.opts().verbose >= 1) {
-    logger.level = Logger.Level.Debug;
-  }
-
-  logger.debug(`${path.basename(__filename)} version ${VERSION} PID ${process.pid}`);
-  logger.debug("args: %O", process.argv);
-
-  return program.opts();
-}
-
-/* eslint-disable @typescript-eslint/no-unused-vars */
-function cliIncreaseVerbosity(value: string /* actually undefined */, previous: number): number {
-  return previous + 1;
-}
+const cliCommandExitResolvers  = Promise.withResolvers<number>();
+export const cliCommandExit = cliCommandExitResolvers.resolve;
 
 export async function cliMain(): Promise<void> {
   try {
     await program.parseAsync(process.argv);
-    process.exitCode = await cliCommandExitStatusPromise;
+    process.exitCode = await cliCommandExitResolvers.promise;
+    assert.ok(process.exitCode !== undefined);
     return;
   } catch (e) {
-    process.exitCode = 1;
-    if (e instanceof AppError) {
-      // assert.ok(e.constructor.name === "AppError")
-      return;
+    if (!(e instanceof AppError)) {
+      logger.error(`unexpected error: ${e}`);
+      throw e;
     }
-    logger.error(`unexpected error: ${e}`);
-    throw e;
+    // assert.ok(e.constructor.name === "AppError")
+    logger.error(e.message);
+    if (process.exitCode === undefined) {
+      process.exitCode = 1;
+    }
+    return;
   }
   unreachable();
 }
 
+const cliCmds: { [cmdName: string]: (...args: any[]) => void | Promise<void> } = {};
+
 // -----------------------------------------------------------------------------
 // lib for commands
 
-// https://github.com/tj/commander.js#custom-option-processing
+export class CLI {
+  // https://github.com/tj/commander.js#custom-option-processing
 
-function myParseDuration(value: string, dummyPrevious?: number): number {
-  if (value.match(/^\d+$/)) return parseInt(value);
-  const cmd = `date -d ${stringEscapeShell(`19700101 ${value}`)} -u +%s`;
-  // TODO: before cliCommandInit(), can't output debug log
-  const secs = parseInt(sh(cmd));
-  if (secs < 0) {
-    // -1sec
-    throw new commander.InvalidArgumentError(`value: ${value} < 0 (cmd: ${cmd})`);
+  static parseDuration(value: string, dummyPrevious?: number): number {
+    if (value.match(/^\d+$/)) return parseInt(value);
+    const cmd = `date -d ${strEscapeShell(`19700101 ${value}`)} -u +%s`;
+    const secs = parseInt(sh(cmd));
+    if (secs < 0) throw new commander.InvalidArgumentError(`value: ${value} < 0 (cmd: ${cmd})`); // e.g. -1sec
+    return secs;
   }
-  return secs;
-}
 
-// https://github.com/tj/commander.js#custom-option-processing
-// prettier-ignore
-function myParseInt(value: string, dummyPrevious?: number): number {
-  const parsedValue = parseInt(value, 10);
-  if (Number.isNaN(parsedValue))
-    throw new commander.InvalidArgumentError("not a number.");
-  return parsedValue;
-}
+  // accept: -2 -1 0 1 2
+  static parseInt(value: string, dummyPrevious?: number): number {
+    const parsedValue = parseInt(value, 10);
+    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
+    return parsedValue;
+  }
 
-function myParseIntPort(value: string, dummyPrevious?: number): number {
-  const parsedValue = parseInt(value, 10);
-  if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
-  if (parsedValue < 0 || parsedValue > 65535) throw new commander.InvalidArgumentError("must be 0-65535.");
-  return parsedValue;
+  // accept:         1 2
+  static parseIntPositive(value: string, dummyPrevious?: number): number {
+    const parsedValue = parseInt(value, 10);
+    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
+    if (parsedValue <= 0) throw new commander.InvalidArgumentError("must be >0.");
+    return parsedValue;
+  }
+
+  // accept:       0 1 2
+  static parseIntPositiveOrZero(value: string, dummyPrevious?: number): number {
+    const parsedValue = parseInt(value, 10);
+    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
+    if (parsedValue < 0) throw new commander.InvalidArgumentError("must be >=0.");
+    return parsedValue;
+  }
+
+  // accept:    -1 0 1 2
+  static parseIntPositiveOrZeroOrNegativeOne(value: string, dummyPrevious?: number): number {
+    const parsedValue = parseInt(value, 10);
+    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
+    if (parsedValue < -1) throw new commander.InvalidArgumentError("must be >=0 or -1.");
+    return parsedValue;
+  }
+
+  // accept: 0-65535
+  static parseIntPort(value: string, dummyPrevious?: number): number {
+    const parsedValue = parseInt(value, 10);
+    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
+    if (parsedValue < 0 || parsedValue > 65535) throw new commander.InvalidArgumentError("must be 0-65535.");
+    return parsedValue;
+  }
 }
 
 // -----------------------------------------------------------------------------
-// command - 0template @pub
-// DON'T FORGET TO REMOVE @pub
+// command - aTemplate (at)
+// draft: other template candidates: execGitDiffPatch txtGitDiffPatch
 
-program
-  .command("0template")
-  .description("0template description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("aTemplate").alias("at").description("aTemplate description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  .addOption(new commander.Option("-a, --a-opt", "a option").default(false).conflicts(["bOpt"]))
+  .addOption(new commander.Option("-b, --b-opt", "b option").default(false).conflicts(["aOpt"]))
+  .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(CLI.parseIntPort))
+  .addOption(new commander.Option("--test=<target>").choices(["Error", "AppError", ""]))
+  .addOption(new commander.Option("--z-dangerous-eval <code>").hideHelp())
+  .action((file, opts) => aTemplate(file, { _cli: true, ...opts }));
+
+async function  aTemplate(
+  file: string | undefined,
+  opts: {
+    _cli?: boolean,
+    aOpt: boolean,
+    bOpt: boolean,
+    port: number,
+    zDangerousEval?: string,
+  },
+) {
+  if (opts.zDangerousEval !== undefined) {
+    eval(opts.zDangerousEval);
+    return cliCommandExit(0);
+  }
+  const txt = file ? fs.readFileSync(file, "utf8") : await (async () => {
+    logger.info(`reading from stdin...`);
+    return await readStdin();
+  })();
+  logger.info(`txt.length: ${txt.length}`);
+  return cliCommandExit(0);
+}
+
+// NODE_OPTIONS="--enable-source-maps --import @power-assert/node" CTS_TEST_CLI=1 c.js
+if (process.env.CTS_TEST_CLI) {
+  logger.warn("CTS_TEST_CLI -- c.ts tests for cli (commander.js)");
+  const { CTS_TEST_CLI, ...env } = process.env;
+  if ("NODE_OPTIONS" in env) {
+    // remove --inspect[-*]
+    env.NODE_OPTIONS = "";
+  }
+  let r; // result of child_process.spawnSync()
+  let out, err; // previous stdout, stderr
+
+/*
+c.js
+c.js -qq
+c.js -h
+c.js -qq -h
+*/
+
+  r = child_process.spawnSync(`c.js`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 1 && r.stdout === "" && r.stderr !== "");
+  assert.match(r.stderr, /^Usage: c.js /);
+  [out, err] = [r.stdout, r.stderr];
+
+  r = child_process.spawnSync(`c.js -qq`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 1 && r.stdout === "" && r.stderr !== "");
+  assert.equal(r.stderr, err);
+  [out, err] = [r.stdout, r.stderr];
+
+  r = child_process.spawnSync(`c.js -h`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 0 && r.stdout !== "" && r.stderr === "");
+  assert.match(r.stdout, /^Usage: c.js /);
+  [out, err] = [r.stdout, r.stderr];
+
+  r = child_process.spawnSync(`c.js -qq -h`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 0 && r.stdout !== "" && r.stderr === "");
+  assert.equal(r.stdout, out);
+  [out, err] = [r.stdout, r.stderr];
+
+/*
+c.js     aTemplate /dev/null
+c.js -qq aTemplate /dev/null
+c.js     aTemplate -h
+c.js -qq aTemplate -h
+*/
+
+  r = child_process.spawnSync(`c.js     aTemplate /dev/null`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 0 && r.stdout === "" && r.stderr !== "");
+  assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ PID \d+ /);
+  [out, err] = [r.stdout, r.stderr];
+
+  r = child_process.spawnSync(`c.js -qq aTemplate /dev/null`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 0 && r.stdout === "" && r.stderr === "");
+  [out, err] = [r.stdout, r.stderr];
+
+/*
+c.js -q aTemplate ---z-dangerous-eval "                       throw new AppError('app err')"  # 1
+c.js -q aTemplate ---z-dangerous-eval "process.exitCode = 42; throw new AppError('app err')"  # 42
+c.js -q aTemplate ---z-dangerous-eval "                       throw new Error('err')"         # 1
+c.js -q aTemplate ---z-dangerous-eval "process.exitCode = 42; throw new Error('err')"         # 1 (exitCode ignored)
+*/
+
+  r = child_process.spawnSync(`c.js -q aTemplate ---z-dangerous-eval "                       throw new AppError('app err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 1 && r.stdout === "" && r.stderr !== "");
+  assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ app err(\r?\n)$/);
+  [out, err] = [r.stdout, r.stderr];
+
+  r = child_process.spawnSync(`c.js -q aTemplate ---z-dangerous-eval "process.exitCode = 42; throw new AppError('app err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 42 && r.stdout === "" && r.stderr !== "");
+  assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ app err(\r?\n)$/);
+  [out, err] = [r.stdout, r.stderr];
+
+  /*
+2006-01-02 15:04:05 [E][cliMain:690] unexpected error: Error: err
+undefined:1    ← ??? now shown when using debugger ?!
+                       throw new Error('err')
+                             ^
+
+Error: err
+    at eval (eval at aTemplate (file:///home/wsh/qjs/tesjs/d/c.js:764:9), <anonymous>:1:7)
+    at Command.aTemplate (file:///home/wsh/qjs/tesjs/d/c.js:764:9)
+    at Command.listener [as _actionHandler] (/home/wsh/qjs/tesjs/node_modules/commander/lib/command.js:542:17)
+    at /home/wsh/qjs/tesjs/node_modules/commander/lib/command.js:1502:14
+    at /home/wsh/qjs/tesjs/node_modules/commander/lib/command.js:1383:33
+    at async Command.parseAsync (/home/wsh/qjs/tesjs/node_modules/commander/lib/command.js:1092:5)
+    at async cliMain (file:///home/wsh/qjs/tesjs/d/c.js:684:9)
+    at async file:///home/wsh/qjs/tesjs/d/c.js:4469:5
+
+Node.js v22.12.0
+*/
+
+  r = child_process.spawnSync(`c.js -qq aTemplate ---z-dangerous-eval "                       throw new Error('err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 1 && r.stdout === "" && r.stderr !== "");
+  assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ unexpected error: Error: err(\r?\n)undefined:1(\r?\n) *throw new Error\(/);
+  [out, err] = [r.stdout, r.stderr];
+
+  r = child_process.spawnSync(`c.js -qq aTemplate ---z-dangerous-eval "process.exitCode = 42; throw new Error('err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  assert.ok(r.signal === null && !("error" in r) && r.status === 1 && r.stdout === "" && r.stderr !== "");
+  assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ unexpected error: Error: err(\r?\n)undefined:1(\r?\n)process.exitCode = 42; throw new Error\(/);
+  [out, err] = [r.stdout, r.stderr];
+}
+
+// -----------------------------------------------------------------------------
+// command - aTxtParseTemplate
+
+program.command("aTxtParseTemplate").description("aTxtParseTemplate description")
+  .addArgument(new commander.Argument("[file]"))
+  .action((file, opts) => {
+    const txt = fs.readFileSync(file ?? (() => {
+      logger.info(`reading from stdin...`);
+      return "/dev/stdin";
+    })(), "utf8");
+    logger.debug(`txt.length: ${txt.length}`);
+    process.stdout.write(aTxtParseTemplate(txt));
     return cliCommandExit(0);
   });
 
-// -----------------------------------------------------------------------------
-// command - countdown @pub
+function  aTxtParseTemplate(txt: string): string {
+  return txt;
+}
 
-program
-  .command("countdown")
-  .description("countdown description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
-  .addArgument(new commander.Argument("<duration>", "e.g. 300, 3hour 4min 5sec (GNU date(1) style)").argParser(myParseDuration))
-  .allowExcessArguments(false)
-  .action(async (duration: number, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    let someOutputted = false;
-    while (duration > 0) {
-      if (duration === 1) {
-        process.stdout.write("1");
-      } else {
-        process.stdout.write(`${duration} `);
-      }
-      someOutputted = true;
-      duration--;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+// -----------------------------------------------------------------------------
+// command - countdown
+
+program.command("countdown").description("countdown description")
+  .addArgument(new commander.Argument("<duration>", "e.g. 300, 3hour 4min 5sec (GNU date(1) style)").argParser(CLI.parseDuration))
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["countdown"] = async function countdown(
+  duration: number,
+  opts: {
+  },
+) {
+  let someOutputted = false;
+  while (duration > 0) {
+    if (duration === 1) {
+      process.stdout.write("1");
+    } else {
+      process.stdout.write(`${duration} `);
     }
-    someOutputted && process.stdout.write("\n");
-    return cliCommandExit(0);
-  });
+    someOutputted = true;
+    duration--;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  someOutputted && process.stdout.write("\n");
+  return cliCommandExit(0);
+}
 
 // -----------------------------------------------------------------------------
-// command - exec-slow-paste @pub
+// command - exec-gdbproxy
 
-program
-  .command("exec-slow-paste")
-  .description("exec-slow-paste description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("exec-gdbproxy").description("exec-gdbproxy description")
+  .addOption(new commander.Option("--gdb <path>", "gdb path").default("gdb"))
+  .addArgument(new commander.Argument("[arg...]", "gdb arguments"))
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["exec-gdbproxy"] = async function (arg: string[], opts: { gdb: string }) {
+  // TODO: dedent
+    logger.info(`${opts.gdb} ${arg}`);
+    const subprocess = child_process.spawn(opts.gdb, arg);
+    const promiseSubprocessClosed: Promise<[number | null, NodeJS.Signals | null]> = new Promise((resolve, reject) => {
+      subprocess.on("close", (code, signal) => {
+        logger.info(`subprocess.on close`);
+        resolve([code, signal]);
+      });
+    });
+    subprocess.on("error", (err) => { throw err; });
+    subprocess.stdin.on("error", (err) => { logger.error("stdin error", err); });
+    subprocess.stdout.on("error", (err: Error) => { logger.error("stdout error", err); });
+    subprocess.stderr.on("error", (err: Error) => { logger.error("stderr error", err); });
+    subprocess.stdin.on("close", () => {
+      logger.debug(`subprocess.stdin.on close`);
+    });
+
+    const decoderIn = new TextDecoder();
+    const decoderOut = new TextDecoder();
+    const decoderErr = new TextDecoder();
+
+    let xGDBCmd: { dummyCmd: string, decoder: TextDecoder, buf: string } | null = null;
+
+    process.stdin.on("end", () => {
+      logger.debug(`[in end]`);
+      subprocess.stdin.end();
+    });
+    process.stdin.on("data", (data) => {
+      const txt = decoderIn.decode(data, { stream: true });
+      // logger.debug(`[in] ${data} (${txt})`);
+      logger.debug(`[in] ${data}`);
+      if (zGDBCmdIn(txt)) return;
+      subprocess.stdin.write(data);
+    });
+    subprocess.stdout.on("data", (chunk) => {
+      const txt = decoderOut.decode(chunk, { stream: true });
+      // logger.info(`[out] :${txt}`);
+      logger.info(`[out] ${chunk}`);
+      if (xGDBCmdOut(chunk)) return;
+      process.stdout.write(chunk);
+    });
+    subprocess.stderr.on("data", (chunk) => {
+      const txt = decoderOut.decode(chunk, { stream: true });
+      // logger.error(`[err] ${txt}`);
+      logger.error(`[err] ${chunk}`);
+      process.stderr.write(chunk);
+    });
+
+    const [code, signal] = await promiseSubprocessClosed;
+
+    // XXX: doesn't exit with "(gdb) q" or "--gdb=echo"
+    // whyIsNodeRunning():
+    // # PROCESSWRAP
+    // dist/c.js:568                              - const subprocess = child_process.spawn(opts.gdb, arg);
+    // node_modules/commander/lib/command.js:542  - return fn.apply(this, actionArgs);
+    // node_modules/commander/lib/command.js:1502 - this._actionHandler(this.processedArgs),
+    // node_modules/commander/lib/command.js:1386 - return fn();
+    // node_modules/commander/lib/command.js:1501 - promiseChain = this._chainOrCall(promiseChain, () =>
+    // node_modules/commander/lib/command.js:1265 - return subCommand._parseCommand(operands, unknown);
+    setTimeout(() => {
+      process.exit();
+    }, 100);
+    if (code === null) {
+      logger.error(`TODO: code===null`, `signal:`, signal);
+      return cliCommandExit(1);
+    }
+    return cliCommandExit(code);
+
+    function zGDBCmdIn(txt: string) {
+      //    0-interpreter-exec --thread 1 --frame 0 mi2 "226-cidr-var-create var56_xzbt * \"x:zbt\""
+      // -> 0-interpreter-exec --thread 1 --frame 0 mi2 "226-cidr-var-create var56_xzbt * \"777\""
+      const match = reExec(/^0-interpreter-exec --thread (\d+) --frame (\d+) mi2 "(\d+)-cidr-var-create (var\w+) \* \\"x:(?<cmd>.+?)\\""(\r?\n)$/, txt);
+      if (typeof match === "string") return false;
+      assert.ok(match.groups !== undefined);
+      logger.info(match.groups.cmd);
+      subprocess.stdin.write(`${match.groups.cmd}\n`);
+      xGDBCmd = { dummyCmd: match[0].replace(`x:${match.groups.cmd}`, "777"), decoder: new TextDecoder(), buf: "" };
+      return true;
+    }
+
+    function xGDBCmdOut(chunk: Parameters<typeof TextDecoder.prototype.decode>[0]) {
+      if (xGDBCmd == null) return false;
+      // success:
+      // &"zbt\n"
+      // ^done
+      // (gdb)SPACE
+      //
+      // error:
+      // &"zbt\n"
+      // &"Traceback (most recent call last):\n"
+      //  ...
+      // &"Error occurred in Python: No stack.\n"
+      // ^error,msg="Error occurred in Python: No stack."
+      // (gdb)SPACE
+      xGDBCmd.buf += xGDBCmd.decoder.decode(chunk, { stream: true });
+      const match = reExec(/^&".+?\\n"(\r?\n)([\s\S]*?)\^.+(\r?\n)\(gdb\) (\r?\n)$/, xGDBCmd.buf);
+      if (typeof match === "string") {
+        logger.debug(`xGDBCmd: ${match}`);
+        return;
+      }
+      logger.debug(`xGDBCmd: ok; write dummy: ${xGDBCmd.dummyCmd}`);
+      subprocess.stdin.write(xGDBCmd.dummyCmd);
+      xGDBCmd = null;
+      return;
+    }
+};
+
+// -----------------------------------------------------------------------------
+// command - execGitDiffPatch
+
+program.command("execGitDiffPatch").description("execGitDiffPatch description")
+  .addArgument(new commander.Argument("<commit>"))
+  .action((...args) => execGitDiffPatch(...args, true));
+
+async function  execGitDiffPatch(
+  commit: string,
+  opts?: {},
+  command?: commander.Command<unknown[]>,
+  cli?: true,
+) {
+  const setx = logger.level >= Logger.Level.Debug ? "set -x; " : "";
+  const revNearestBranchPoint = child_process.execSync(`${setx}git rev-list --boundary HEAD...${strEscapeShell(commit)} | grep '^-' | sed 's/^-//' | tail -n1`, { encoding: "utf8" }).replace(/(\r?\n)$/, "");
+  logger.debug(`nearst branch point: ${revNearestBranchPoint}`);
+
+  // git format-patch -k --stdout origin/master..HEAD -- ./ >/tmp/patch2; diff -u /tmp/patch /tmp/patch2  # same
+
+  let patchA = child_process.execSync(`git format-patch -k --stdout ${strEscapeShell(revNearestBranchPoint)}..HEAD -- ./`, { encoding: "utf8" });
+  let patchB = child_process.execSync(`git format-patch -k --stdout ${strEscapeShell(revNearestBranchPoint)}..${strEscapeShell(commit)} -- ./`, { encoding: "utf8" });
+  [patchA, patchB] = [patchA, patchB].map((patch) => patch.replaceAll(/^From [0-9a-f]{40}/gm, "From __SHA1__"));
+  const Diff = await import("diff");
+  let diff = Diff.createPatch("__filename__", patchA, patchB);
+  console.log(diff);
+  // console.log([...tmp]);
+  return cliCommandExit(0);
+}
+
+// -----------------------------------------------------------------------------
+// command - exec-kill-orphan-script-fish
+
+/*
+USER     TT          PPID    SESS    PGID     PID CMD
+root     ?              0       1       1       1 /sbin/init splash
+wsh      ?              1 1319878 1319878 1319884   script -efq -c fish /tmp/wataash/script.tmp.G1ra6JJrep
+wsh      pts/16   1319884 1319885 1319885 1319885     fish                                                   ← kill
+wsh      ?              1    3728    3728    3728   /lib/systemd/systemd --user
+wsh      ?           3728  111464  111464  111470     script -efq -c fish /tmp/wataash/script.tmp.uh273wUpda
+wsh      pts/9     111470  111471  111471  111471       fish                                                 ← kill
+wsh      ?              1 1229871 1229871 1229871   /bin/bash -i -l -c '/home/wsh/.vscode-server/cli/servers/Stable-__HEX__/server/node'  -p '"__HEX__" + JSON.stringify(process.env) + "__HEX__"'
+wsh      ?        1229871 1229871 1229871 1229884     script -efq -c fish /tmp/wataash/script.tmp.Iipyak4EfJ
+wsh      pts/5    1229884 1229885 1229885 1229885       fish
+*/
+
+program.command("exec-kill-orphan-script-fish").description("exec-kill-orphan-script-fish description")
+// @ts-expect-error  
+.action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["exec-kill-orphan-script-fish"] = async function (opts: {}) {
+  // TODO: dedent
+    const txt = child_process.execSync(`set -x; ps -e -o user,tty,ppid,sess,pgid,pid,cmd -H -ww`, { encoding: "utf8" });
+    const lines = txt.replace(/(\r?\n)$/, "").split(/\r?\n/);
+    const ssv = strParseSSV(txt);
+    assert.ok(lines.length === ssv.length);
+
+    type PID = string;
+
+    interface Process {
+      USER: string;
+      TT: string;
+      PPID: string;
+      SESS: string;
+      PGID: string;
+      PID: PID;
+      CMD: string;
+    }
+
+    interface ProcessMeta extends Process {
+      _iLine: number;
+      _line: string;
+      children: ProcessMeta[];
+      parent: ProcessMeta | null;
+    }
+
+    // @ts-expect-error
+    const header: (StrParseSSVEntry & { valueTrimmed: keyof Process })[] = ssv[0];
+    ssv.shift();
+
+    // { USER: [0, 8], TT: [8, 14], ..., CMD: [49,9007199254740991] }
+    // @ts-expect-error type of Object.fromEntries() is weak
+    const nameCol: { [key in keyof Process]: [number, number] } = Object.fromEntries(header.map((line) => [line.valueTrimmed, [line.colStartTrimmed, line.colEndTrimmed]]));
+
+    // { "0": { "PPID": "0", "PGID: "0", "PID": "0", "COMMAND": "[system]" } }
+    const processes: { [key: PID]: ProcessMeta } = ssv.entries().reduce((acc, [iLine, line]) => {
+      // @ts-expect-error
+      const ps: ProcessMeta = { _iLine: iLine, _line: lines[iLine + 1], children: [], parent: "__uninitialized__" };
+      for (const [iVal, val] of line.entries()) {
+        ps[header[iVal].valueTrimmed] = val.valueTrimmed;
+      }
+      acc[ps.PID] = ps;
+      return acc;
+    }, {} as { [key: PID]: ProcessMeta });
+
+    const psRoot = { _iLine: -1, _line: "psRoot", children: [], parent: null };
+    for (const [pid, ps] of Object.entries(processes)) {
+      ps.parent = processes[ps.PPID] ?? psRoot;
+      ps.parent.children.push(ps);
+    }
+    assert.ok(processes[0] === undefined);
+    assert.ok(processes[1] !== undefined);
+    // @ts-expect-error
+    assert.ok(processes[1].parent === psRoot);
+    assert.ok(processes[2].parent === psRoot);
+    // @ts-expect-error
+    assert.ok(psRoot.children.length === 2);
+
+    const processesScriptNoTTY = Object.values(processes).filter((ps) => ps.TT === "?" && /^script -efq -c fish .+$/.test(ps.CMD));
+    const pidsShow = new Set<string>();
+    // add script parents recursively
+    for (let ps of [...processesScriptNoTTY]) {
+      while (ps.parent !== null) {
+        pidsShow.add(ps.PID);
+        ps = ps.parent;
+      }
+    }
+    // add script children recursively
+    const psStack = [...processesScriptNoTTY];
+    while (psStack.length !== 0) {
+      const ps2 = psStack.pop()!;
+      pidsShow.add(ps2.PID);
+      psStack.push(...ps2.children);
+    }
+
+    logger.debug(lines[0]);
+    for (const ps of [...pidsShow].map((pid) => processes[pid]).sort((a, b) => a._iLine - b._iLine)) {
+      logger.debug(ps._line);
+    }
+
+    {
+      const logLines = ["to kill:"];
+      for (const ps of [...pidsShow].map((pid) => processes[pid]).sort((a, b) => a._iLine - b._iLine)) {
+        logLines.push(`kill -TERM ${ps.PID.padEnd(10, " ")}# ${ps._line}`);
+      }
+      console.log(logLines.join("\n"));
+    }
+
+    return cliCommandExit(0);
+};
+
+program.command("execDiffPipe").description("execDiffPipe description")
+  .addArgument(new commander.Argument("<cmd...>"))
+  // .addOption(new commander.Option("--diff-cmd <cmd>").default("diff -u"))
+  .addOption(new commander.Option("--diff-cmd <cmd>").default("delta --paging=never"))
+  .addOption(new commander.Option("--keep-tmp").default(false))
+  .action((cmd, opts) => execDiffPipe(cmd, { _cli: true, ...opts }));
+
+async function  execDiffPipe(
+  cmd: string[],
+  opts: {
+    _cli?: boolean,
+    diffCmd: string, // not shell-escaped
+    keepTmp: boolean,
+  },
+) {
+  const diffCmdMaybeDangerous = opts.diffCmd;
+  // @ts-expect-error
+  delete opts.diffCmd;
+  logger.info(`reading from stdin...`);
+  const txt = await readStdin();
+  logger.info(`length: ${txt.length}`);
+  const txt2 = child_process.spawnSync(cmd[0], cmd.slice(1), { encoding: "utf8", env: strNodeOptionsRemoveInspectEnv(process.env), input: txt, maxBuffer: 2 ** 26, stdio: ["pipe", "pipe", "inherit"] }).stdout;
+  const a = tmp.fileSync({ prefix: "c.ts.execDiffPipe" });
+  const b = tmp.fileSync({ prefix: "c.ts.execDiffPipe" });
+  if (!opts.keepTmp) {
+    tmp.setGracefulCleanup();
+  }
+  logger.debug(`${a.name} ${txt.length}`)
+  logger.debug(`${b.name} ${txt2.length}`)
+  fs.writeFileSync(a.fd, txt);
+  fs.writeFileSync(b.fd, txt2);
+  const spawnSyncReturns = child_process.spawnSync(`${diffCmdMaybeDangerous} ${a.name} ${b.name}`, { shell: true, stdio: "inherit" });
+  if (spawnSyncReturns.error !== undefined) throw spawnSyncReturns.error;
+  if (spawnSyncReturns.status === null) {
+    assert.ok(spawnSyncReturns.signal !== null);
+    logger.warn(`signal: ${spawnSyncReturns.signal}`);
+    // return cliCommandExit(128 + spawnSyncReturns.signal); // want to get signal number...
+    return cliCommandExit(128);
+  }
+  return cliCommandExit(spawnSyncReturns.status);
+}
+
+// -----------------------------------------------------------------------------
+// command - exec-slow-paste
+
+program.command("exec-slow-paste").description("exec-slow-paste description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["exec-slow-paste"] = async function (file: string | undefined, opts: {}) {
+  // TODO: dedent
     let in_ = fs.readFileSync(file ?? "/dev/stdin");
     const origClipBoard = child_process.execSync("xsel -b -o");
     while (in_.length > 0) {
@@ -502,10 +1468,114 @@ program
     }
     child_process.execSync("xsel -b -i", { input: origClipBoard });
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - exec-tsserver-defs @pub
+// command - exec-ssh-kill-sleeps
+
+/*
+ubuntu@tk2-214-16769 ~> ps -e -o user,lstart,tty,ppid,sess,pgid,pid,cmd -H -ww
+USER                      STARTED TT          PPID    SESS    PGID     PID CMD
+root     Tue Jul  2 17:26:20 2024 ?              0       0       0       2 [kthreadd]
+lstart STARTED は機械的にcolumns判別不可能だ
+USER    |                 STARTED TT          PPID    SESS    PGID     PID CMD
+root    |Tue Jul  2 17:26:20 2024 ?              0       0       0       2 [kthreadd]
+or
+USER        |             STARTED TT          PPID    SESS    PGID     PID CMD
+root     Tue|Jul  2 17:26:20 2024 ?              0       0       0       2 [kthreadd]
+
+ubuntu@tk2-214-16769 ~> ps -e -o user,tty,ppid,sess,pgid,pid,cmd -H -ww
+USER     TT          PPID    SESS    PGID     PID CMD
+root     ?              0       0       0       2 [kthreadd]
+root     ?              2       0       0       3   [rcu_gp]
+root     ?              0       1       1       1 /sbin/init
+root     ?              1     713     713     713   sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
+root     ?            713  766855  766855  766855     sshd: ubuntu [priv]
+ubuntu   ?         766855  766855  766855  766958       sshd: ubuntu@notty
+ubuntu   ?         766958  766998  766998  766998         sleep 1209600
+root     ?            713  766893  766893  766893     sshd: ubuntu [priv]
+ubuntu   ?         766893  766893  766893  766996       sshd: ubuntu@notty
+ubuntu   ?         766996  766997  766997  766997         sleep 1209600
+root     ?            713  782856  782856  782856     sshd: ubuntu [priv]
+ubuntu   ?         782856  782856  782856  782942       sshd: ubuntu@notty
+ubuntu   ?         782942  782943  782943  782943         sleep 1209600
+ubuntu   ?              1  766709  766709  766709   sleep 1209600
+
+sleep の PID をkillすれば良さそう
+*/
+
+program.command("exec-ssh-kill-sleeps").description("exec-ssh-kill-sleeps description")
+  .addArgument(new commander.Argument("<host>", "host").choices(["h", "h4", "s", "s4"])) // description "host" を渡すと -h に choices が表示される
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["exec-ssh-kill-sleeps"] = async function (host, opts: {}) {
+  // TODO: dedent
+    if (["h", "h4"].includes(host)) {
+    }
+    if (["s", "s4"].includes(host)) {
+      const txt = child_process.execSync(`ssh ${host} -- ps -e -o user,tty,ppid,sess,pgid,pid,cmd -H -ww`, { encoding: "utf8" });
+      const lines = txt.replace(/(\r?\n)$/, "").split(/\r?\n/);
+      const ssv = strParseSSV(txt);
+      assert.ok(lines.length === ssv.length);
+
+      // { USER: [0, 8], TT: [8, 14], ..., CMD: [49,9007199254740991] }
+      const nameCol = Object.fromEntries(ssv[0].map((line) => [line.valueTrimmed, [line.colStartTrimmed, line.colEndTrimmed]]));
+      // { "0": { "PPID": "0", "PGID: "0", "PID": "0", "COMMAND": "[system]" } }
+      const processes: { [key: string]: { [key: string]: string } & { _iLine: number, _line: string } } = {};
+
+      for (const [iLine, line] of ssv.entries()) {
+        if (iLine === 0) continue;
+        // @ts-expect-error (TS2322 ts BUG?)
+        const p: { [key: string]: string } & { _iLine: number, _line: string } = { _iLine: -1, _line: "__uninitialized__" };
+        for (const [iVal, val] of line.entries()) {
+          p[ssv[0][iVal].valueTrimmed] = val.valueTrimmed;
+        }
+        p._iLine = iLine;
+        p._line = lines[iLine];
+        processes[p.PID] = p;
+      }
+
+      const sleepPIDs = new Set(Object.entries(processes).filter(([pid, p]) => /^sleep \d+$/.test(p.CMD)).map(([pid, p]) => pid));
+      const sleepTreePIDs = new Set();
+      for (const sleepPID of sleepPIDs) {
+        let p = processes[sleepPID];
+        assert.ok(!sleepTreePIDs.has(p.PID));
+        sleepTreePIDs.add(p.PID);
+        while (1) {
+          p = processes[p.PPID];
+          if (p === undefined) break;
+          if (sleepTreePIDs.has(p.PID)) break;
+          sleepTreePIDs.add(p.PID);
+        }
+      }
+
+      logger.debug(`kill PGIDs ${[...sleepPIDs].join(" ")}:`);
+      logger.debug(lines[0]);
+      // @ts-expect-error
+      for (const p of [...sleepTreePIDs].map((pid) => processes[pid]).sort((a, b) => a._iLine - b._iLine)) {
+        if (sleepPIDs.has(p.PID)) {
+          assert.ok(p._line.at(nameCol.CMD[0]) === " "); // except for "/sbin/init"
+          const line = p._line.slice(0, nameCol.CMD[0]) + "*" + p._line.slice(nameCol.CMD[0] + 1);
+          logger.debug(line);
+        } else {
+          logger.debug(p._line);
+        }
+      }
+      if (sleepPIDs.size === 0) {
+        logger.info("no sleep process found");
+      } else {
+        const cmd = `ssh ${host} -- kill -TERM ${[...sleepPIDs].join(" ")}`;
+        logger.info(cmd);
+        child_process.execSync(cmd, { encoding: "utf8", stdio: "inherit" });
+      }
+    }
+
+    return cliCommandExit(0);
+};
+
+// -----------------------------------------------------------------------------
+// command - exec-tsserver-defs
 // @ref:qjs-vscode-extension-dev-update
 
 class ExecTSServerDefsHTTPReader {
@@ -554,14 +1624,12 @@ class ExecTSServerDefsHTTPReader {
   }
 }
 
-program
-  .command("exec-tsserver-defs")
-  .description("exec-tsserver-defs description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
-  .allowExcessArguments(false)
-  .action(async (opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+program.command("exec-tsserver-defs").description("exec-tsserver-defs description")
+// @ts-expect-error  
+.action((...args) => cliCmds[args.at(-1).name()](...args));
 
+cliCmds["exec-tsserver-defs"] = async function (opts: {}) {
+  // TODO: dedent
     const read = async (): Promise<string> => {
       const content = (await r.read()).toString();
       if (content.at(-1) !== "\n") {
@@ -573,12 +1641,12 @@ program
 
     const write = (s: string): void => {
       logger.debug(s);
-      cp.stdin.write(`${s}\r\n`);
+      subprocess.stdin.write(`${s}\r\n`);
     };
 
     sh(`mkdir -p /tmp/vscode/`);
-    const cp = child_process.spawn("tsserver");
-    const r = new ExecTSServerDefsHTTPReader(cp.stdout);
+    const subprocess = child_process.spawn("tsserver");
+    const r = new ExecTSServerDefsHTTPReader(subprocess.stdout);
     let resp = await read(); // {"seq":0,"type":"event","event":"typingsInstallerPid","body":{"pid":2463769}}
     assert.ok(JSON.parse(resp).event == "typingsInstallerPid");
     write(`{"type": "request", "seq": 0, "command": "open", "arguments": {"file": "/home/wsh/qjs/vscode-myext0/src/extension.ts"}}`);
@@ -624,21 +1692,81 @@ program
     }
 
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - fs-link-hard @pub
+// command - fs-diff
 
-program
-  .command("fs-link-hard")
-  .description("fs-link-hard description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("fs-diff").description("fs-diff description")
+  .addOption(new commander.Option("--sudo").default(false))
+  .addArgument(new commander.Argument("<dirA>"))
+  .addArgument(new commander.Argument("<dirB>"))
+  .usage("[options] [rsyncOpts] <dirA> <dirB>")
+  .allowUnknownOption(true)
+  // @ts-expect-error
+  .allowExcessArguments(true).action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["fs-diff"] = async function (...args) {
+  // TODO: dedent
+    const command: commander.Command = args.pop();
+    // @ts-expect-error
+    const opts: { sudo: boolean } = command.opts();
+    const dirB: string = command.args.pop()!;
+    const dirA: string = command.args.pop()!;
+    const rsyncOpts: string[] = command.args;
+    const rsyncOpts_ :string = rsyncOpts.map((s) => strEscapeShell(s)).join(" ");
+
+    // when -n/--dry-run is specified:
+    // - -n and --dry-run are equivalent, but to be extra cautious to prevent accidental data loss
+    // - -S does nothing, but I want it when the command copy-pasted and `-n --dry-run` removed
+
+    logger.info(`diff ${dirA} ${dirB}`);
+    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -rlp$(: t)goD -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirA)} ${strEscapeShell(dirB)}`, { shell: "bash", stdio: "inherit" });
+    logger.info(`diff ${dirB} ${dirA}`);
+    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -rlp$(: t)goD -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirB)} ${strEscapeShell(dirA)}`, { shell: "bash", stdio: "inherit" });
+
+    logger.info(`diff ${dirA} ${dirB}`);
+    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirA)} ${strEscapeShell(dirB)}`, { shell: "bash", stdio: "inherit" });
+    logger.info(`diff ${dirB} ${dirA}`);
+    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirB)} ${strEscapeShell(dirA)}`, { shell: "bash", stdio: "inherit" });
+
+    logger.info(`diff ${dirA} ${dirB}`);
+    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -c$(: i)uSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirA)} ${strEscapeShell(dirB)}`, { shell: "bash", stdio: "inherit" });
+    logger.info(`diff ${dirB} ${dirA}`);
+    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -c$(: i)uSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirB)} ${strEscapeShell(dirA)}`, { shell: "bash", stdio: "inherit" });
+
+    return cliCommandExit(0);
+};
+
+// -----------------------------------------------------------------------------
+// command - fs-large-files
+
+program.command("fs-large-files").description("fs-large-files description")
+  .addOption(new commander.Option("--entries <n>").default(1000).argParser(CLI.parseInt))
+  .addArgument(new commander.Argument("<dir>"))
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["fs-large-files"] = async function (dir: string, opts: { entries: number }) {
+  // TODO: dedent
+    const glob = await import("glob");
+    // TODO
+    const b = glob.globStream("/home/wsh/doc/*");
+    const a = glob.globSync("/home/wsh/doc/*");
+    return cliCommandExit(0);
+};
+
+// -----------------------------------------------------------------------------
+// command - fs-link-hard
+
+program.command("fs-link-hard").description("fs-link-hard description")
   .addArgument(new commander.Argument("<dir>"))
   .addArgument(new commander.Argument("<dirSHA1>"))
-  .allowExcessArguments(false)
-  .action(async (dir: string, dirSHA1: string, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
 
+cliCmds["fs-link-hard"] = async function (dir: string, dirSHA1: string, opts: {}) {
+  // TODO: dedent
     fs.mkdirSync(dirSHA1, { recursive: true });
     const sha1s = new Set(fs.readdirSync(dirSHA1));
 
@@ -674,21 +1802,19 @@ program
     walk(dir);
     console.info("done");
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - fs-link-sym @pub
+// command - fs-link-sym
 
-program
-  .command("fs-link-sym")
-  .description("fs-link-sym description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("fs-link-sym").description("fs-link-sym description")
   .addArgument(new commander.Argument("<dir>"))
   .addArgument(new commander.Argument("<dirSHA1>"))
-  .allowExcessArguments(false)
-  .action(async (dir: string, dirSHA1: string, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
 
+cliCmds["fs-link-sym"] = async function (dir: string, dirSHA1: string, opts: {}) {
+  // TODO: dedent
     fs.mkdirSync(dirSHA1, { recursive: true });
     const sha1s = new Set(fs.readdirSync(dirSHA1));
 
@@ -728,21 +1854,19 @@ program
     walk(dir);
     console.info("done");
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - fs-link-sym-async @pub
+// command - fs-link-sym-async
 
-program
-  .command("fs-link-sym-async")
-  .description("fs-link-sym-async description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("fs-link-sym-async").description("fs-link-sym-async description")
   .addArgument(new commander.Argument("<dir>"))
   .addArgument(new commander.Argument("<dirSHA1>"))
-  .allowExcessArguments(false)
-  .action(async (dir: string, dirSHA1: string, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
 
+cliCmds["fs-link-sym-async"] = async function (dir: string, dirSHA1: string, opts: {}) {
+  // TODO: dedent
     fs.mkdirSync(dirSHA1, { recursive: true });
     const sha1s = new Set(fs.readdirSync(dirSHA1));
 
@@ -786,19 +1910,18 @@ program
     await walk(dir);
     console.info("done");
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - fs-md-code-blocks @pub
+// command - fs-md-code-blocks
 
-program
-  .command("fs-md-code-blocks")
-  .description("fs-md-code-blocks description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("fs-md-code-blocks").description("fs-md-code-blocks description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["fs-md-code-blocks"] = async function (file: string | undefined, opts: {}) {
+  // TODO: dedent
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
     sh(`rm -frv /tmp/vscode_md/ && mkdir -p /tmp/vscode_md/`);
     let i = 0;
@@ -806,39 +1929,61 @@ program
     for (const match of txt.matchAll(/^```(?<l>.+)?(\r?\n)(?<b>[\s\S]+?)(\r?\n)```$/gm)) {
       // const codeBlockLang = match.groups.l; // string?
       // const body = match.groups.b; // string
-      // @ts-ignore
+      // @ts-expect-error
       logger.info(`/tmp/vscode_md/${i}.md\t${match.groups.l}\t${(match.groups.b.match(/\n/g) || []).length + 1} lines`);
       txtBody += `\n${match[0]}\n`;
       fs.writeFileSync(`/tmp/md/${i}.md`, txtBody);
       i++;
     }
     return cliCommandExit(0);
-  });
+};
+
 
 // -----------------------------------------------------------------------------
-// command - http-clipboard-server @pub
+// command - fs-sponge-if-changed (sponge)
 
-program
-  .command("http-clipboard-server")
-  .description("http-clipboard-server description")
-  .addOption(new commander.Option("    --port <port>", "port number").default(3000).argParser(myParseIntPort))
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
-  .allowExcessArguments(false)
-  .action(async (opts: { port: number; ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+program.command("fs-sponge-if-changed").alias("sponge").description("fs-sponge-if-changed description")
+  .addArgument(new commander.Argument("<file>"))
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["fs-sponge-if-changed"] = async function (file: string, opts: {}) {
+  // TODO: dedent
+    const txt = fs.readFileSync("/dev/stdin", "utf8");
+    if (fs.existsSync(file) && txt === fs.readFileSync(file, "utf8")) {
+      logger.debug(`no change: ${file}`);
+      return cliCommandExit(0);
+    }
+    logger.debug(`changed: ${file}`);
+    fs.writeFileSync(file, txt);
+    return cliCommandExit(0);
+};
+
+// -----------------------------------------------------------------------------
+// command - http-clipboard-server
+
+program.command("http-clipboard-server").description("http-clipboard-server description")
+  .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(CLI.parseIntPort))
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["http-clipboard-server"] = async function (opts: { port: number }) {
+  // TODO: dedent
+    const express = (await import("express")).default;
     const app = express();
     app.use(express.text()); // var type = opts.type || 'text/plain'
-    app.get("/", async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      logger.debug(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${ii(req.headers)}`);
+    app.get("/", async (req, res, next) => {
+      logger.debug(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)}`);
       res.setHeader("Content-Type", "text/plain");
       // sh(`clipnotify -s clipboard`);
       res.send(sh(`xsel -b -o`));
     });
-    app.post("/", (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      logger.debug(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${ii(req.headers)} | ${i(req.body)}`);
+    // @ts-ignore
+    app.post("/", (req, res, next) => {
+      logger.debug(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)} | ${ie(req.body)}`);
       res.setHeader("Content-Type", "text/plain");
       if (typeof req.body !== "string") {
-        return res.status(422).send(`invalid request body (${i(req.body)}); not text/plain?`);
+        return res.status(422).send(`invalid request body (${ie(req.body)}); not text/plain?`);
       }
       if (req.body === sh(`xsel -b -o`)) {
         // avoid infinite loop between us and them
@@ -853,39 +1998,39 @@ program
     });
     await sleepForever();
     // return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - http-sse-proxy @pub
+// command - http-sse-proxy
 
-program
-  .command("http-sse-proxy")
-  .description("http-sse-proxy description")
-  .addOption(new commander.Option("    --port <port>", "port number").default(3000).argParser(myParseIntPort))
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("http-sse-proxy").description("http-sse-proxy description")
+  .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(CLI.parseIntPort))
   .addArgument(new commander.Argument("<url>", "url to SSE-proxy"))
-  .allowExcessArguments(false)
-  .action(async (url: string, opts: { port: number; ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["http-sse-proxy"] = async function (url: string, opts: { port: number }) {
+  // TODO: dedent
+    const express = (await import("express")).default;
     const app = express();
-    app.get("/", async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${ii(req.headers)}`);
+    app.get("/", async (req, res, next) => {
+      logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)}`);
       res.setHeader("Content-Type", "text/event-stream");
-      const cp = child_process.spawn(`curl -fSs --no-buffer -X ${req.method} ${stringEscapeShell(url)}`, { shell: true });
-      cp.stdout.on("data", (data) => {
-        logger.debug(`spawn(): stdout: ${stringSnip(data.toString(), 100)}`);
+      const subprocess = child_process.spawn(`curl -fSs --no-buffer -X ${req.method} ${strEscapeShell(url)}`, { shell: true });
+      subprocess.stdout.on("data", (data) => {
+        logger.debug(`spawn(): stdout: ${strSnip(data.toString(), 100)}`);
         // res.send(data);
         if (!res.write(data)) { // TODO: res.on("close", ...)
-          cp.stdout.destroy(); // kill with SIGPIPE
-          cp.stderr.destroy();
+          subprocess.stdout.destroy(); // kill with SIGPIPE
+          subprocess.stderr.destroy();
         }
       });
-      cp.stderr.on("data", (data) => {
+      subprocess.stderr.on("data", (data) => {
         logger.error(`spawn(): stderr: ${data}`);
         res.write(data);
       });
-      cp.on("close", (code) => {
-        logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${ii(req.headers)} | closed (spawn close code: ${code})`);
+      subprocess.on("close", (code) => {
+        logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)} | closed (spawn close code: ${code})`);
       });
     });
     app.listen(opts.port, () => {
@@ -893,39 +2038,39 @@ program
     });
     await sleepForever();
     // return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - http-sse-tailf @pub
+// command - http-sse-tailf
 
-program
-  .command("http-sse-tailf")
-  .description("http-sse-tailf description")
-  .addOption(new commander.Option("    --port <port>", "port number").default(3000).argParser(myParseIntPort))
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("http-sse-tailf").description("http-sse-tailf description")
+  .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(CLI.parseIntPort))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { port: number; ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["http-sse-tailf"] = async function (file: string | undefined, opts: { port: number }) {
+  // TODO: dedent
+    const express = (await import("express")).default;
     const app = express();
-    app.get("/", async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${ii(req.headers)}`);
+    app.get("/", async (req, res, next) => {
+      logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)}`);
       res.setHeader("Content-Type", "text/event-stream");
-      const cp = child_process.spawn(`tail -F ${file ? stringEscapeShell(file) : ""}`, { shell: true });
-      cp.stdout.on("data", (data) => {
-        logger.debug(`spawn(): stdout: ${stringSnip(data.toString(), 100)}`);
+      const subprocess = child_process.spawn(`tail -F ${file ? strEscapeShell(file) : ""}`, { shell: true });
+      subprocess.stdout.on("data", (data) => {
+        logger.debug(`spawn(): stdout: ${strSnip(data.toString(), 100)}`);
         // res.send(data);
         if (!res.write(data)) {
-          cp.stdout.destroy(); // kill with SIGPIPE
-          cp.stderr.destroy();
+          subprocess.stdout.destroy(); // kill with SIGPIPE
+          subprocess.stderr.destroy();
         }
       });
-      cp.stderr.on("data", (data) => {
+      subprocess.stderr.on("data", (data) => {
         logger.error(`spawn(): stderr: ${data}`);
         res.write(data);
       });
-      cp.on("close", (code) => {
-        logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${ii(req.headers)} | closed (spawn close code: ${code})`);
+      subprocess.on("close", (code) => {
+        logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)} | closed (spawn close code: ${code})`);
       });
     });
     app.listen(opts.port, () => {
@@ -933,19 +2078,127 @@ program
     });
     await sleepForever();
     // return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - net-etc-hosts @pub
+// command - httpWS0Server
 
-program
-  .command("net-etc-hosts")
-  .description("net-etc-hosts description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("httpWS0Server").description("httpWS0Server description")
+  .addOption(new commander.Option("--port <port>", "port number").default(8080).argParser(CLI.parseIntPort))
+  .action((opts) => httpWS0Server({ _cli: true, ...opts }));
+
+async function  httpWS0Server(
+  opts: {
+    _cli?: boolean,
+    port: number,
+  },
+) {
+  const ws = await import("ws");
+  const wss = new ws.WebSocketServer({ port: opts.port });
+  wss.on("connection", (ws) => {
+    logger.debug("on connection", ws);
+    ws.on('error', logger.error);
+    ws.on("message", (message) => {
+      logger.info(`message: ${message}`);
+      ws.send(`server:received:${message}`);
+    });
+    ws.on("close", (code, reason) => {
+      logger.info(`closed: ${code} ${reason}`);
+    });
+    ws.send("server:hi");
+  });
+  return cliCommandExit(0);
+}
+
+// -----------------------------------------------------------------------------
+// command - httpWS1EngineIO
+
+program.command("httpWS1EngineIO").description("httpWS1EngineIO description")
+  .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(CLI.parseIntPort))
+  .action((opts) => httpWS1EngineIO({ _cli: true, ...opts }));
+
+async function  httpWS1EngineIO(
+  opts: {
+    _cli?: boolean,
+    port: number,
+  },
+) {
+  // https://www.npmjs.com/package/engine.io
+  const engine = await import("engine.io");
+  // @ts-expect-error .d.ts is wrong
+  const server = engine.listen(opts.port, { cors: { origin: "*" } });
+  server.on("connection", (socket) => {
+    logger.debug(socket)
+    socket.send("utf 8 string");
+    socket.send(Buffer.from([0, 1, 2, 3, 4, 5])); // binary data
+  });
+  return cliCommandExit(0);
+}
+
+// -----------------------------------------------------------------------------
+// command - httpWS2SocketIO
+// https://socket.io/docs/v4/tutorial/step-5
+
+program.command("httpWS2SocketIO").description("httpWS2SocketIO description")
+  .addOption(new commander.Option("--port <port>", "port number").default(3000).argParser(CLI.parseIntPort))
+  .action((opts) => httpWS2SocketIO({ _cli: true, ...opts }));
+
+async function  httpWS2SocketIO(
+  opts: {
+    _cli?: boolean,
+    port: number,
+  },
+) {
+  // https://socket.io/docs/v4/tutorial/step-5 CodeSandbox
+  const express = (await import("express")).default;
+  const socketIO = await import("socket.io");
+  const socketIODefault = (await import("socket.io")).default;
+  const Server = (await import("socket.io")).Server;
+  const app = express();
+  const server = http.createServer(app);
+  const io = new Server(server);
+  app.get("/", (req, res) => {
+    res.send(`
+      <script type="module">
+        // https://socket.io/docs/v4/client-api/
+        import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
+        const socket = io();
+        socket.on("ev2", (...msg) => {
+          console.log("ev2", msg);
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        socket.emit("ev1", "value1", [0, {"k": null}]);
+        socket.emit("ev1x", "value1x", [0, {"k": null}]);
+        await new Promise((resolve) => setTimeout(resolve, 60_000));
+        socket.close();
+      </script>
+    `);
+    "breakpoint".match(/breakpoint/);
+  });
+  io.on("connection", (socket) => {
+    socket.on("ev1", async (...msg) => {
+      console.log("ev1", msg);
+      await sleep(1000);
+      io.emit("ev2", "value2", [0, {"k": null}]);
+      io.emit("ev2x", "value2", [0, {"k": null}]);
+    });
+  });
+  server.listen(opts.port, () => {
+    console.log(`server running at http://localhost:${opts.port}`);
+  });
+  return cliCommandExit(0);
+}
+
+// -----------------------------------------------------------------------------
+// command - net-etc-hosts
+
+program.command("net-etc-hosts").description("net-etc-hosts description")
   .addArgument(new commander.Argument("<host...>", "e.g. example.com http://www.example.com/foo/ https://www.example.com/foo/"))
-  .allowExcessArguments(false)
-  .action(async (host: string[], opts: { connectUrl: string; ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["net-etc-hosts"] = async function (host: string[], opts: { connectUrl: string }) {
+  // TODO: dedent
     for (const [i, h] of host.entries()) {
       if (h.includes("/")) {
         // http://www.example.com/foo/ -> www.example.com
@@ -974,8 +2227,8 @@ program
         for (const lookupAddress of lookupAddresses) {
           switch (lookupAddress.family) {
             // 0000:0000:0000:0000:0000:0000:0000:0000 39 chars
-            case 4: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## A; added by ${path.basename(__filename)} net-etc-hosts\n`); break;
-            case 6: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## AAAA; added by ${path.basename(__filename)} net-etc-hosts\n`); break;
+            case 4: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## A; added by ${progname} net-etc-hosts\n`); break;
+            case 6: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## AAAA; added by ${progname} net-etc-hosts\n`); break;
             default:
               throw new AppError(`BUG: unexpected family: ${lookupAddress.family} (host: ${lookupAddress.address}, lookupAddress: ${util.inspect(lookupAddress)})`);
           }
@@ -985,44 +2238,43 @@ program
     }
     await Promise.all(promises);
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - pty-cmd @pub
+// command - pty-cmd
 
-program
-  .command("pty-cmd")
-  .description("pty-cmd description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("pty-cmd").description("pty-cmd description")
   .addArgument(new commander.Argument("<cmd...>", "run <cmd> in a new pty"))
-  .allowExcessArguments(false)
-  .action(async (cmd: string[], opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["pty-cmd"] = async function (cmd: string[], opts: {}) {
+  // TODO: dedent
+    const pty = await import("node-pty");
 
     const exitCode = new Queue<number>();
 
     // Ubuntu 20.04: $TERM default is xterm?
     // systemd-run --user -- (which c.js) pty-cmd -- env  # TERM=xterm
-    const ptyProcess = pty.spawn("sh", ["-c", stringCommandsToShC(cmd)], {
-      // name: 'xterm-color',
+    const ptyProcess = pty.spawn("sh", ["-c", strCommandsToShC(cmd)], {
       cols: process.stdout.columns,
       rows: process.stdout.rows,
-    } as pty.IPtyForkOptions);
+    });
 
     ptyProcess.onData((data) => {
-      // c.js -vv pty-cmd -- /bin/echo -e 'a\x01z'  # [<- cmd](5) [ 'a', '\x01', 'z', '\r', '\n' ]   \x01: ^A
-      // c.js -vv pty-cmd -- /bin/echo -e 'a\xffz'  # [<- cmd](5) [ 'a', '�', 'z', '\r', '\n' ]      \xff: invalid utf8 -> �
+      // c.js pty-cmd -- /bin/echo -e 'a\x01z'  # [<- cmd](5) [ 'a', '\x01', 'z', '\r', '\n' ]   \x01: ^A
+      // c.js pty-cmd -- /bin/echo -e 'a\xffz'  # [<- cmd](5) [ 'a', '�', 'z', '\r', '\n' ]      \xff: invalid utf8 -> �
       logger.debug(`[<- cmd](${data.length}) %O`, ...data);
       process.stdout.write(data);
     });
 
     ptyProcess.onExit((e) => {
-      logger.info(`[cmd exit] exitCode:${e.exitCode} signal:${e.signal}`);
+      logger.info(`[cmd exit]`, e);
       // should dispose .onData()/.onExit() ?
       exitCode.push(e.exitCode);
     });
 
-    if (tty.isatty(process.stdin.fd)) {
+    if (process.stdin.isTTY) {
       process.stdin.setRawMode(true);
     } else {
       logger.info("stdin is not a tty; skip stdin.setRawMode(true)");
@@ -1030,7 +2282,7 @@ program
     let tilde = false;
     process.stdin.on("data", (data: Buffer) => {
       const byteArray = [...data];
-      logger.debug(`[-> cmd](${data.length}) ${i([...data.toString()])}`);
+      logger.debug(`[-> cmd](${data.length}) ${ie([...data.toString()])}`);
 
       switch (ptyCmdHandleEscape(ptyProcess, data, tilde)) {
         case "in_tilde":
@@ -1066,9 +2318,9 @@ program
     });
 
     return cliCommandExit(await exitCode.pop());
-  });
+};
 
-function ptyCmdHandleEscape(ptyProcess: pty.IPty, data: Buffer, previousTilde: boolean): "in_tilde" | "out_tilde" | "exit" {
+function ptyCmdHandleEscape(ptyProcess: pty_.IPty, data: Buffer, previousTilde: boolean): "in_tilde" | "out_tilde" | "exit" {
   // paste ~. -> byteArray.length === 2, not triggered
   // if (byteArray.length === 1 && byteArray[0] === 0x7e) {
   if (!previousTilde && data.length === 1 && data.toString() === "~") {
@@ -1093,16 +2345,15 @@ function ptyCmdHandleEscape(ptyProcess: pty.IPty, data: Buffer, previousTilde: b
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-color-complementary @pub
+// command - txt-color-complementary
 
-program
-  .command("txt-color-complementary")
-  .description("txt-color-complementary description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txt-color-complementary").description("txt-color-complementary description")
   .addArgument(new commander.Argument("[color]"))
-  .allowExcessArguments(false)
-  .action(async (color: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-color-complementary"] = async function (color: string | undefined, opts: {}) {
+  // TODO: dedent
     const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
     const match = /^(?<hash>#?)(?<r>[0-9a-f]{2})(?<g>[0-9a-f]{2})(?<b>[0-9a-f]{2})(\r?\n)?$/i.exec(txt);
     if (match === null) {
@@ -1115,19 +2366,18 @@ program
     const maxMin = Math.max(r, g, b) + Math.min(r, g, b);
     process.stdout.write(`${match.groups!.hash}${(maxMin - r).toString(16).padStart(2, "0")}${(maxMin - g).toString(16).padStart(2, "0")}${(maxMin - b).toString(16).padStart(2, "0")}\n`);
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-color-invert @pub
+// command - txt-color-invert
 
-program
-  .command("txt-color-invert")
-  .description("txt-color-invert description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txt-color-invert").description("txt-color-invert description")
   .addArgument(new commander.Argument("[color]"))
-  .allowExcessArguments(false)
-  .action(async (color: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-color-invert"] = async function (color: string | undefined, opts: {}) {
+  // TODO: dedent
     const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
     const match = /^(?<hash>#?)(?<r>[0-9a-f]{2})(?<g>[0-9a-f]{2})(?<b>[0-9a-f]{2})(\r?\n)?$/i.exec(txt);
     if (match === null) {
@@ -1138,22 +2388,25 @@ program
     const b = parseInt(match.groups!.b, 16);
     process.stdout.write(`${match.groups!.hash}${(255 - r).toString(16).padStart(2, "0")}${(255 - g).toString(16).padStart(2, "0")}${(255 - b).toString(16).padStart(2, "0")}\n`);
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-confluence-html-format @pub
+// command - txt-confluence-html-format
 
-program
-  .command("txt-confluence-html-format")
-  .description("txt-confluence-html-format description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txt-confluence-html-format").description("txt-confluence-html-format description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-confluence-html-format"] = async function (file: string | undefined, opts: {}) {
+  // TODO: dedent
     let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
 
     txt = txtHTMLCDataB64(txt);
+
+    // echo 'https://example.com/123456789012345678901234567890123456789'   | c.bash pandoc  # <p><a    href="https://example.com/123456789012345678901234567890123456789"  NL class="uri">https://example.com/123456789012345678901234567890123456789</a></p>
+    // echo 'https://example.com/1234567890123456789012345678901234567890'  | c.bash pandoc  # <p><a NL href="https://example.com/1234567890123456789012345678901234567890" NL class="uri">https://example.com/1234567890123456789012345678901234567890</a></p> --this process--> <p><a href...
+    // for (const match of txt.matchAll(/<a(\r?\n)(https?:\/\/[^\s]+)/g)) {
 
     // " -> &quot;
     // preserving: <tag attr="value">
@@ -1220,10 +2473,10 @@ program
 
     process.stdout.write(txt);
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-emoji @pub
+// command - txt-emoji
 
 // https://github.com/mathiasbynens/emoji-regex/blob/v10.3.0/index.js#L3
 const emojiRegex =
@@ -1238,40 +2491,38 @@ if (false) {
     \u{1F469}\u{1F3FF}: 👩🏿 emoji modifier base followed by a modifier
   `;
   text.match(emojiRegex); // [⌚, ⌚, ↔️, ↔️, 👩, 👩, 👩🏿, 👩🏿]
-  // @ts-ignore
+  // @ts-expect-error
   text.match(emojiRegex).map((emoji) => emoji.length); // [1, 1, 2, 2, 2, 2, 4, 4] bytes?
-  // @ts-ignore
+  // @ts-expect-error
   text.match(emojiRegex).map((emoji) => [...emoji]); // [["⌚"], ["⌚"], ["↔", "️"], ["↔", "️"], ["👩"], ["👩"], ["👩", "🏿"], ["👩", "🏿"]] code points
-  // @ts-ignore
+  // @ts-expect-error
   text.match(emojiRegex).map((emoji) => [...emoji].length); // [1, 1, 2, 2, 1, 1, 2, 2] code points
 }
 
-program
-  .command("txt-emoji")
-  .description("txt-emoji description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txt-emoji").description("txt-emoji description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-emoji"] = async function (file: string | undefined, opts: {}) {
+  // TODO: dedent
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
     for (const emoji of txt.match(emojiRegex) ?? []) {
       process.stdout.write(`${emoji}\n`);
     }
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-emoji-count @pub
+// command - txt-emoji-count
 
-program
-  .command("txt-emoji-count")
-  .description("txt-emoji-count description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txt-emoji-count").description("txt-emoji-count description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-emoji-count"] = async function (file: string | undefined, opts: {}) {
+  // TODO: dedent
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
     const counts: { [key: string]: number } = {};
     for (const emoji of txt.match(emojiRegex) ?? []) {
@@ -1284,10 +2535,10 @@ program
       process.stdout.write(`${++i}\t${count}\t${emoji}\n`);
     }
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-extrace-prettify @pub
+// command - txt-extrace-prettify
 
 /*
  2月 11 22:36:07     13261+ <root> /usr/lib/snapd/snap-device-helper change snap_cups_cupsd /devices/pci0000:00/0000:00:14.0/usb1/1-9 189:2
@@ -1303,14 +2554,14 @@ program
  ...
 */
 
-program
-  .command("txt-extrace-prettify")
+program.command("txt-extrace-prettify")
   .description("prettify `sudo extrace -tu | ts` output")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-extrace-prettify"] = async function (file: string | undefined, opts: {}) {
+  // TODO: dedent
     let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
     {
       const matches = [...txt.matchAll(/^(?<date>.+?)(?<spacePID>\s+\d+)\+ (?<cmd>.+)\n.+?\k<spacePID>- .+? exited status=(?<status>\d+) time=(?<time>.+?)s$/gm)]
@@ -1329,19 +2580,18 @@ program
     }
     process.stdout.write(txt);
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-file-backup-sha1-hash-analyze @pub
+// command - txt-file-backup-sha1-hash-analyze
 
-program
-  .command("txt-file-backup-sha1-hash-analyze")
-  .description("txt-file-backup-sha1-hash-analyze description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txt-file-backup-sha1-hash-analyze").description("txt-file-backup-sha1-hash-analyze description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { grep?: string, merge?: string, sortLen: boolean, ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-file-backup-sha1-hash-analyze"] = async function (file: string | undefined, opts: { grep?: string, merge?: string, sortLen: boolean }) {
+  // TODO: dedent
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
     const sha1Paths: { [key: string]: string[] } = {};
     for (const line of txt.split(/\r?\n/)) {
@@ -1369,175 +2619,204 @@ program
       }
     }
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-fish-history-edit @pub
+// command - txtFishHistoryEdit
 
-program
-  .command("txt-fish-history-edit")
-  .description("txt-fish-history-edit description")
-  .addOption(new commander.Option("    --grep <pattern>").conflicts(["merge", "sort-len"]))
-  .addOption(new commander.Option("    --merge <file>").conflicts(["grep", "sort-len"]))
-  .addOption(new commander.Option("    --sort-len").conflicts(["grep", "merge"]).default(false))
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txtFishHistoryEdit").description("txtFishHistoryEdit description")
+  .addOption(new commander.Option("--grep <pattern>").conflicts(["merge", "sort-len"]))
+  .addOption(new commander.Option("--merge <file>").conflicts(["grep", "sort-len"]))
+  .addOption(new commander.Option("--sort-len").conflicts(["grep", "merge"]).default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { grep?: string, merge?: string, sortLen: boolean, ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    const matches = [...txt.matchAll(/^# (?<date>\d\d\d\d年\d\d月\d\d日 \d\d時\d\d分\d\d秒)(\r?\n)(?<cmd>[\s\S]+?)(?=\r?\n(# \d\d\d\d年\d\d月\d\d日 \d\d時\d\d分\d\d秒|$))/gm)];
+  .action(txtFishHistoryEdit);
 
-    if (opts.grep !== undefined) {
-      for (const match of matches) {
-        if (!new RegExp(opts.grep).test(match.groups!.cmd)) continue;
-        process.stdout.write(`${match[0]}\n`);
-      }
-      return cliCommandExit(0);
-    }
+async function txtFishHistoryEdit(file: string | undefined, opts: { grep?: string, merge?: string, sortLen: boolean }) {
+  const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
 
-    if (opts.merge !== undefined) {
-      const set = new Set(matches.map((match) => JSON.stringify({ date: match.groups?.date, cmd: match.groups?.cmd })));
-      const txt2 = fs.readFileSync(opts.merge, "utf8");
-      const matches2 = [...txt2.matchAll(/^# (?<date>\d\d\d\d年\d\d月\d\d日 \d\d時\d\d分\d\d秒)(\r?\n)(?<cmd>[\s\S]+?)(?=\r?\n(# \d\d\d\d年\d\d月\d\d日 \d\d時\d\d分\d\d秒|$))/gm)];
-      const set2 = new Set(matches2.map((match) => JSON.stringify({ date: match.groups?.date, cmd: match.groups?.cmd })));
-      const mergedSet = new Set([...set, ...set2]);
-      const mergedArr = [...mergedSet];
-      mergedArr.sort();
-      for (const j of mergedArr.reverse()) {
-        const json = JSON.parse(j);
-        process.stdout.write(`# ${json.date}\n${json.cmd}\n`);
-      }
-      return cliCommandExit(0);
-    }
+  // wsh79 Ubuntu 22.04: # 2006年01月02日 15時04分05秒
+  // wsh24 Ubuntu 24:04: # Mon 02 Jan 2006 03:04:05 PM JST
+  const re = /^# (?<date>(?<date79>(?<year>\d{4})年(?<month79>\d\d)月(?<day79>\d\d)日 (?<hour79>\d\d)時(?<min79>\d\d)分(?<sec79>\d\d)秒)|(?<date24>(?<_weekdayStr>\w{3}) (?<day24>\d\d) (?<monthStr24>\w{3}) (?<year24>\d{4}) (?<hour24_12>\d\d):(?<min24>\d\d):(?<sec24>\d\d) (?<ampm24>AM|PM) (?<_tz24>\w{3})))(\r?\n)(?<cmd>[\s\S]+?)((?=\r?\n(# \w{3} \d\d \w{3} \d{4} \d\d:\d\d:\d\d (AM|PM) \w{3}|$))|(?=\r?\n(# \d{4}年\d\d月\d\d日 \d\d時\d\d分\d\d秒|$)))/gm;
 
-    if (opts.sortLen) {
-      // .toSorted(): es2023
-      // for (const match of matches.toSorted((a, b) => (a.groups?.cmd.length ?? 0) - (b.groups?.cmd.length ?? 0))) {
-      for (const match of matches.sort((a, b) => (a.groups?.cmd.length ?? 0) - (b.groups?.cmd.length ?? 0))) {
-        process.stdout.write(`# ${match.groups?.date} ${Buffer.from(match.groups!.cmd).toString("base64")}\n${match.groups?.cmd}\n`);
-      }
-      return cliCommandExit(0);
-    }
-
-    // max length and its index of matches[*].groups.cmd
-    if (false) {
-      const [cmdLenMaxIndex, cmdLenMax] = matches.reduce(([iMax, lenMax], match, i) => {
-        const len = match.groups?.cmd.length ?? 0;
-        return lenMax < len ? [i, len] : [iMax, lenMax];
-      }, [-1, 0]);
-    }
-
-    // create edit file
-
-    const cmdLenMax = Math.max(...matches.map((match) => match.groups?.cmd.length ?? 0));
-
-    const matchesNoNL: RegExpMatchArray[] = [];
-    // exclude \n
+  const match__ = (txt: string): (RegExpExecArray & { groups: { [key: string]: string } })[] => {
+    const matches = [...txt.matchAll(re)] as (RegExpExecArray & { groups: { [key: string]: string } })[];
     for (const match of matches) {
-      if (match.groups?.cmd?.includes("\n")) {
-        logger.warn(`ignore command with newline: ${match.groups?.cmd}`);
+      if (match.groups.date24 !== undefined) {
+        match.groups.month = ("JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(match.groups.monthStr) / 3 + 1).toString().padStart(2, "0");
+        match.groups.hour = (Number(match.groups.hour12) + (match.groups.ampm === "PM" ? 12 : 0)).toString().padStart(2, "0");
       }
-      matchesNoNL.push(match);
+      // @ts-expect-error
+      match._date = new Date(`${match.groups.year}-${match.groups.month}-${match.groups.day}T${match.groups.hour}:${match.groups.min}:${match.groups.sec}`);
     }
+    return matches;
+  }
 
+  const matches = match__(txt);
+  if (matches.length === 0) {
+    logger.warn(`not matched to: ${re}`);
+    return cliCommandExit(1);
+  }
+
+  if (opts.grep !== undefined) {
     for (const match of matches) {
-      process.stdout.write(`${match.groups?.cmd.padEnd(cmdLenMax, " ")} #__date__ ${match.groups?.date} __b64__ ${Buffer.from(match.groups?.cmd as string).toString("base64")}\n`);
+      if (!new RegExp(opts.grep).test(match.groups.cmd)) continue;
+      process.stdout.write(`${match[0]}\n`);
     }
-
     return cliCommandExit(0);
-  });
+  }
+
+  if (opts.merge !== undefined) {
+    const set = new Set(matches.map((match) => JSON.stringify({ date: match.groups.date, cmd: match.groups.cmd })));
+    const txt2 = fs.readFileSync(opts.merge, "utf8");
+    const matches2 = match__(txt2);
+    const set2 = new Set(matches2.map((match) => JSON.stringify({ date: match.groups.date, cmd: match.groups.cmd })));
+    const mergedSet = new Set([...set, ...set2]);
+    const mergedArr = [...mergedSet];
+    mergedArr.sort((a, b) => a.localeCompare(b));
+    for (const j of mergedArr.reverse()) {
+      const json = JSON.parse(j);
+      process.stdout.write(`# ${json.date}\n${json.cmd}\n`);
+    }
+    return cliCommandExit(0);
+  }
+
+  if (opts.sortLen) {
+    for (const match of matches.toSorted((a, b) => a.groups.cmd.length - b.groups.cmd.length)) {
+      process.stdout.write(`# ${match.groups.date} ${Buffer.from(match.groups.cmd).toString("base64")}\n${match.groups.cmd}\n`);
+    }
+    return cliCommandExit(0);
+  }
+
+  // create edit file
+
+  const cmdLenMax = Math.max(...matches.map((match) => match.groups.cmd.length));
+  const matchesNoNL: RegExpMatchArray[] = [];
+  // exclude \n
+  for (const match of matches) {
+    if (match.groups.cmd?.includes("\n")) {
+      logger.warn(`ignore command with newline: ${match.groups.cmd}`);
+    }
+    matchesNoNL.push(match);
+  }
+  for (const match of matches) {
+    process.stdout.write(`${match.groups.cmd.padEnd(cmdLenMax, " ")} #__date__ ${match.groups.date} __b64__ ${Buffer.from(match.groups.cmd as string).toString("base64")}\n`);
+  }
+
+  return cliCommandExit(0);
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-html-cdata-b64 @pub
+// command - txtFishHistMerge
 
-program
-  .command("txt-html-cdata-b64")
-  .description("txt-html-cdata-b64 description")
-  .addOption(new commander.Option("   ---z-test").default(false).hideHelp())
-  .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    if (opts.ZTest) {
-      const in_ = `\
-<div>
-  <pre><![CDATA[foo
-bar
-]]></pre>
-</div>
-`;
-      const out = `\
-<div>
-  <pre><CDATA>PCFbQ0RBVEFbZm9vCmJhcgpdXT4=</CDATA></pre>
-</div>
-`;
-      assert.strictEqual(txtHTMLCDataB64(in_), out);
-      return cliCommandExit(0);
+/*
+Merge several ~/.local/share/fish/fish_history files.
+
+format:
+- cmd: git checkout ./
+  when: 1736769788
+  paths:
+    - ./
+(`paths` is optional)
+
+# no diff
+c.js txtFishHistMerge ~/.local/share/fish/fish_history >/tmp/fish_history_merged && delta ~/.local/share/fish/fish_history /tmp/fish_history_merged
+*/
+
+program.command("txtFishHistMerge").description("txtFishHistMerge description")
+  .addArgument(new commander.Argument("<file...>"))
+  .action((file, opts) => txtFishHistMerge(file, { _cli: true, ...opts }));
+
+async function  txtFishHistMerge(
+  file: string[],
+  opts: {
+    _cli?: boolean,
+  },
+) {
+  const pairsFileTxt = file.map((file) => {
+    if (file === "-") {
+      logger.debug(`read from stdin`);
+      file = "/dev/stdin";
     }
-    process.stdout.write(txtHTMLCDataB64(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
-    return cliCommandExit(0);
+    const txt = fs.readFileSync(file, "utf8");
+    logger.debug(`${file}: ${txt.length} bytes`);
+    return { file, txt };
   });
 
-function txtHTMLCDataB64(html: string): string {
-  for (const match of html.matchAll(/<!\[CDATA\[[\s\S]*?]]>/g)) {
-    html = html.replace(match[0], `<CDATA>${Buffer.from(match[0]).toString("base64")}</CDATA>`);
-  }
-  return html;
-}
-// -----------------------------------------------------------------------------
-// command - txt-html-cdata-b64d @pub
-
-program
-  .command("txt-html-cdata-b64d")
-  .description("txt-html-cdata-b64d description")
-  .addOption(new commander.Option("   ---z-test").default(false).hideHelp())
-  .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    if (opts.ZTest) {
-      const in_ = `\
-<div>
-  <pre><CDATA>PCFbQ0RBVEFbZm9vCmJhcgpdXT4=</CDATA></pre>
-</div>
-`;
-      const out = `\
-<div>
-  <pre><![CDATA[foo
-bar
-]]></pre>
-</div>
-`;
-      assert.strictEqual(txtHTMLCDataB64d(in_), out);
-      assert.strictEqual(out, txtHTMLCDataB64d(txtHTMLCDataB64(out)));
-      return cliCommandExit(0);
+  const hists: { file: string, hist: string, cmd: string, when: number, paths?: string[] }[] = [];
+  for (const { file, txt } of pairsFileTxt) {
+    logger.debug(`${file}: ${txt.length} bytes`);
+    const re = /^- cmd: (?<cmd>.+)(\r?\n)  when: (?<when>\d+)(\r?\n)(  paths:(\r?\n)(?<paths>(    - .+(\r?\n))+))?/gm;
+    const matches = [...txt.matchAll(re)] as (RegExpExecArray & { groups: { [key: string]: string } })[];
+    logger.debug({ file, length: txt.length, matches: matches.length });
+    let whenPrev = 0;
+    for (const match of matches) {
+      const hist = match[0];
+      // cmd
+      // when
+      const when = parseInt(match.groups.when);
+      if (when < whenPrev) {
+        // reaches sometimes
+        logger.warn(`${file}: ${whenPrev} > ${when}; in:\n${hists.at(-1)!.hist}${hist}----------`);
+      }
+      whenPrev = when;
+      // paths
+      const paths = match.groups.paths === undefined ? [] : [...match.groups.paths.matchAll(/    - (.+)(\r?\n)/g)].map((m) => m[1]);
+      //
+      hists.push({ file, hist, cmd: match.groups.cmd, when, paths });
     }
-    process.stdout.write(txtHTMLCDataB64d(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
-    return cliCommandExit(0);
-  });
-
-function txtHTMLCDataB64d(html: string): string {
-  for (const match of html.matchAll(/<CDATA>(.+?)<\/CDATA>/g)) {
-    html = html.replace(match[0], regExpReplacerEscape(`${Buffer.from(match[1], "base64").toString("utf8")}`));
+    bp();
   }
-  return html;
+  // sort by when
+  hists.sort((a, b) => a.when - b.when);
+  process.stdout.write(`${hists.map((hist) => hist.hist).join("")}`);
+  return cliCommandExit(0);
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-html-break @pub
+// command - txtGitDiffPatch
+
+program.command("txtGitDiffPatch").description("txtGitDiffPatch description")
+  .addArgument(new commander.Argument("<patchPathA>"))
+  .addArgument(new commander.Argument("<patchPathB>"))
+  .action((...args) => txtGitDiffPatch(...args, true));
+
+async function txtGitDiffPatch(
+  patchPathA: string,
+  patchPathB: string,
+  opts?: {},
+  command?: commander.Command<unknown[]>,
+  _cli?: true,
+): Promise<void> {
+  const patchA = fs.readFileSync(patchPathA, "utf8");
+  const patchB = fs.readFileSync(patchPathB, "utf8");
+  process.stdout.write(await txtGitDiffPatchStr(patchA, patchB));
+  return cliCommandExit(0);
+}
+
+async function txtGitDiffPatchStr(
+  patchA: string,
+  patchB: string,
+  opts?: {},
+): Promise<string> {
+  const Diff = await import("diff");
+  let patch = Diff.createPatch("__filename__", patchA, patchB);
+  return patch;
+}
+
+// -----------------------------------------------------------------------------
+// command - txt-html-break
 
 // abort
 
-program
-  .command("txt-html-break")
-  .description("txt-html-break description")
-  .addOption(new commander.Option("   ---z-test").default(false).hideHelp())
+program.command("txt-html-break").description("txt-html-break description")
+  .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    if (opts.ZTest) {
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-html-break"] = async function (file: string | undefined, opts: { zTest: boolean }) {
+  // TODO: dedent
+    if (opts.zTest) {
       const testCase = `\
  <div> <div> x <pre><![CDATA[line 1<>
 line 2<>]]> </pre> y </div> </div>
@@ -1597,7 +2876,7 @@ line 2<>]]></pre>y</div>
     }
     process.stdout.write(txtHTMLBreak(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
     return cliCommandExit(0);
-  });
+};
 
 function txtHTMLBreak(html: string): string {
   html = txtHTMLCDataB64(html);
@@ -1610,7 +2889,7 @@ function txtHTMLBreak(html: string): string {
 
 function txtHTMLBreakOld(html: string): string {
   const offsets = [{offset: -1, kind: "dummy"}];
-  // @ts-ignore
+  // @ts-expect-error
   const assert = (expr) => {
     if (!expr) {
       throw "BUG";
@@ -1633,7 +2912,7 @@ function txtHTMLBreakOld(html: string): string {
       assert(("tagName" in node));
     }
     if ("sourceCodeLocation" in node && node.sourceCodeLocation !== null) {
-      // @ts-ignore
+      // @ts-expect-error
       assert(node.sourceCodeLocation.startOffset >= offsets.at(-1).offset);
       offsets.push({offset: node.sourceCodeLocation.startOffset, kind: `|${node.nodeName}`});
     }
@@ -1643,12 +2922,13 @@ function txtHTMLBreakOld(html: string): string {
       }
     }
     if ("sourceCodeLocation" in node && node.sourceCodeLocation !== null) {
-      // @ts-ignore
+      // @ts-expect-error
       assert(node.sourceCodeLocation.endOffset >= offsets.at(-1).offset);
       offsets.push({ offset: node.sourceCodeLocation.endOffset, kind: `${node.nodeName}|` });
     }
   }
   html = txtHTMLCDataB64(html); // without this: <![CDATA[>]]> is treated as "<!-- [CDATA[ -->" and "]]>"
+  const parse5 = require("parse5");
   const document = parse5.parse(html, {sourceCodeLocationInfo: true});
   dig(document);
   assert(offsets[0].offset === -1);
@@ -1668,21 +2948,97 @@ function txtHTMLBreakOld(html: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-json-flatten @pub
+// command - txt-html-cdata-b64
 
-program
-  .command("txt-json-flatten")
-  .description("txt-json-flatten description")
-  .addOption(new commander.Option("    --width <number>").default(80).argParser(myParseIntPort))
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txt-html-cdata-b64").description("txt-html-cdata-b64 description")
+  .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { width: number, ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-html-cdata-b64"] = async function (file: string | undefined, opts: { zTest: boolean }) {
+  // TODO: dedent
+    if (opts.zTest) {
+      const in_ = `\
+<div>
+  <pre><![CDATA[foo
+bar
+]]></pre>
+</div>
+`;
+      const out = `\
+<div>
+  <pre><CDATA>PCFbQ0RBVEFbZm9vCmJhcgpdXT4=</CDATA></pre>
+</div>
+`;
+      assert.strictEqual(txtHTMLCDataB64(in_), out);
+      return cliCommandExit(0);
+    }
+    process.stdout.write(txtHTMLCDataB64(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+    return cliCommandExit(0);
+};
+
+export function txtHTMLCDataB64(html: string): string {
+  for (const match of html.matchAll(/<!\[CDATA\[[\s\S]*?]]>/g)) {
+    html = html.replace(match[0], `<CDATA>${Buffer.from(match[0]).toString("base64")}</CDATA>`);
+  }
+  return html;
+}
+
+// -----------------------------------------------------------------------------
+// command - txt-html-cdata-b64d
+
+program.command("txt-html-cdata-b64d").description("txt-html-cdata-b64d description")
+  .addOption(new commander.Option("--z-test").default(false).hideHelp())
+  .addArgument(new commander.Argument("[file]"))
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-html-cdata-b64d"] = async function (file: string | undefined, opts: { zTest: boolean }) {
+  // TODO: dedent
+    if (opts.zTest) {
+      const in_ = `\
+<div>
+  <pre><CDATA>PCFbQ0RBVEFbZm9vCmJhcgpdXT4=</CDATA></pre>
+</div>
+`;
+      const out = `\
+<div>
+  <pre><![CDATA[foo
+bar
+]]></pre>
+</div>
+`;
+      assert.strictEqual(txtHTMLCDataB64d(in_), out);
+      assert.strictEqual(out, txtHTMLCDataB64d(txtHTMLCDataB64(out)));
+      return cliCommandExit(0);
+    }
+    process.stdout.write(txtHTMLCDataB64d(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+    return cliCommandExit(0);
+};
+
+export function txtHTMLCDataB64d(html: string): string {
+  for (const match of html.matchAll(/<CDATA>(.+?)<\/CDATA>/g)) {
+    html = html.replace(match[0], regExpReplacerEscape(`${Buffer.from(match[1], "base64").toString("utf8")}`));
+  }
+  return html;
+}
+
+// -----------------------------------------------------------------------------
+// command - txt-json-flatten
+
+program.command("txt-json-flatten").description("txt-json-flatten description")
+  .addOption(new commander.Option("--width <number>").default(80).argParser(CLI.parseIntPort))
+  .addArgument(new commander.Argument("[file]"))
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-json-flatten"] = async function (file: string | undefined, opts: { width: number }) {
+  // TODO: dedent
     const flat = strJSONFlat("", JSON.parse(fs.readFileSync(file ?? "/dev/stdin", "utf8")), { width: opts.width });
     process.stdout.write(`${flat.join("\n")}\n`);
     return cliCommandExit(0);
-  });
+};
 
 function strJSONFlat(key: string, j: unknown, opts: { width: number }): string[] {
   const s = JSON.stringify(j);
@@ -1710,27 +3066,29 @@ function strJSONFlat(key: string, j: unknown, opts: { width: number }): string[]
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-markdown-cat @pub
+// command - txtMarkdownCat
 // [@cat](file://PATH) -> <PATH content>
 // [@cat:@beg:SECTION](file://PATH) -> <PATH: @beg:SECTION...@end:SECTION>
 // [@cat:@sec:SECTION](file://PATH) -> <PATH: ## ... @sec:SECTION ...>
 
-program
-  .command("txt-markdown-cat")
-  .description("txt-markdown-cat description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txtMarkdownCat").description("txtMarkdownCat description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    process.stdout.write(txtMarkdownCat(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
-    return cliCommandExit(0);
-  });
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
 
-function txtMarkdownCat(txt: string): string {
+cliCmds["txtMarkdownCat"] = async function (
+  file: string | undefined,
+  opts: {
+  },
+) {
+  process.stdout.write(txtMarkdownCat(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+  return cliCommandExit(0);
+}
+
+export function txtMarkdownCat(txt: string): string {
   while ((reArr = /\[@cat]\(file:\/\/(?<path>[^)]+)\)/.exec(txt)) !== null) {
     const { path } = reArr.groups as { path: string };
-    txt = txt.replace(reArr[0], regExpReplacerEscape(stringRemoveLastLine(fs.readFileSync(path, "utf8"))));
+    txt = txt.replace(reArr[0], regExpReplacerEscape(strRemoveLastLine(fs.readFileSync(path, "utf8"))));
   }
 
   // 0 [@cat:@beg:SECTION](file://PATH) -> <PATH: @beg:SECTION...@end:SECTION>
@@ -1746,7 +3104,7 @@ function txtMarkdownCat(txt: string): string {
     if (reArr1 === null) {
       throw new AppError(`section not found; pattern: ${re} (at: ${reArr[0]})`);
     }
-    // @ts-ignore
+    // @ts-expect-error
     txt = txt.replace(reArr[0], regExpReplacerEscape(reArr1.groups.body));
   }
 
@@ -1754,7 +3112,7 @@ function txtMarkdownCat(txt: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-markdown-code-b64 @pub
+// command - txtMarkdownCodeB64
 
 /*
 ```sh
@@ -1763,60 +3121,59 @@ code
 -> @__code_block__:YGBgc2gKY29kZQpgYGA=
 */
 
-program
-  .command("txt-markdown-code-b64")
-  .description("txt-markdown-code-b64 description")
-  .addOption(new commander.Option("   ---z-test").default(false).hideHelp())
+program.command("txtMarkdownCodeB64").description("txtMarkdownCodeB64 description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    process.stdout.write(txtMarkdownCodeB64(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
-    return cliCommandExit(0);
-  });
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
 
-function txtMarkdownCodeB64(txt: string): string {
+cliCmds["txtMarkdownCodeB64"] = async function (file: string | undefined, opts: {}) {
+  process.stdout.write(txtMarkdownCodeB64(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+  return cliCommandExit(0);
+};
+
+export function txtMarkdownCodeB64(txt: string): string {
   for (const match of txt.matchAll(/^```(\w+)?[\s\S]+?^```$/gm)) {
-    txt = txt.replace(match[0], `@__code_block__:${Buffer.from(match[0]).toString("base64")}`);
+    const b64 = Buffer.from(match[0]).toString("base64");
+    txt = txt.replace(match[0], `@__code_block__:${b64}`);
   }
   return txt;
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-markdown-code-b64d @pub
+// command - txtMarkdownCodeB64d
 
-program
-  .command("txt-markdown-code-b64d")
-  .description("txt-markdown-code-b64d description")
-  .addOption(new commander.Option("   ---z-test").default(false).hideHelp())
+program.command("txtMarkdownCodeB64d").description("txtMarkdownCodeB64d description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    process.stdout.write(txtMarkdownCodeB64d(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
-    return cliCommandExit(0);
-  });
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
 
-function txtMarkdownCodeB64d(txt: string): string {
+cliCmds["txtMarkdownCodeB64d"] = async function (file: string | undefined, opts: {}) {
+  process.stdout.write(txtMarkdownCodeB64d(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+  return cliCommandExit(0);
+};
+
+export function txtMarkdownCodeB64d(txt: string): string {
   for (const match of txt.matchAll(/^@__code_block__:(.+)$/gm)) {
-    txt = txt.replace(match[0], regExpReplacerEscape(Buffer.from(match[1], "base64").toString("utf8")));
+    const b64 = match[1];
+    const code = Buffer.from(b64, "base64").toString("utf8");
+    txt = strReplace(txt, match[0], code);
   }
   return txt;
 }
 
 // -----------------------------------------------------------------------------
-// command - txt-markdown-h2-sec @pub
+// command - txt-markdown-h2-sec
 
-program
-  .command("txt-markdown-h2-sec")
-  .description("txt-markdown-h2-sec description")
-  .addOption(new commander.Option("   ---z-test").default(false).hideHelp())
+program.command("txt-markdown-h2-sec").description("txt-markdown-h2-sec description")
+  .addOption(new commander.Option("--z-test").default(false).hideHelp())
   .addArgument(new commander.Argument("<section>", "## @sec:<section>"))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (section: string, file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-    if (opts.ZTest) {
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-markdown-h2-sec"] = async function (section: string, file: string | undefined, opts: { zTest: boolean }) {
+  // TODO: dedent
+    if (opts.zTest) {
       section = "SEC";
       file = `${DIR_TMP}/test-txt-markdown-h2-sec.txt`;
       fs.writeFileSync(file, txtMarkdownH2SecTestIn);
@@ -1826,13 +3183,13 @@ program
     const matches = [...txt.matchAll(new RegExp(`(?<=(^|\\r?\\n))(?<txt>## .*@sec:${section}\\b[\\s\\S]+?)(?=\r?\n## |\\$)`, "g"))];
     txt = matches.map((match) => match.groups?.txt).join("\n");
     txt = txtMarkdownCodeB64d(txt);
-    if (opts.ZTest) {
+    if (opts.zTest) {
       assert.strictEqual(txt, txtMarkdownH2SecTestOut);
       return cliCommandExit(0);
     }
     process.stdout.write(txt);
     return cliCommandExit(0);
-  });
+};
 
 const txtMarkdownH2SecTestIn = `\
 ## hi @sec:SEC there
@@ -1875,7 +3232,7 @@ EOF
 `;
 
 // -----------------------------------------------------------------------------
-// command - txt-markdown-h2-section-reduce @pub
+// command - txtMarkdownH2SectionReduce
 
 /*
 ## z1
@@ -1893,19 +3250,22 @@ EOF
 ### z
 */
 
-program
-  .command("txt-markdown-h2-section-reduce")
-  .description("txt-markdown-h2-section-reduce description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txtMarkdownH2SectionReduce").description("txtMarkdownH2SectionReduce description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txtMarkdownH2SectionReduce"] = async function (file: string | undefined, opts: {}) {
+  process.stdout.write(txtMarkdownH2SectionReduce(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+  return cliCommandExit(0);
+}
+
+export function txtMarkdownH2SectionReduce(txt: string): string {
+  // TODO: dedent
     const nCommonElementsFromTheBeginning = (arr1: string[], arr2: string[]) => [...arr1, "\0dummy\0"].findIndex((tok, i) => tok !== arr2[i]);
     let tokensStack: string[] = []; // ## z1 - z2 - z3 -> ["z1", "z2", "z3"]
-    let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    txt = txtMarkdownCodeB64(txt);
     let txt2 = "";
+    let xxx_workAround_seemsExtraLineAdded_testsNeeded = false;
     for (const line of txt.split(/\r?\n/)) {
       if (!line.startsWith("## ")) {
         txt2 += `${line}\n`;
@@ -1915,28 +3275,31 @@ program
       const nAlreadyPrintedTokens = nCommonElementsFromTheBeginning(tokensStack, tokens);
       for (let level = nAlreadyPrintedTokens; level < tokens.length; level++) {
         txt2 += `##${"#".repeat(level)} ${tokens[level]}\n`;
-        if (level !== tokens.length - 1) txt2 += "\n";
+        if (level !== tokens.length - 1) {
+          xxx_workAround_seemsExtraLineAdded_testsNeeded = true;
+          txt2 += "\n";
+        }
       }
       tokensStack = tokens;
     }
-    process.stdout.write(txtMarkdownCodeB64d(txt2));
-    return cliCommandExit(0);
-  });
+    if (xxx_workAround_seemsExtraLineAdded_testsNeeded) {
+      txt2 = txt2.slice(0, -1);
+    }
+    return txt2;
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-markdown-headers @pub
+// command - txt-markdown-headers
 
-program
-  .command("txt-markdown-headers")
-  .description("txt-markdown-headers description")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
+program.command("txt-markdown-headers").description("txt-markdown-headers description")
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-markdown-headers"] = async function (file: string | undefined, opts: {}) {
+  // TODO: dedent
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    // without maxBuffer or maxBuffer: 2**21 (2Mi): ENOBUFS
-    // 2**26: 64Mi
+    // without maxBuffer or maxBuffer: 2**21 (2Mi): ENOBUFS; 2**26: 64Mi
     const json = JSON.parse(child_process.execSync(`/home/linuxbrew/.linuxbrew/bin/pandoc --from=commonmark+sourcepos --to=json`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26 }));
 
     // https://hackage.haskell.org/package/pandoc-types/docs/Text-Pandoc-Definition.html
@@ -2008,63 +3371,86 @@ program
     child_process.execSync(`sed -n -e ${lineNums.join("p -e ")}p`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26, stdio: ["pipe", "inherit", "inherit"] });
 
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-private @pub
+// command - txtPrivate
 
-program
-  .command("txt-private")
-  .description("txt-private description")
+program.command("txtPrivate").alias(/*compatibility*/"txt-private").description("txtPrivate description")
+  .addOption(new commander.Option("--preserve-plp").default(false))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (file: string | undefined, opts: {}) => {
-    const optsGlobal = cliCommandInit();
-    let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
 
+cliCmds["txtPrivate"] = async function (file: string | undefined, opts: { preservePlp: boolean }) {
+  const txt = file ? fs.readFileSync(file, "utf8") : await (async () => {
+    logger.info(`reading from stdin...`);
+    return await readStdin();
+  })();
+  logger.info(`txt.length: ${txt.length}`);
+  process.stdout.write(txtPrivate(txt, opts));
+  return cliCommandExit(0);
+}
 
-    // @ bv ... @ ev
-    txt = txt.replaceAll(/^.*@(bv)\b.*(\r?\n)[\s\S]*?@(ev)\b.*(\r?\n|$)/gm, "");
+export function txtPrivate(txt: string, opts?: { preservePlp?: boolean }): string {
+  opts ??= {};
+  opts.preservePlp ??= false;
+  // @ bv ... @ ev
+  txt = txt.replaceAll(/^.*@(bv)\b.*(\r?\n)[\s\S]*?@(ev)\b.*(\r?\n|$)/gm, "");
 
-    // @ pl private line
-    while ((reArr = /^.*@(pl)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
-    // @ pla private line above
-    while ((reArr = /^.*(\r?\n).*@(pla)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
-    // @ plb private line below
-    while ((reArr = /^.*@(plb)\b.*(\r?\n).*$/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
-    // @ plb private line right
-    while ((reArr = /\s*@(plr)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
-    // @ plb private line right and comment (# //)
-    while ((reArr = /\s*(#|\/\/)\s*@(plr)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+  // @ pl private line
+  while ((reArr = /^.*@(pl)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+  // @ pla private line above
+  while ((reArr = /^.*(\r?\n).*@(pla)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+  // @ plb private line below
+  while ((reArr = /^.*@(plb)\b.*(\r?\n).*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+  // @ plr private line right and comment (# //)
+  while ((reArr = /\s*(#|\/\/)\s*@(plr)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+  // @ plr private line right
+  while ((reArr = /\s*@(plr)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
 
-    process.stdout.write(txt);
+  // @ *p (@* publish)
+  if (!opts.preservePlp) {
+    // @ bvp ... @ evp
+    txt = txt.replaceAll(/^.*@(bvp)\b.*(\r?\n)[\s\S]*?@(evp)\b.*(\r?\n|$)/gm, "");
 
-    return cliCommandExit(0);
-  });
+    // @ plp private line, publish
+    while ((reArr = /^.*@(plp)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+    // @ plap private line above, publish
+    while ((reArr = /^.*(\r?\n).*@(plap)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+    // @ plbp private line below, publish
+    while ((reArr = /^.*@(plbp)\b.*(\r?\n).*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+    // @ plrp private line right and comment (# //), publish
+    while ((reArr = /\s*(#|\/\/)\s*@(plrp)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+    // @ plrp private line right, publish
+    while ((reArr = /\s*@(plrp)\b.*(\r?\n|$)/m.exec(txt)) !== null) txt = txt.replace(reArr[0], "");
+  }
+
+  return txt;
+};
 
 // -----------------------------------------------------------------------------
-// command - txt-regexp-search (re) @pub
+// command - txt-regexp-search (re)
 
 /*
-echo -e "foo\nbar" | c.js -v re -f m '^\w+$'                                     # [["foo"],["bar"]]
-echo -e "foo\nbar" | c.js -v re -f m '^((\w)(\w+))$'                             # [["foo","foo","f","oo"],["bar","bar","b","ar"]]
-echo -e "foo\nbar" | c.js -v re -f m '^(?<word>(?<head>\w)(?<tail>\w+))$'        # [{"word":"foo","head":"f","tail":"oo"},{"word":"bar","head":"b","tail":"ar"}]
-echo -e "foo\nbar" | c.js -v re -f i '^(?<word>(?<head>\w)(?<tail>\w+))$'        # not match with /^(?<word>(?<head>\w)(?<tail>\w+))$/gi
+echo -e "foo\nbar" | c.js -q re -f m '^\w+$'                                     # [["foo"],["bar"]]
+echo -e "foo\nbar" | c.js -q re -f m '^((\w)(\w+))$'                             # [["foo","foo","f","oo"],["bar","bar","b","ar"]]
+echo -e "foo\nbar" | c.js -q re -f m '^(?<word>(?<head>\w)(?<tail>\w+))$'        # [{"word":"foo","head":"f","tail":"oo"},{"word":"bar","head":"b","tail":"ar"}]
+echo -e "foo\nbar" | c.js -q re -f i '^(?<word>(?<head>\w)(?<tail>\w+))$'        # not match with /^(?<word>(?<head>\w)(?<tail>\w+))$/gi
 
 echo -e "foo\nbar" | node -e 'console.log(fs.readFileSync("/dev/stdin", "utf8").match(new RegExp(process.argv[1], "m"))[0]);' '^foo$'
 echo -e "foo\nbar" | node -e 'console.log(fs.readFileSync("/dev/stdin", "utf8").match(new RegExp(process.argv[1], process.argv[2] ?? "m"))[0]);' '^foo$' "m"
 */
 
-program
-  .command("txt-regexp-search").alias("re")
-  .description("txt-regexp-search description")
+program.command("txt-regexp-search").alias("re").description("txt-regexp-search description")
   .addOption(new commander.Option("-f, --flags <flags>").default("m"))
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
   .addArgument(new commander.Argument("<pattern>"))
   .addArgument(new commander.Argument("[file]"))
-  .allowExcessArguments(false)
-  .action(async (pattern: string, file: string | undefined, opts: { flags: string, ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-regexp-search"] = async function (pattern: string, file: string | undefined, opts: { flags: string }) {
+  // TODO: dedent
     const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
     const re = new RegExp(pattern, opts.flags.includes("g") ? opts.flags : `g${opts.flags}`);
     const matches = [...txt.matchAll(re)];
@@ -2079,69 +3465,130 @@ program
     });
     process.stdout.write(`${JSON.stringify(matchesObj)}\n`);
     return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
-// command - z-meta-command-list @pub
+// command - txt-replace (rep)
 
-program
-  .command("z-meta-command-list")
+program.command("txt-replace").alias("rep").description("txt-replace description")
+  .addOption(new commander.Option("-m, --max-count <num>").argParser(CLI.parseIntPositive))
+  .addOption(new commander.Option("-r, --regexp").default(false))
+  .addOption(new commander.Option("-f, --regexp-flags <flags>").default("gm").implies({ regexp: true }))
+  .addArgument(new commander.Argument("from"))
+  .addArgument(new commander.Argument("to"))
+  .addArgument(new commander.Argument("[file]"))
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["txt-replace"] = async function (from: string, to: string, file: string | undefined, opts: { maxCount?: number, regexp: boolean, regexpFlags: string }) {
+  // TODO: dedent
+    let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+    const from2 = opts.regexp ? new RegExp(from, opts.regexpFlags) : from;
+    opts.maxCount ??= Infinity;
+    txt = txt.replaceAll(from2, (substring, ...args) => {
+      // @ts-expect-error
+      if (opts.maxCount-- <= 0) return substring;
+      return to;
+    });
+    process.stdout.write(txt);
+    return cliCommandExit(0);
+};
+
+// -----------------------------------------------------------------------------
+// command - txtSortSection
+
+/*
+sort:
+
+--type=c.ts :
+// ----------... (to column 80)
+// command - {NAME}
+(contents)
+
+--type=scrap.ts :
+// ----------... (to column 80)
+// {NAME}
+(contents)
+*/
+
+program.command("txtSortSection").alias("sec").description("txtSortSection description")
+  .addArgument(new commander.Argument("[file]"))
+  .addOption(new commander.Option("--type <type>").choices(["c.ts", "scrap.ts"]).makeOptionMandatory(true))
+  .action(async (file, opts) => {
+    const txt = file ? fs.readFileSync(file, "utf8") : await (async () => {
+      logger.info(`reading from stdin...`);
+      return await readStdin();
+    })();
+    logger.info(`txt.length: ${txt.length}`);
+    const txt2 = txtSortSection(txt, opts);
+    process.stdout.write(txt2);
+    return cliCommandExit(0);
+  });
+
+export function txtSortSection(
+  txt: string,
+  opts: {
+    type?: string;
+  },
+): string {
+  let separator: RegExp;
+  if (opts.type === "c.ts") {
+    [...txt.matchAll(new RegExp(`^// ${"-".repeat(77)}(\r?\n)// command - (?<name>[\\w-]+).*$`, "gm"))]; // eslint-disable-line @typescript-eslint/no-unused-expressions
+    [...txt.matchAll(reReplaceAll(/^\/\/ ---(\r?\n)\/\/ command - (?<name>[\w-]+).*$/gm, "---", "-".repeat(77)))]; // eslint-disable-line @typescript-eslint/no-unused-expressions
+    separator = new RegExp(`^// ${"-".repeat(77)}(\r?\n)// command - (?<name>[\\w-]+).*$`, "gm");
+  }
+  if (opts.type === "scrap.ts") {
+    separator = new RegExp(`^// ${"-".repeat(77)}(\r?\n)// (?<name>.+)$`, "gm");
+  }
+
+  // @ts-expect-error
+  assert.ok(separator !== undefined);
+  const matches = [...txt.matchAll(separator)] as (RegExpExecArray & { groups: { [key: string]: string }, index: number })[];
+  if (matches.length === 0) {
+    logger.warn(`not match with: ${separator}`);
+    return txt;
+  }
+  const prologue = txt.slice(0, matches[0].index);
+  // const lastSection = txt.slice(matches.at(-1)!.index);
+  let txt2 = txt.slice(0, matches[0].index);
+  const sections: { name: string, nameRaw: string, index: number, txt: string }[] = matches.slice(0, -1).map((_, i) => {
+    const match = matches[i];
+    const matchNext = matches[i + 1];
+    return {
+      name: match.groups.name.replaceAll("-", "").toLowerCase(),
+      nameRaw: match.groups.name,
+      index: match.index,
+      txt: txt.slice(match.index, matchNext.index)
+    };
+  });
+  sections.push({ name: matches.at(-1)!.groups.name.replaceAll("-", "").toLowerCase(), nameRaw: matches.at(-1)!.groups.name, index: matches.at(-1)!.index, txt: txt.slice(matches.at(-1)!.index) });
+  sections.toSorted((a, b) => a.name.localeCompare(b.name)).forEach((section) => {
+    txt2 += section.txt;
+  });
+  return txt2;
+}
+
+// -----------------------------------------------------------------------------
+// command - z-meta-command-list
+
+program.command("z-meta-command-list")
   .description("meta command - list subcommands")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
-  .allowExcessArguments(false)
-  .action(async (opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
+  // @ts-expect-error
+  .action((...args) => cliCmds[args.at(-1).name()](...args));
+
+cliCmds["z-meta-command-list"] = async function (opts: {}) {
+  // TODO: dedent
     const names = program.commands.map((command) => command.name());
     process.stdout.write(`${names.join("\n")}\n`);
     return cliCommandExit(0);
-  });
-
-// -----------------------------------------------------------------------------
-// command - z-meta-publish-self @pub
-
-program
-  .command("z-meta-publish-self")
-  .description("meta command - publish self")
-  .addOption(new commander.Option("   ---z-test").hideHelp().default(false))
-  .allowExcessArguments(false)
-  .action(async (opts: { ZTest: boolean }) => {
-    const optsGlobal = cliCommandInit();
-
-    let match: RegExpMatchArray | null;
-
-    const txtJs = fs.readFileSync(__filename, "utf8");
-    // //# sourceMappingURL=data:application/json;base64,<base64>
-    match = txtJs.match(/^\/\/# sourceMappingURL=data:application\/json;base64,([\w=]+)$/m);
-    if (match === null) throw new AppError(`${__filename}: source map not found`);
-    const sourceMap = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
-    if (sourceMap.sources.length !== 1) throw new AppError(`${__filename}: source map.sources.length !== 1; ${sourceMap.sources}`);
-    const tsPath = path.resolve(path.dirname(__filename), sourceMap.sources[0]);
-    const txtTs = fs.readFileSync(tsPath, "utf8");
-
-    let pub = true;
-    const blocks = txtTs.split("\n// -----------------------------------------------------------------------------\n");
-    for (let [i, block] of blocks.entries()) {
-      if (block.match(/^(\/\/ command - .+)(\r?\n)/)) {
-        if (!RegExp.$1.endsWith("@pub")) {
-          continue;
-        }
-      }
-      while ((reArr = /^.*@(pl)\b.*(\r?\n|$)/m.exec(block)) !== null) {
-        block = block.replace(reArr[0], "");
-      }
-      if (i !== 0) {
-        process.stdout.write("\n// -----------------------------------------------------------------------------\n");
-      }
-      process.stdout.write(block);
-    }
-
-    return cliCommandExit(0);
-  });
+};
 
 // -----------------------------------------------------------------------------
 // main
 
-// https://stackoverflow.com/questions/45136831/node-js-require-main-module/60309682#60309682
-if (esMain(import.meta)) {
+if (esMain(import.meta) && !process.env.CTS_TEST_CLI) {
   await cliMain();
 }
+
+// import whyIsNodeRunning from "why-is-node-running";
+// whyIsNodeRunning();

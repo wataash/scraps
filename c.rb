@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
-
+# SPDX-FileCopyrightText: Copyright (c) 2022-2025 Wataru Ashihara <wataash0607@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
 # rubocop:disable Lint/MissingCopEnableDirective
@@ -64,6 +64,18 @@ def debugger_try(frame, &log_cb)
   true
 end
 
+# use test stdin for RubyMine local debug
+#   RubyMine local debug:                              DEBUGGER_HOST: 0.0.0.0 RM_INFO=RM-222.3739.56
+#   rdebug-ide --host 0.0.0.0 + RubyMine remote debug: DEBUGGER_HOST: 0.0.0.0 (RM_INFO not set)
+#     rdebug-ide では Interrupt がハンドリングされてるっぽいくて ^C で終了できない [1]; pkill rdebug-ide で終了する; [1]: test: begin; sleep(100); rescue Exception => e; p(e); end; exit(0)
+# @param [String] str
+def rubymine_debug(str, &block)
+  return unless ENV.key?("DEBUGGER_HOST")
+  return unless ENV.key?("RM_INFO")
+  $stdin = StringIO.new(str)
+  block.call unless block.nil?
+end
+
 # @param [String] str
 # @param [Integer] width
 # @return [String]
@@ -115,22 +127,22 @@ end
 # @param [String] arg_spec
 # @param [String] usage
 # @return [Array<String>]
-def command_arg_parse(arg_spec, usage)
+def command_arg_parse(arg_spec, usage) # rubocop:disable Metrics
   # TODO: show usage
 
+  #      ┌→ in_optional_specs
   # ARG1 [ARG2] [ARGF]
-  #     |-> in_optional_specs
   ret = []
   specs = arg_spec.split
   in_optional_specs = false
   specs.each_with_index do |spec, i|
     case spec
     when /^\[(\w+)\]$/
-      return ret if ARGV.empty? # rubocop:disable Lint/NonLocalExitFromIterator
+      return ret if ARGV.empty?
       in_optional_specs = true
       if Regexp.last_match[1] == "ARGF"
         assert(i == specs.length - 1)
-        return ret if ARGV.length in 0..1 # rubocop:disable Lint/NonLocalExitFromIterator
+        return ret if ARGV.length in 0..1
         raise OptionParser::InvalidArgument, "excess argument(s): #{ARGV[1..]}"
       end
       ret.push(ARGV.shift)
@@ -176,18 +188,18 @@ def _test_command_arg_parse
     begin
       arg1, arg2 = command_arg_parse("ARG1 [ARG2]", "usage")
     rescue OptParse::ParseError => e
-      puts("ARG1 [ARG2]        : [#{args}] #{e}")
+      puts("ARG1 [ARG2]        : #{args} #{e}")
     else
-      puts("ARG1 [ARG2]        : [#{args}] OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
+      puts("ARG1 [ARG2]        : #{args} OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
     end
 
     ARGV.replace(args)
     begin
       arg1, arg2 = command_arg_parse("ARG1 [ARG2] [ARGF]", "usage")
     rescue OptParse::ParseError => e
-      puts("ARG1 [ARG2] [ARGF] : [#{args}] #{e}")
+      puts("ARG1 [ARG2] [ARGF] : #{args} #{e}")
     else
-      puts("ARG1 [ARG2] [ARGF] : [#{args}] OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
+      puts("ARG1 [ARG2] [ARGF] : #{args} OK ARG1:#{arg1.inspect} ARG2:#{arg2.inspect} ARGV:#{ARGV.inspect}")
     end
   end
 
@@ -197,19 +209,12 @@ end
 # _test_command_arg_parse
 
 # ------------------------------------------------------------------------------
-# command - 0sandbox @pub
+# command - 0sandbox
 
 command("0sandbox") do |opts_g|
-  # use test stdin for RubyMine local debug
-  #   RubyMine local debug:                              DEBUGGER_HOST: 0.0.0.0 RM_INFO=RM-222.3739.56
-  #   rdebug-ide --host 0.0.0.0 + RubyMine remote debug: DEBUGGER_HOST: 0.0.0.0 (RM_INFO not set)
-  #     rdebug-ide では Interrupt がハンドリングされてるっぽいくて ^C で終了できない [1]; pkill rdebug-ide で終了する; [1]: test: begin; sleep(100); rescue Exception => e; p(e); end; exit(0)
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
-  tmp = command_arg_parse("[ARGF]", "usage: 0sandbox < FILE")
+  rubymine_debug(<<EOS)
+EOS
+  command_arg_parse("[ARGF]", "usage: 0sandbox < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
   # echo -en 'a \nb \r\nc ' | ruby ... -> line: "a \n" "b \r\n" "c " -rstrip-> "a" "b" "c"
   begin
@@ -217,43 +222,36 @@ TEST_INPUT
       logger.info(line)
     end
   rescue Interrupt
-    # Ignored
+    next 1 # just exit with 1 without stack trace
   end
   0
 end
 
 # ------------------------------------------------------------------------------
-# command - c-decrement-line @pub
+# command - c-decrement-line
 
 command("c-decrement-line") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    ARGV[0] = "yacc/tes.l"
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS, &-> { ARGV[0] = "yacc/tes.l" })
 A
 #line 34 "yacc/tes.l"
 #line 35 "yacc/tes.l"
 z
-TEST_INPUT
-  end
-
-  FILE_L = command_arg_parse("FILE_L", "usage: c-decrement-line FILE_L < FILE_C") # rubocop:disable Lint/ConstantDefinitionInBlock
+EOS
+  FILE_L, = command_arg_parse("FILE_L", "usage: c-decrement-line FILE_L < FILE_C") # rubocop:disable Lint/ConstantDefinitionInBlock
   print(ARGF.read.gsub(/^#line (\d+) ("#{FILE_L}")$/) { "#line #{$1.to_i - 1} #{$2}" })
   0
 end
 
 # ------------------------------------------------------------------------------
-# command - cdb-files @pub
+# command - cdb-files
 
 command("cdb-files") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS)
 [
   {"directory":"dir1", "file":"file1"},
   {"directory":"dir2", "file":"file2"}
 ]
-TEST_INPUT
-  end
-
+EOS
   command_arg_parse("[ARGF]", "usage: cdb-files < FILE")
   json = JSON.parse(ARGF.read)
   out = json.map do |entry|
@@ -264,14 +262,11 @@ TEST_INPUT
 end
 
 # ------------------------------------------------------------------------------
-# command - copy-replace @pub
+# command - copy-replace
 
 command("copy-replace") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   FROM, TO = command_arg_parse("FROM TO [ARGF]", "usage: copy-replace FROM TO < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
 
@@ -281,59 +276,56 @@ TEST_INPUT
       puts(line.gsub(FROM, TO)) if line.include?(FROM)
     end
   rescue Interrupt
-    # Ignored
+    next 1 # just exit with 1 without stack trace
   end
   0
 end
 
 # ------------------------------------------------------------------------------
-# command - date-list @pub
+# command - date-list
 
 command("date-list") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   # https://docs.ruby-lang.org/ja/latest/class/Date.html
 
-  Date.new(1970, 1, 1)
-  Date.new(year = 1970, mon = 1, mday = 1)
-  Date.httpdate("Mon, 01 Jan -4712 00:00:00 GMT") # parse RFC 2616 https://www.rfc-editor.org/rfc/rfc2616#section-3.3
-  Date._httpdate("Mon, 01 Jan -4712 00:00:00 GMT") # as hash
-  Date.iso8601("-4712-01-01") # parse [[ISO:8601]]
-  Date._iso8601("-4712-01-01") # as hash
-  Date.today
-  Date.strptime("-4712-01-01", "%F")
-  Date._strptime("-4712-01-01", "%F")
+  _ = Date.new(1970, 1, 1)
+  _ = Date.new(year = 1970, mon = 1, mday = 1)
+  _ = Date.httpdate("Mon, 01 Jan -4712 00:00:00 GMT") # parse RFC 2616 https://www.rfc-editor.org/rfc/rfc2616#section-3.3
+  _ = Date._httpdate("Mon, 01 Jan -4712 00:00:00 GMT") # as hash
+  _ = Date.iso8601("-4712-01-01") # parse [[ISO:8601]]
+  _ = Date._iso8601("-4712-01-01") # as hash
+  _ = Date.today
+  _ = Date.strptime("-4712-01-01", "%F")
+  _ = Date._strptime("-4712-01-01", "%F")
 
-  Date.today.next_day
-  Date.today + 1 # same
-  Date.today.succ # same
-  Date.today.next # same
-  Date.today.prev_day
-  Date.today - 1 # same
-  Date.today.prev_month
-  Date.today << 1 # same
-  Date.today.next_month
-  Date.today >> 1 # same
-  Date.today === Date.today # same date?
-  Date.today == Date.today # TODO: === と違いあるか調べる
+  _ = Date.today.next_day
+  _ = Date.today + 1 # same
+  _ = Date.today.succ # same
+  _ = Date.today.next # same
+  _ = Date.today.prev_day
+  _ = Date.today - 1 # same
+  _ = Date.today.prev_month
+  _ = Date.today << 1 # same
+  _ = Date.today.next_month
+  _ = Date.today >> 1 # same
+  _ = Date.today === Date.today # same date?
+  _ = Date.today == Date.today # TODO: === と違いあるか調べる
 
-  Date.today.year
-  Date.today.month
-  Date.today.mday # month of day
-  Date.today.day # same
-  Date.today.yday # year of day 1-366
+  _ = Date.today.year
+  _ = Date.today.month
+  _ = Date.today.mday # month of day
+  _ = Date.today.day # same
+  _ = Date.today.yday # year of day 1-366
 
-  Date.today.downto(Date.today.prev_month).to_a
-  Date.today.step(Date.today.prev_month, -1).to_a # same
-  Date.today.upto(Date.today.next_month).to_a
-  Date.today.step(Date.today.next_month, 1).to_a # same
+  _ = Date.today.downto(Date.today.prev_month).to_a
+  _ = Date.today.step(Date.today.prev_month, -1).to_a # same
+  _ = Date.today.upto(Date.today.next_month).to_a
+  _ = Date.today.step(Date.today.next_month, 1).to_a # same
 
-  Date.today.strftime("%F")
-  Date.today.to_datetime # 00:00:00
-  Date.today.wday # weekday 0-6
+  _ = Date.today.strftime("%F")
+  _ = Date.today.to_datetime # 00:00:00
+  _ = Date.today.wday # weekday 0-6
 
   command_arg_parse("", "usage: date-list")
   Date.today.downto(Date.today.prev_month) { |date| puts(date.strftime("%F %a")) }
@@ -342,36 +334,97 @@ TEST_INPUT
 end
 
 # ------------------------------------------------------------------------------
-# command - dns-resolve-hosts @pub
+# command - dns-resolve-hosts
 
 command("dns-resolve-hosts") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   command_arg_parse("[ARGF]", "usage: dns-resolve-hosts < FILE")
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
-  begin
-    txt = ARGF.read.scan(/^__RESOLVE_BEGIN__\r?\n([\s\S]*?)\r?\n__RESOLVE_END__$/)[0][0]
-    hosts = txt.scan(/[-.\w]+/).filter { |host| /^\d+\.\d+\.\d+\.\d+$/.match(host).nil? }.uniq
-    hosts.each do |host|
-      txt = Open3.capture2("host #{host}")[0]
-      txt.scan(/has address (.+)$/) { |matches| puts("#{matches[0]}\t#{host}") }
-      txt.scan(/has IPv6 address (.+)$/) { |matches| puts("#{matches[0]}\t#{host}") }
+
+  # {
+  #   "zzz.com": [["192.0.2.1"], ["2001:db8::1"]],
+  # }
+  # @type [Hash{String=>Array<(Array<String>, Array<String>)>}]
+  addrs = Hash.new { |h, k| h[k] = [[], []] }
+
+  while (line = ARGF.gets&.rstrip)
+    next if line.empty?
+    domain = line
+    if addrs.key?(domain)
+      logger.debug("#{line}\tskip (already resolved)")
+      next
     end
-  rescue Interrupt
-    # Ignored
+    txt = Open3.capture2("host #{domain}")[0]
+    txt.scan(/has address (.+)$/) { |matches| addrs[domain][0] << matches[0] }
+    txt.scan(/has IPv6 address (.+)$/) { |matches| addrs[domain][1] << matches[0] }
+    logger.debug("#{line}\t#{addrs[domain]}")
+  end
+
+  # example.com
+  # subsubdomain.subdomain.example.com
+  # subdomain2.EXAMPLE.com
+  # {
+  #   ".FQDN." => nil,
+  #   "com" => {
+  #     ".FQDN." => nil,
+  #     "example" => {
+  #       ".FQDN." => "example.com.",
+  #       "subdomain" => {
+  #         ".FQDN." => nil,
+  #         "subsubdomain" => {
+  #           ".FQDN." => "subsubdomain.subdomain.example.com.",
+  #         }
+  #       },
+  #       "subdomain2" => {
+  #        ".FQDN." => "subdomain2.EXAMPLE.com.",
+  #       },
+  #     },
+  #   },
+  # }
+  domain_tree_root = { ".FQDN." => nil }
+  addrs.each_key do |domain|
+    domain_tree = domain_tree_root
+    fqdn = ""
+    domain.split(".").reverse_each do |token|
+      fqdn = "#{token}.#{fqdn}"
+      token = token.downcase
+      if domain_tree.key?(token)
+        domain_tree = domain_tree[token]
+      else
+        domain_tree = domain_tree[token] = { ".FQDN." => nil }
+      end
+    end
+    domain_tree[".FQDN."] = fqdn
+  end
+
+  sorted_fqdns = []
+  fqdn_sort = lambda do |domain_tree|
+    sorted_fqdns << domain_tree[".FQDN."] unless domain_tree[".FQDN."].nil?
+    domain_tree.sort.each do |token, tree|
+      next if token == ".FQDN."
+      fqdn_sort[tree]
+    end
+  end
+  fqdn_sort[domain_tree_root]
+
+  sorted_fqdns.each do |fqdn|
+    domain = fqdn[...-1]
+    addrs[domain][0].sort.each { |addr| puts("#{addr}\t#{domain}") }
+  end
+  puts
+  sorted_fqdns.each do |fqdn|
+    domain = fqdn[...-1]
+    addrs[domain][1].sort.each { |addr| puts("#{addr}\t#{domain}") }
   end
   0
 end
 
 # ------------------------------------------------------------------------------
-# command - kill-fish @pub
+# command - kill-fish
 
 command("kill-fish") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS)
 USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
 wsh        20434  0.0  0.0 263396  9476 pts/3    S+    5月19   0:00 fish
 wsh       888495  0.0  0.0 263576  9836 pts/1    S     5月21   0:00 fish
@@ -379,9 +432,7 @@ wsh      1179690  0.0  0.0 263580  9964 pts/2    S+    5月23   0:00 fish
 wsh      1958229  0.2  0.0 329380 23876 pts/5    S+   17:09   0:05 fish
 wsh      1974475 29.9  0.0 3540916 35384 pts/0   Sl   17:27   5:41 fish <- kill this
 wsh      1983736  1.6  0.0 328792 22784 pts/4    S+   17:43   0:02 fish
-TEST_INPUT
-  end
-
+EOS
   command_arg_parse("", "usage: kill-fish")
   ps = Open3.capture2("ps -Cfish u")
   columns = ps[0].split(/\r?\n/)[0].split(" ")
@@ -399,12 +450,10 @@ TEST_INPUT
 end
 
 # ------------------------------------------------------------------------------
-# command - negate-network @pub
-
-# この複雑さはrubyでやるべきではなかった
+# command - negate-network
 
 # dummy type definition for IDEs
-# @attr_reader [Boolean] _6
+# @attr_reader [Boolean] ipv6
 class OptsNegateNetwork < Struct; end
 
 real_opts_class = Struct.new(
@@ -427,13 +476,10 @@ opt_parser = OptionParser.new do |parser| # rubocop:disable
 end
 
 command("negate-network", opt_parser) do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
+  rubymine_debug(<<EOS)
+EOS
   opts = opts_negate_network
-  MARKER = command_arg_parse("MARKER [ARGF]", "usage: negate-network [-6] MARKER < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
+  MARKER, = command_arg_parse("MARKER [ARGF]", "usage: negate-network [-6] MARKER < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
   $stdout.sync = true # without this: "COMMAND | cat" buffers the stdout
 
   require "ipaddr"
@@ -456,7 +502,7 @@ TEST_INPUT
       exclude_networks.push(IPAddr.new(match_data[1], af))
     end
   rescue Interrupt
-    # Ignored
+    next 1 # just exit with 1 without stack trace
   end
 
   pairs_exclude_begin_end = [[-Float::INFINITY, -1]]
@@ -513,7 +559,7 @@ TEST_INPUT
 end
 
 # ------------------------------------------------------------------------------
-# command - nl - terminate with new line @pub
+# command - nl - terminate with new line
 
 # echo -n 'nl me!' | ruby -e 'puts(ARGF.read.sub(/(?<!\n)\z/, "\n"))'
 # echo    'nop me' | ruby -e 'puts(ARGF.read.sub(/(?<!\n)\z/, "\n"))'
@@ -532,7 +578,7 @@ command("nl") do |opts_g|
 end
 
 # ------------------------------------------------------------------------------
-# command - nl-trim @pub
+# command - nl-trim
 
 # echo -en 'trim me!\n\n' | ruby -e 'print(ARGF.read.sub(/\n+\z/, ""))'
 # echo -en 'trim me!\n'   | ruby -e 'print(ARGF.read.sub(/\n+\z/, ""))'
@@ -554,16 +600,13 @@ command("nl-trim") do |opts_g|
 end
 
 # ------------------------------------------------------------------------------
-# command - notify-fdinfo-find @pub
+# command - notify-fdinfo-find
 
 command("inotify-fdinfo-find") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS)
 inotify wd:1 ino:394027a sdev:fd00001 mask:fc6 ignored_mask:0 fhandle-bytes:8 fhandle-type:1 f_handle:7a029403b8034d62
 inotify wd:1 ino:394027a sdev:fd00001 mask:fc6 ignored_mask:0 fhandle-bytes:8 fhandle-type:1 f_handle:7a029403b8034d62
-TEST_INPUT
-  end
-
+EOS
   command_arg_parse("[ARGF]", "usage: notify-fdinfo-find < FILE")
   # -inum 60031610 -or -inum 60031610
   out = ARGF.read.split(/\r?\n/).map do |line|
@@ -574,18 +617,15 @@ TEST_INPUT
 end
 
 # ------------------------------------------------------------------------------
-# command - pandoc-json-remove-table-align @pub
+# command - pandoc-json-remove-table-align
 
 command("pandoc-json-remove-table-align") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS)
 aaa[42] [3.14] [3.14e-42] [42,3.14,3.14e-42]xxx
 aaa[42] [3.14] [3.14e-42] [42,3.14,3.14e-42]xxx
 -> []
 should keep: "pandoc-api-version":[1,17,5,4]
-TEST_INPUT
-  end
-
+EOS
   command_arg_parse("[ARGF]", "usage: pandoc-json-remove-table-align < FILE")
   # https://stackoverflow.com/questions/13340717/json-numbers-regular-expression
   number = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/
@@ -594,21 +634,17 @@ TEST_INPUT
 end
 
 # ------------------------------------------------------------------------------
-# command - systemd-analyze-dot-only-n @pub
+# command - systemd-analyze-dot-only-n
 
 command("systemd-analyze-dot-only-n") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    ARGV[0] = "3"
-    $stdin = StringIO.new(<<TEST_INPUT)
+  rubymine_debug(<<EOS, &-> { ARGV[0] = "3" })
 digraph systemd {
 	"blockdev@dev-loop25.target"->"shutdown.target" [color="red"];
 	"fwupd-refresh.timer"->"sysinit.target" [color="green"];
 	"fwupd-refresh.timer"->"time-sync.target" [color="green"];
 }
-TEST_INPUT
-  end
-
-  N = command_arg_parse("[ARGF]", "usage: systemd-analyze-dot-only-n N < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
+EOS
+  N, = command_arg_parse("[ARGF]", "usage: systemd-analyze-dot-only-n N < FILE") # rubocop:disable Lint/ConstantDefinitionInBlock
   n = N.to_i(10)
 
   txt = ARGF.read
@@ -642,44 +678,6 @@ TEST_INPUT
 end
 
 # ------------------------------------------------------------------------------
-# command - z-meta-publish-self @pub
-
-=begin # rubocop:disable Style/BlockComments
-c.rb -v z-meta-publish-self > ~/src/scraps/c.rb
-delta ~/qrb/tesrb/c.rb ~/src/scraps/c.rb
-=end
-
-command("z-meta-publish-self") do |opts_g|
-  if ENV.key?("DEBUGGER_HOST") && ENV.key?("RM_INFO")
-    $stdin = StringIO.new(<<TEST_INPUT)
-TEST_INPUT
-  end
-
-  command_arg_parse("", "usage: z-meta-publish-self")
-
-  File.open(__FILE__) do |f|
-    pub = true
-    while (line = f.gets&.rstrip)
-      case line
-      when /^# command - [-\w]+ @pub$/
-        logger.info("[public: #{pub} -> true] #{line}")
-        pub = true
-      when /^# command - [-\w]+$/
-        logger.info("[public: #{pub} -> false] #{line}")
-        pub = false
-      else
-        logger.debug(line)
-      end
-      next if line.match?(/[@]private/)
-      next unless pub
-      puts(line)
-    end
-  end
-
-  0
-end
-
-# ------------------------------------------------------------------------------
 # top command
 
 Version = [0, 0, 0].freeze # rubocop:disable Naming/ConstantName
@@ -690,14 +688,14 @@ Release = "2023-03-05" # rubocop:disable Naming/ConstantName
 # @attr_reader [Integer] verbose
 class OptsGlobal < Struct; end
 
-OptsGlobal_ = Struct.new(
+real_opts_class = Struct.new(
   :quiet,
   :verbose,
 )
 
 # @type [OptsGlobal]
 opts_g = lambda do
-  OptsGlobal_.new(
+  real_opts_class.new(
     quiet: false,
     verbose: 0,
   )
@@ -772,7 +770,7 @@ if $PROGRAM_NAME == __FILE__
   # @type [OptionParser]
   opt_parser = $opt_parsers[command_] # rubocop:disable Style/GlobalVars
   begin
-    argv_command_rest = opt_parser.parse!
+    opt_parser.parse!
     exit($commands[command_].call(opts_g)) # rubocop:disable Style/GlobalVars
   rescue OptionParser::ParseError => e
     warn("\e[31m#{e}\e[0m")

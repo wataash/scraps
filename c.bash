@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: Copyright (c) 2022-2024 Wataru Ashihara <wataash0607@gmail.com>
+# SPDX-FileCopyrightText: Copyright (c) 2022-2025 Wataru Ashihara <wataash0607@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
 # shellcheck disable=SC2317  # Command appears to be unreachable. Check usage (or ignore if invoked indirectly).
@@ -720,7 +720,7 @@ test_arg_parse() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - 0template @pub
+# command - 0template
 
 define_command 0template
 cmd::0template() {
@@ -746,7 +746,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - apt_changelog @pub
+# command - apt_changelog
 
 define_command apt_changelog
 cmd::apt_changelog() {
@@ -761,7 +761,7 @@ cmd::apt_changelog() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl - lib @pub
+# command - cfl - lib
 
 cfl_env_check() {
   local ok="true"
@@ -777,7 +777,7 @@ cfl_env_check() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_attachment_get @pub
+# command - cfl_content_attachment_get
 
 # saves to ~/.cache/wataash/c.bash/cfl_content_attachment_get/*
 define_command cfl_content_attachment_get
@@ -802,7 +802,7 @@ cmd::cfl_content_attachment_get() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_attachment_get_json @pub
+# command - cfl_content_attachment_get_json
 
 define_command cfl_content_attachment_get_json
 cmd::cfl_content_attachment_get_json() {
@@ -829,7 +829,7 @@ cmd::cfl_content_attachment_get_json() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_attachment_post @pub
+# command - cfl_content_attachment_post
 
 define_command cfl_content_attachment_post
 cmd::cfl_content_attachment_post() {
@@ -843,7 +843,7 @@ cmd::cfl_content_attachment_post() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_delete @pub
+# command - cfl_content_delete
 
 define_command cfl_content_delete
 cmd::cfl_content_delete() {
@@ -854,7 +854,7 @@ cmd::cfl_content_delete() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_format_with_actual_update_abort @pub
+# command - cfl_content_format_with_actual_update_abort
 
 define_command cfl_content_format_with_actual_update_abort
 cmd::cfl_content_format_with_actual_update_abort() {
@@ -874,7 +874,7 @@ cmd::cfl_content_format_with_actual_update_abort() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_get @pub
+# command - cfl_content_get
 
 # echo:
 # title
@@ -891,7 +891,7 @@ cmd::cfl_content_get() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_content_get_id @pub
+# command - cfl_content_get_id
 
 define_command cfl_content_get_id
 cmd::cfl_content_get_id() {
@@ -901,7 +901,7 @@ cmd::cfl_content_get_id() {
   (set -o pipefail; ( ((LOG_LEVEL >= LOG_INFO)) && set -x; cmd cfl_curl -X GET "$CONFLUENCE_URL/rest/api/content?spaceKey=$SPACE_KEY&title=$TITLE") | jq -er ".results[0].id")
 }
 # ------------------------------------------------------------------------------
-# command - cfl_content_update @pub
+# command - cfl_content_update
 # TODO: rename: cfl_content_update
 
 # stdout: JSON from PUT "$CONFLUENCE_URL/rest/api/content/$ID"
@@ -922,7 +922,7 @@ cmd::cfl_content_update() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cfl_curl @pub
+# command - cfl_curl
 
 define_command cfl_curl
 cmd::cfl_curl() {
@@ -939,7 +939,7 @@ false && pre_main() {
 }
 
 # ------------------------------------------------------------------------------
-# command - cmd_intercept @pub
+# command - cmd_intercept
 
 : <<'DOC'
 echo -e '#!/bin/sh\n/home/wsh/sh/c.bash -vv cmd_intercept bash "$@"' >~/bin/bash_
@@ -981,7 +981,7 @@ cmd::cmd_intercept() {
 }
 
 # ------------------------------------------------------------------------------
-# command - discharging_checker @pub
+# command - discharging_checker
 
 # upower -i /org/freedesktop/UPower/devices/battery_BAT0
 #  native-path:          BAT0
@@ -1046,7 +1046,7 @@ cmd::discharging_checker() {
     if [[ "$discharging" == "true" ]]; then
       percentage_=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep -P -o '(?<=percentage:)\s+\S+' | tr -d ' ')
       echo "discharging: $energy_prev Wh -> $energy_curr Wh, $state_prev -> $state_curr ($percentage_)"
-      bash /home/wsh/sh/debug_notify.bash "discharging: $energy_prev Wh -> $energy_curr Wh ($percentage_), $state_prev -> $state_curr"
+      bash /home/wsh/sh/debug_notify.bash ← removed "discharging: $energy_prev Wh -> $energy_curr Wh ($percentage_), $state_prev -> $state_curr"
       interval=$((interval * 2))
       echo "recheck in $interval seconds..."
     else
@@ -1081,7 +1081,7 @@ EOF
 fi
 
 # ------------------------------------------------------------------------------
-# command - file_sync_watch @pub
+# command - file_sync_watch
 
 define_command file_sync_watch
 cmd::file_sync_watch() {
@@ -1099,7 +1099,7 @@ cmd::file_sync_watch() {
 }
 
 # ------------------------------------------------------------------------------
-# command - file_timestamp @pub
+# command - file_timestamp
 
 define_command file_timestamp
 cmd::file_timestamp() {
@@ -1121,7 +1121,7 @@ cmd::file_timestamp() {
 }
 
 # ------------------------------------------------------------------------------
-# command - grep_multiline (gm) @pub
+# command - grep_multiline (gm)
 
 # c.bash gm -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash
 # c.bash gm -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash | sed '1d;$d'
@@ -1153,7 +1153,7 @@ cmd::grep_multiline() {
 }
 
 # ------------------------------------------------------------------------------
-# command - grep_multiline_greedy (gm_greedy) @pub
+# command - grep_multiline_greedy (gm_greedy)
 
 # c.bash gm_greedy -P "^define_command grep_multiline_greedy" "cat" < /home/wsh/sh/c.bash
 
@@ -1178,7 +1178,7 @@ cmd::grep_multiline_greedy() {
 }
 
 # ------------------------------------------------------------------------------
-# command - journalctl @pub
+# command - journalctl
 
 : <<'DOC'
 # Ubuntu 20.04:
@@ -1195,7 +1195,7 @@ cmd::journalctl() {
 }
 
 # ------------------------------------------------------------------------------
-# command - kill_clangd @pub
+# command - kill_clangd
 
 define_command kill_clangd
 cmd::kill_clangd() {
@@ -1264,7 +1264,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - kill_code_md_ext @pub
+# command - kill_code_md_ext
 
 define_command kill_code_md_ext
 cmd::kill_code_md_ext() {
@@ -1291,7 +1291,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_dmesg_time0 @pub
+# command - linux_dmesg_time0
 
 define_command linux_dmesg_time0
 cmd::linux_dmesg_time0() {
@@ -1301,7 +1301,7 @@ cmd::linux_dmesg_time0() {
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_kern_config @pub
+# command - linux_kern_config
 
 define_command linux_kern_config
 cmd::linux_kern_config() {
@@ -1359,7 +1359,7 @@ cmd::linux_kern_config::check_or_get_KBUILD_OUTPUT() {
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_kern_initramfs @pub
+# command - linux_kern_initramfs
 
 : <<'DOC'
 https://hernandigiorgi.com/how-to-create-an-initramfs-after-you-compile-a-linux-kernel/
@@ -1441,9 +1441,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_kern_make @pub
-
-# TODO: -d CONFIG_DEBUG_INFO_BTF でビルド時間短くなるかやってみる
+# command - linux_kern_make
 
 define_command linux_kern_make
 cmd::linux_kern_make() {
@@ -1467,7 +1465,7 @@ cmd::linux_kern_make() {
 }
 
 # ------------------------------------------------------------------------------
-# command - linux_kern_make_summary @pub
+# command - linux_kern_make_summary
 
 define_command linux_kern_make_summary
 cmd::linux_kern_make_summary() {
@@ -1489,13 +1487,14 @@ cmd::linux_kern_make_summary() {
 }
 
 # ------------------------------------------------------------------------------
-# command - md_code_b64 @pub
+# command - md_code_b64
 
+# @depracated use c.js txtMarkdownCodeB64
 define_command md_code_b64
 cmd::md_code_b64() {
   local -r usage="usage: $PROG md_code_b64 [-h | --help]"
   arg_parse "$usage" "" "$@"
-  c.js txt-markdown-code-b64
+  c.js txtMarkdownCodeB64
 }
 
 test_md_code_b64() { #@test
@@ -1511,13 +1510,14 @@ test_md_code_b64() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - md_code_b64d @pub
+# command - md_code_b64d
 
+# @depracated use c.js txtMarkdownCodeB64d
 define_command md_code_b64d
 cmd::md_code_b64d() {
   local -r usage="usage: $PROG md_code_b64d [-h | --help]"
   arg_parse "$usage" "" "$@"
-  c.js txt-markdown-code-b64d
+  c.js txtMarkdownCodeB64d
 }
 
 test_md_code_b64d() { #@test
@@ -1532,18 +1532,18 @@ test_md_code_b64d() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - md_sec @pub
+# command - md_sec
 
 define_command md_sec
 cmd::md_sec() {
   local -r usage="usage: $PROG md_sec [-h | --help] SECTION"
   local SECTION="" && arg_parse "$usage" "SECTION" "$@"
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  cmd md_code_b64 | node -e '
+  c.js txtMarkdownCodeB64 | node -e '
     const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
     let txt = fs.readFileSync("/dev/stdin", "utf8") + "\0";
     const match = txt.match(new RegExp(`^(## ${regExpEscape(process.argv[1])}$[\\s\\S]*?)(?=(\r?\n## |\0))`, "m"));
-    if (match !== null) process.stdout.write(match[1]);' "$SECTION" | cmd md_code_b64d
+    if (match !== null) process.stdout.write(match[1]);' "$SECTION" | c.js txtMarkdownCodeB64d
 }
 
 test_md_sec() { #@test
@@ -1562,7 +1562,7 @@ test_md_sec() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - md_secsp @pub
+# command - md_secsp
 # sections starting with the specified prefix
 
 define_command md_secsp
@@ -1570,7 +1570,7 @@ cmd::md_secsp() {
   local -r usage="usage: $PROG md_secsp [-h | --help] SECTION_PREFIX"
   local SECTION_PREFIX="" && arg_parse "$usage" "SECTION_PREFIX" "$@"
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  cmd md_code_b64 | node -e '
+  c.js txtMarkdownCodeB64 | node -e '
     const regExpEscape = ((string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions ; $& means the whole matched string
     const txt = fs.readFileSync("/dev/stdin", "utf8") + "\0eof\0";
     let txt2 = "";
@@ -1586,7 +1586,7 @@ cmd::md_secsp() {
     }
     if (lastSectionIsMatch) process.stdout.write(txt2);
     else process.stdout.write(txt2.slice(0, -1));
-  ' "$SECTION_PREFIX" | cmd md_code_b64d
+  ' "$SECTION_PREFIX" | c.js txtMarkdownCodeB64d
 }
 
 test_md_secsp() { #@test
@@ -1610,7 +1610,7 @@ test_md_secsp() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - netbsd_makefile_expand_vars @pub
+# command - netbsd_makefile_expand_vars
 
 define_command netbsd_makefile_expand_vars
 cmd::netbsd_makefile_expand_vars() {
@@ -1651,7 +1651,7 @@ cmd::netbsd_makefile_expand_vars() {
 }
 
 # ------------------------------------------------------------------------------
-# command - net_if_rename @pub
+# command - net_if_rename
 
 define_command net_if_rename
 cmd::net_if_rename() {
@@ -1669,7 +1669,7 @@ cmd::net_if_rename() {
 }
 
 # ------------------------------------------------------------------------------
-# command - pkill (pk) @pub
+# command - pkill (pk)
 # sudo -v && [ -e /usr/local/bin/pk ] && printf "\e[37m""exists\n\e[0m" || echo -e '#!/bin/sh \n exec /home/wsh/sh/c.bash pkill "$@"' | sudo tee /usr/local/bin/pk && sudo chmod +x /usr/local/bin/pk
 
 define_command pkill pk
@@ -1683,7 +1683,7 @@ cmd::pkill() {
 }
 
 # ------------------------------------------------------------------------------
-# command - pstree @pub
+# command - pstree
 
 define_command pstree
 cmd::pstree() {
@@ -1701,11 +1701,11 @@ cmd::pstree() {
       pid=$ppid
     done
   done
-  ps -p "$(IFS=,; echo "${pids[*]}")" -H u -ww
+  ( ((LOG_LEVEL >= LOG_DEBUG)) && set -x; ps -p "$(IFS=,; echo "${pids[*]}")" -H u -ww)
 }
 
 # ------------------------------------------------------------------------------
-# command - pty_qemu @pub
+# command - pty_qemu
 
 # @ref:qemu-pty
 
@@ -1748,7 +1748,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - pty_usb @pub
+# command - pty_usb
 
 define_command pty_usb
 cmd::pty_usb() {
@@ -1787,7 +1787,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - qemu_net_setup @pub
+# command - qemu_net_setup
 
 define_command qemu_net_setup
 cmd::qemu_net_setup() {
@@ -1815,6 +1815,8 @@ cmd::qemu_net_setup() {
   sudo nft add table ip nat0
   sudo nft 'add chain nat0 postrouting0 { type nat hook postrouting priority 100 ; }'
   sudo nft add rule ip nat0 postrouting0 ip saddr 172.31.100.0/24 ip daddr != 172.31.100.0/24 counter masquerade
+  sudo nft add rule ip filter FORWARD ip saddr 172.31.100.0/24 counter accept  # 行き
+  sudo nft add rule ip filter FORWARD ip daddr 172.31.100.0/24 counter accept  # 帰り
 
   # sudo iptables -t nat -A POSTROUTING -s 172.31.100.0/24 ! -d 172.31.100.0/24 -j MASQUERADE
   # @ref:iptables-bridge
@@ -1826,7 +1828,7 @@ cmd::qemu_net_setup() {
 }
 
 # ------------------------------------------------------------------------------
-# command - qemu_pty @pub
+# command - qemu_pty
 
 # compat
 
@@ -1836,7 +1838,7 @@ cmd::qemu_pty() {
 }
 
 # ------------------------------------------------------------------------------
-# command - smux @pub
+# command - smux
 
 # @ref:socat-pty-exec-mux
 
@@ -1901,7 +1903,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - spotify_code_to_token @pub
+# command - spotify_code_to_token
 
 : <<'EOS'
 c.bash -v spotify_http_server &
@@ -1931,7 +1933,7 @@ cmd::spotify_code_to_token() {
 }
 
 # ------------------------------------------------------------------------------
-# command - spotify_http_server @pub
+# command - spotify_http_server
 
 # google-chrome https://accounts.spotify.com/authorize?client_id=c78a65c5fb94462997b01eeeaf524324&response_type=code&redirect_uri=http://localhost:15350&scope=user-read-currently-playing
 # -> http://localhost:15350/?code={CODE}
@@ -1969,7 +1971,7 @@ EOS
 }
 
 # ------------------------------------------------------------------------------
-# command - spotify_say_song @pub
+# command - spotify_say_song
 
 define_command spotify_say_song
 cmd::spotify_say_song() {
@@ -2049,7 +2051,7 @@ cmd::spotify_say_song() {
 }
 
 # ------------------------------------------------------------------------------
-# command - strace_prettify @pub
+# command - strace_prettify
 
 : <<'DOC'
 @beg:strace_prettify:tcase
@@ -2080,7 +2082,7 @@ cmd::strace_prettify() {
 }
 
 # ------------------------------------------------------------------------------
-# command - time_sub @pub
+# command - time_sub
 
 define_command time_sub
 cmd::time_sub() {
@@ -2101,7 +2103,7 @@ test_time_sub() { #@test
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_begin_end (be) @pub
+# command - txt_begin_end (be)
 #
 # prints:
 # @beg:NAME
@@ -2143,7 +2145,7 @@ cmd::txt_begin_end() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_begin_end_fast (bef) @pub
+# command - txt_begin_end_fast (bef)
 
 define_command txt_begin_end_fast bef
 cmd::txt_begin_end_fast() {
@@ -2155,7 +2157,7 @@ cmd::txt_begin_end_fast() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_begin_end_v (bev) @pub
+# command - txt_begin_end_v (bev)
 #
 # excludes (like grep -v):
 # @beg:NAMEV  from here
@@ -2195,7 +2197,7 @@ cmd::txt_begin_end_v() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_begin_end_v_fast (bevf) @pub
+# command - txt_begin_end_v_fast (bevf)
 #
 # excludes (like grep -v):
 # @beg:NAMEV  from here
@@ -2217,7 +2219,7 @@ cmd::txt_begin_end_v_fast() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_bv_ev (bv) @pub
+# command - txt_bv_ev (bv)
 #
 # excludes (like grep -v):
 # @ bv  from here
@@ -2233,12 +2235,12 @@ cmd::txt_bv_ev() {
   local FILE="" && arg_parse "$usage" "[FILE]" "$@"
   [[ $FILE == "" ]] && FILE="/dev/stdin"
   # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
-  # from c.js txt-private
+  # from c.js txtPrivate
   node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(new RegExp(`^.*[@]bv\\b.*\r?\n[\\s\\S]*?[@]ev\\b.*(\r?\n|$)`, "gm"), ""))' <"$FILE"
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_eval @pub
+# command - txt_eval
 
 define_command txt_eval
 cmd::txt_eval() {
@@ -2271,7 +2273,7 @@ cmd::txt_eval() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_replace (rep) @pub
+# command - txt_replace (rep)
 
 # c.bash rep "$(c.bash grep_multiline -P -m1 "^define_command grep_multiline" "cat" < /home/wsh/sh/c.bash)" "hi there" < /home/wsh/sh/c.bash > /tmp/c.bash.d/rep.test.bash
 # delta /home/wsh/sh/c.bash /tmp/c.bash.d/rep.test.bash
@@ -2288,7 +2290,7 @@ cmd::txt_replace() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_replace_all (repa) @pub
+# command - txt_replace_all (repa)
 
 define_command txt_replace_all repa DEPRECATED:replace_all
 cmd::txt_replace_all() {
@@ -2300,7 +2302,7 @@ cmd::txt_replace_all() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_replace_line (repl) @pub
+# command - txt_replace_line (repl)
 
 define_command txt_replace_line repl DEPRECATED:replace_line
 cmd::txt_replace_line() {
@@ -2311,7 +2313,7 @@ cmd::txt_replace_line() {
 }
 
 # ------------------------------------------------------------------------------
-# command - txt_replace_line_all (repla) @pub
+# command - txt_replace_line_all (repla)
 
 define_command txt_replace_line_all repla DEPRECATED:replace_line_all
 cmd::txt_replace_line_all() {
@@ -2323,7 +2325,7 @@ cmd::txt_replace_line_all() {
 }
 
 # ------------------------------------------------------------------------------
-# command - xargs_delay @pub
+# command - xargs_delay
 
 define_command xargs_delay
 cmd::xargs_delay() {
@@ -2402,7 +2404,7 @@ cmd::repl() {
 }
 
 # ------------------------------------------------------------------------------
-# command - z_meta_command_list @pub
+# command - z_meta_command_list
 
 define_command z_meta_command_list
 cmd::z_meta_command_list() {
@@ -2415,7 +2417,7 @@ cmd::z_meta_command_list() {
 }
 
 # ------------------------------------------------------------------------------
-# command - z_meta_command_list_no_alias @pub
+# command - z_meta_command_list_no_alias
 
 define_command z_meta_command_list_no_alias
 cmd::z_meta_command_list_no_alias() {
@@ -2424,42 +2426,6 @@ cmd::z_meta_command_list_no_alias() {
   for cmd in "${_command_list_stable_no_deprecated_no_alias[@]}"; do
     echo "$cmd"
   done
-}
-
-# ------------------------------------------------------------------------------
-# command - z_meta_publish_self @pub
-
-: <<'DOC'
-diff -u "$(c.bash z_meta_command_list_no_alias | psub)" "$(c.bash z_meta_command_list_no_alias | sort | psub)"
-c.bash -v z_meta_publish_self | c.bash bv >~/src/scraps/c.bash
-cd ~/src/scraps/
-git ...
-DOC
-
-define_command z_meta_publish_self
-cmd::z_meta_publish_self() {
-  local -r usage="usage: $PROG z_meta_publish_self [-h | --help]"
-  arg_parse "$usage" "" "$@"
-  local public_cmd="true"
-  cmd bev "private_v" <"$(self_real_path)" | while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
-    # # section @pub
-    if [[ $line =~ ^#.+@pub$ ]]; then
-      log_info "[public_cmd: $public_cmd -> true] $line"
-      public_cmd="true"
-    # # command - COMMAND  (private unless explicitly marked as @pub)
-    # # section @private
-    elif [[ $line =~ ^"# command - " ]] || [[ $line =~ ^#.+[@]private$ ]]; then
-      log_info "[public_cmd: $public_cmd -> false] $line"
-      public_cmd="false"
-    else
-      log_debug "$line"
-    fi
-    [[ $public_cmd == "false" ]] && continue
-    [[ $line =~ [@]"pl"$ || $line =~ [@]"pl"[^0-9A-Za-z_] ]] && continue  # private line
-    echo "$line"
-  done
-
-  return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -2604,3 +2570,2658 @@ COMMAND_=$1 && shift
 [[ -v _commands[$COMMAND_] ]] || { err 0 "no such command: $COMMAND_" && top_usage >&2 && exit 2; }
 "cmd::${_commands[$COMMAND_]}" "$@"
 exit $?
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual
+# https://www.gnu.org/software/bash/manual/bash.html
+
+# TODO:
+# https://tiswww.case.edu/php/chet/bash/FAQ
+# https://mywiki.wooledge.org/BashFAQ
+
+# https://stackoverflow.com/a/16715681
+
+if false; then
+source /home/wsh/sh/c.bash
+IN_BATS=no
+log_setlevel "$LOG_DEBUG"
+fi  # if false
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 1 Introduction
+
+# 1.1 What is Bash?
+# 1.2 What is a shell?
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 2 Definitions
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 3 Basic Shell Features
+
+if false; then
+# @beg:man_3
+
+# 3.1 Shell Syntax
+# 3.1.1 Shell Operation
+# 3.1.2 Quoting
+# 3.1.2.1 Escape Character
+# 3.1.2.2 Single Quotes
+# 3.1.2.3 Double Quotes
+# 3.1.2.4 ANSI-C Quoting
+# 3.1.2.5 Locale-Specific Translation
+# 3.1.3 Comments
+# 3.2 Shell Commands
+# 3.2.1 Reserved Words
+# 3.2.2 Simple Commands
+
+# 3.2.3 Pipelines
+# [time [-p]] [!] command1 [ | or |& command2 ] …
+
+echo |& cat  # echo 2>&1 | cat
+
+(
+  set -e
+  # false  # die
+  ! false  # not die
+  ! true   # not die (!)
+)
+
+# lastpipe
+# when job control is not active
+{
+  bash
+  echo "$$ $BASHPID"  # 100 100
+  unset var
+
+  shopt -u lastpipe
+  true | eval 'echo this is subshell; echo "$$ $BASHPID"'  # 100 101
+  echo val | read -r var  # read -r var: executed in subshell, which immediately exits
+  declare -p var  # bash: declare: var: not found
+
+  shopt -s lastpipe && set +m  # set +m for interactive shell
+  true | eval 'echo this is parent shell; echo "$$ $BASHPID"'  # 100 100
+  echo val | read -r var
+  declare -p var  # declare -- var="val"
+}
+
+# pipefail
+ret() { return "$1"; }
+ret 1 | ret 2 | ret 3; echo $?; (set -o pipefail; ret 1 | ret 2 | ret 3; echo $?) # 3 3
+ret 0 | ret 0 | ret 0; echo $?; (set -o pipefail; ret 0 | ret 0 | ret 0; echo $?) # 0 0  > zero if all commands exit successfully
+ret 1 | ret 0 | ret 0; echo $?; (set -o pipefail; ret 1 | ret 0 | ret 0; echo $?) # 0 1
+ret 0 | ret 2 | ret 0; echo $?; (set -o pipefail; ret 0 | ret 2 | ret 0; echo $?) # 0 2
+ret 0 | ret 0 | ret 3; echo $?; (set -o pipefail; ret 0 | ret 0 | ret 3; echo $?) # 3 3
+ret 1 | ret 2 | ret 0; echo $?; (set -o pipefail; ret 1 | ret 2 | ret 0; echo $?) # 0 2  > the value of the last (rightmost) command to exit with a non-zero status
+
+(set -e            ; ret 42 | ret 0          ; echo "$? not die") ; echo "$?" # 0 not die  0
+(set -e            ; ret 0 | ret 42          ; unreachable)       ; echo "$?" #            42
+(set -e -o pipefail; ret 42 | ret 0          ; unreachable)       ; echo "$?" #            42
+(set -e -o pipefail; ret 42 | ret 43 | ret 0 ; unreachable)       ; echo "$?" #            43
+
+# 3.2.4 Lists of Commands
+# > A list is a sequence of one or more pipelines separated by one of the operators ‘;’, ‘&’, ‘&&’, or ‘||’, and optionally terminated by one of ‘;’, ‘&’, or a newline.
+command1 && command2
+command1 || command2
+
+# 3.2.5 Compound Commands
+# > begins with a reserved word or control operator and is terminated by a corresponding reserved word or operator
+# e.g. if ... fi
+# > Any redirections (see Redirections) associated with a compound command apply to all commands within that compound command unless explicitly overridden
+# e.g. if true; then cmd1; cmd2; cmd3 >b; fi >a  # cmd1/cmd2 >a
+
+until test-commands; do consequent-commands; done
+
+while test-commands; do consequent-commands; done
+
+# for name [ [in [words …] ] ; ] do commands; done
+for (( expr1 ; expr2 ; expr3 )) ; do commands ; done
+
+# if test-commands; then
+#   consequent-commands;
+# [elif more-test-commands; then
+#   more-consequents;]
+# [else alternate-consequents;]
+# fi
+
+# case word in
+#     [ [(] pattern [| pattern]…) command-list ;;]…
+# esac
+# ;;   break
+# ;&   fallthrough
+# ;;&  continues testing next case
+
+# select name [in words …]; do commands; done
+
+# shellcheck disable=SC2154  # expression is referenced but not assigned.
+(( expression ))  # 0 -> returns 1, non-zero -> returns 0; see 6.5 Shell Arithmetic
+
+# shellcheck disable=SC2078  # This expression is constant. Did you forget a $ somewhere?
+[[ expression ]]  # < > == != =~
+if false; then
+  # POSIX extended regular expression pattern
+  # using the POSIX regcomp and regexec interfaces usually described in regex(3)
+  # returns:
+  # - 0 (matches)
+  # - 1 (does not)
+  # - 2 (the regular expression is syntactically incorrect)
+  # nocasematch shell option
+
+: <<'COMMENT'
+@ref:ERE-character-class
+https://www.gnu.org/software/grep/manual/html_node/Character-Classes-and-Bracket-Expressions.html
+in the ‘C’ locale and ASCII character encoding
+[:alnum:]  [[:alnum:]]   [0-9A-Za-z]
+[:alpha:]  [[:alpha:]]   [A-Za-z]
+[:blank:]  [[:blank:]]   space and tab
+[:cntrl:]  [[:cntrl:]]   octal codes 000 through 037, and 177 (DEL)
+[:digit:]  [[:digit:]]   [0-9] (prefer[0-9])
+[:graph:]  [[:graph:]]   [:alnum:] and [:punct:]
+[:lower:]  [[:lower:]]   [a-z] (prefer [a-z])
+[:print:]  [[:print:]]   [:alnum:], [:punct:], and space
+[:punct:]  [[:punct:]]   ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+[:space:]  [[:space:]]   tab, newline, vertical tab, form feed, carriage return, and space
+[:upper:]  [[:upper:]]   [A-Z] (prefer [A-Z])
+[:xdigit:] [[:xdigit:]]  [0-9A-Fa-f]
+COMMENT
+
+  [[ "x"    =~ [[:space:]]*(a)?b ]] ; echo_array "${BASH_REMATCH[@]}"  #
+  [[ "b"    =~ [[:space:]]*(a)?b ]] ; echo_array "${BASH_REMATCH[@]}"  # b       ""
+  [[ "ab"   =~ [[:space:]]*(a)?b ]] ; echo_array "${BASH_REMATCH[@]}"  # ab      a
+  [[ "  b"  =~ [[:space:]]*(a)?b ]] ; echo_array "${BASH_REMATCH[@]}"  # "  b"   ""
+  [[ "  ab" =~ [[:space:]]*(a)?b ]] ; echo_array "${BASH_REMATCH[@]}"  # "  ab"  a
+
+  # 'literal' "literal" は正規表現でなく文字列として扱われる
+  # shellcheck disable=SC2076  # Remove quotes from right-hand side of =~ to match as a regex rather than literally
+  {
+    [[ ".?" =~  .?  ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=".")
+    [[ ".?" =~ ".?" ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=".?")
+    [[ ".?" =~ '.?' ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=".?")
+  }
+  # "$pattern" は正規表現でなく文字列として扱われる
+  # shellcheck disable=SC2076  # Remove quotes from right-hand side of =~ to match as a regex rather than literally.
+  {
+    pattern='[[:space:]]*(a)?b'
+    [[ "b"                 =~  [[:space:]]*(a)?b  ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="b" [1]="")
+    [[ "b"                 =~  $pattern           ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="b" [1]="")
+    [[ '[[:space:]]*(a)?b' =~ '[[:space:]]*(a)?b' ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="[[:space:]]*(a)?b")
+    [[ '[[:space:]]*(a)?b' =~ "$pattern"          ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="[[:space:]]*(a)?b")
+  }
+
+  # character classes - $
+  # [$chars] は展開される
+  chars="a-z A-Z"
+  [[ "foo fOO" =~ [$chars]+ ]]   ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo fOO") prefered
+  [[ "foo fOO" =~ ["$chars"]+ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo fOO")
+
+  # character classes - special character
+  # space or >
+  # 文字列にするかエスケープする必要がある
+  [[ "A > Z" =~ [" >"]+ ]]   ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=" > ")
+  [[ "A > Z" =~ [\ \>]+ ]]   ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=" > ")
+  # $chars に入れても良い
+  chars=" >"
+  [[ "A > Z" =~ [$chars]+ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=" > ")
+  # ^ $ は [] にできないっぽい
+  [[ "foo" =~ ^foo$ ]]           ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo")
+  [[ "foo" =~ [^]foo$ ]]         ; declare -p BASH_REMATCH  # bash: line 0: declare: BASH_REMATCH: not found  これはnegateになる
+  [[ "foo" =~ [\^]foo$ ]]        ; declare -p BASH_REMATCH  # bash: line 0: declare: BASH_REMATCH: not found  これも？
+  [[ "foo" =~ ["^"]foo$ ]]       ; declare -p BASH_REMATCH  # bash: line 0: declare: BASH_REMATCH: not found  これも？
+  chars="^"
+  [[ "foo" =~ [$chars]foo$ ]]    ; declare -p BASH_REMATCH  # bash: line 1: declare: BASH_REMATCH: not found  これも？
+  [[ "foo" =~ ["$chars"]foo$ ]]  ; declare -p BASH_REMATCH  # bash: line 2: declare: BASH_REMATCH: not found  これも？
+  [[ "foo" =~ [" $chars"]foo$ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  [[ "foo" =~ [\\^]foo$ ]]       ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  [[ "foo" =~ [\\\^]foo$ ]]      ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  [[ "foo" =~ [a^]foo$ ]]        ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  # $
+  [[ "foo" =~ ^foo[$] ]]      ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  [[ "foo" =~ ^foo[\$] ]]     ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  [[ "foo" =~ ^foo[\\$] ]]    ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  [[ "foo" =~ ^foo[\\\$] ]]   ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  [[ "foo" =~ ^foo[\\\$] ]]   ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  chars="$"; declare -p chars  # declare -- chars="\$"
+  [[ "foo" =~ ^foo[$chars] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+
+  # iterate / iteration / matchall / match all / all matches
+  s="a_bb_ccc"
+  while [[ $s =~ [a-z]+ ]]; do
+    echo "match: ${BASH_REMATCH[0]}"  # a bb ccc
+    s=${s/"${BASH_REMATCH[0]}"/}
+  done
+  echo "s: $s"  # __
+
+  # non-greedy nongreedy un-greedy ungreedy .+? .*? はできないっぽい
+
+  # word boundary \b
+  s=$'foo'       ; [[ $s                    =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()  !!!!!
+  s=$'foo '      ; [[ $s                    =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo " [1]="foo")
+  s=$'foo\nbar'  ; [[ $s                    =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=$'foo\n' [1]="foo")
+  s=$'foo \nbar' ; [[ $s                    =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo " [1]="foo")
+  s=$'foox'      ; [[ $s                    =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  s=$'foox '     ; [[ $s                    =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  s=$'foox\nbar' ; [[ $s                    =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  s=$'foox \nbar'; [[ $s                    =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  # $ ||
+  s=$'foo'       ; [[ $s =~ ^("foo")$ || $s =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo" [1]="foo")  OK
+  s=$'foo '      ; [[ $s =~ ^("foo")$ || $s =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo " [1]="foo")
+  s=$'foo\nbar'  ; [[ $s =~ ^("foo")$ || $s =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=$'foo\n' [1]="foo")
+  s=$'foo \nbar' ; [[ $s =~ ^("foo")$ || $s =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo " [1]="foo")
+  s=$'foox'      ; [[ $s =~ ^("foo")$ || $s =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  s=$'foox '     ; [[ $s =~ ^("foo")$ || $s =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  s=$'foox\nbar' ; [[ $s =~ ^("foo")$ || $s =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  s=$'foox \nbar'; [[ $s =~ ^("foo")$ || $s =~ ^("foo")[^0-9A-Za-z_] ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  # ([^\w].*)?$ でもできるが、何やってるか分からないので not recommended
+  s=$'foo'       ; [[ $s =~ ^("foo")([^0-9A-Za-z_].*)?$ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo" [1]="foo" [2]="")
+  s=$'foo '      ; [[ $s =~ ^("foo")([^0-9A-Za-z_].*)?$ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]="foo " [1]="foo" [2]=" ")
+  s=$'foo\nbar'  ; [[ $s =~ ^("foo")([^0-9A-Za-z_].*)?$ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=$'foo\nbar' [1]="foo" [2]=$'\nbar')
+  s=$'foo \nbar' ; [[ $s =~ ^("foo")([^0-9A-Za-z_].*)?$ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=([0]=$'foo \nbar' [1]="foo" [2]=$' \nbar')
+  s=$'foox'      ; [[ $s =~ ^("foo")([^0-9A-Za-z_].*)?$ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  s=$'foox '     ; [[ $s =~ ^("foo")([^0-9A-Za-z_].*)?$ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  s=$'foox\nbar' ; [[ $s =~ ^("foo")([^0-9A-Za-z_].*)?$ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+  s=$'foox \nbar'; [[ $s =~ ^("foo")([^0-9A-Za-z_].*)?$ ]] ; declare -p BASH_REMATCH  # declare -ar BASH_REMATCH=()
+fi
+
+( list )  # subshell
+{ list; }
+
+# coproc [NAME] command [redirections]
+# coproc NAME { command; }
+coproc sleep_coproc { sleep 3; }
+jobs  # coproc sleep_coproc { sleep 10; } &
+args "${sleep_coproc[@]}" "$sleep_coproc_PID"  # 63 60 202953
+wait "$sleep_coproc_PID"
+
+# read/write
+coproc color_coproc { sed -u -e 's/^/\x1b[32m/' -e 's/$/\x1b[0m/'; }
+echo "line1" >&"${color_coproc[1]}"
+echo "line2" >&"${color_coproc[1]}"
+# cat <&"${color_coproc[0]}"  # line1 line2 (block)
+read -r -u "${color_coproc[0]}" line
+echo "$line"
+read -r -u "${color_coproc[0]}" line
+echo "$line"
+read -r -u "${color_coproc[0]}" line  # block
+
+# wait すると read/write 不可
+coproc cp_echo { echo line1; echo line2; }
+wait
+echo "line1" >&"${cp_echo[1]}"  # bash: "${cp_echo[1]}": Bad file descriptor
+read -r -u "${cp_echo[0]}" line  # bash: read: : invalid file descriptor specification
+cat <&"${cp_echo[0]}"  # bash: "${cp_echo[0]}": Bad file descriptor
+
+# exit 後は read 1回のみ
+coproc cp_echo { echo line1; echo line2; }
+sleep 0.1
+# echo "line1" >&"${cp_echo[1]}"  # bash: "${cp_echo[1]}": Bad file descriptor; bashのBUG?で141でbashが終了する
+read -r -u "${cp_echo[0]}" line  # [1]+  Done                    coproc cp_echo { echo line1; echo line2; }
+echo "$line"  # line1
+read -r -u "${cp_echo[0]}" line  # bash: read: : invalid file descriptor specification
+cat <&"${cp_echo[0]}"  # bash: "${cp_echo[0]}": Bad file descriptor
+
+# exit 後の出力は cat でまとめて取る
+coproc cp_echo { echo line1; echo line2; }
+sleep 0.1
+cat <&"${cp_echo[0]}"  # line 1 line 2
+#[1]+  Done                    coproc cp_echo { echo line1; echo line2; }
+
+# while read ができない？ これは致命的だ
+coproc cp_echo { echo line1; echo line2; }
+sleep 0.1
+while IFS= read -r -u "${cp_echo[0]}" line; do  # 1発目の read で EBADF?
+  echo "$line"  # NOTREACHED?
+done
+#[1] 1430293
+#[1]+  Done                    coproc cp_echo { echo line1; echo line2; }
+#bash: read: : invalid file descriptor specification
+
+cat <&"${cp_echo[0]}"  # line 1 line 2
+#[1]+  Done                    coproc cp_echo { echo line1; echo line2; }
+
+# without NAME -> COPROC (これは使わない)
+coproc sleep 9999
+jobs  # coproc COPROC sleep 9999 &
+args "${COPROC[@]}" "$COPROC_PID"  # 63 60 202953
+# COPROC 上書き
+coproc sleep 9998  # bash: warning: execute_coproc: coproc [202953:COPROC] still exists
+args "${COPROC[@]}" "$COPROC_PID"  # 63 60 202953
+
+# 3.2.7 GNU Parallel
+
+# 3.3 Shell Functions
+
+# the DEBUG and RETURN traps
+# trace attribute using the declare builtin (declare -t かな)
+# -o functrace
+# -errtrace
+# TODO
+
+# Consequently, a local variable at the current local scope is a variable declared using the local or declare builtins in the function that is currently executing.
+# function 内の declare は local 扱いになる
+if false; then
+  fn () {
+    declare var=1
+    declare -g var_global=1  # [declare_g]
+    echo "(fn) var: $var"
+    echo "(fn) var_global: $var_global"
+  }
+  fn
+  echo "(global) var: $var"  # (not set)
+  echo "(global) var_global: $var_global"
+fi
+
+# localvar_unset TODO
+
+# 3.4 Shell Parameters
+
+if false; then
+  # > If value is not given, the variable is assigned the null string.
+  name=          # null string
+  name2=""       # null string 多分
+  declare name3  # ?
+  declare -p name name2 name3
+  #declare -- name=""
+  #declare -- name2=""
+  #declare -- name3
+  unset name name2 name3
+  # declare -p name name2 name3
+  #/home/wsh/sh/bash_man.bash: line 195: declare: name: not found
+  #/home/wsh/sh/bash_man.bash: line 195: declare: name2: not found
+  #/home/wsh/sh/bash_man.bash: line 195: declare: name3: not found
+
+  log_info "> integer attribute set, then value is evaluated as an arithmetic expression"
+  declare s
+  declare -i i
+  s=1+1  # declare -- s="1+1"
+  i=1+1  # declare -i i="2"     i=$((1+1)) の方が好み
+  declare -p s i
+  unset s i
+
+  log_info "> Assignment statements may also appear as arguments to the alias, declare, typeset, export, readonly, and local builtin commands (declaration commands)."
+  # shellcheck disable=SC2116  # Useless echo? Instead of 'cmd $(echo foo)', just use 'cmd foo'
+  alias f="$(echo ls)"
+  alias f  # alias f='ls'
+  # TODO: unset f
+
+  log_info "+="
+  s="a"
+  a=("a" "b")
+  s+="b"     # s=([0]="ab" [1]="c")
+  s+=("c")   # s="ab"
+  a+="c"     # a=([0]="ac" [1]="b")
+  a[1]+="d"  # [1]="bd"
+  a+=("e")   # [2]="e"
+  declare -p s a
+  unset s a
+
+  log_info "nameref"
+  set -- foo
+  # local -n nameref
+  declare -n nameref_arg1="$1"  # declare -n nameref_arg1="foo"
+  declare -n nameref_var="var"  # declare -n nameref_var="var"
+  declare -p nameref_arg1 nameref_var
+  foo=x
+  var=x
+  echo "$nameref_arg1 $nameref_var"  # x x
+  unset nameref_arg1 nameref_var foo var
+
+  log_info "> the control variable in a for loop has the nameref attribute"
+  declare -n control_variable
+  x="1"
+  y="2"
+  for control_variable in "x" "y"; do
+    echo "$control_variable"  # 1, 2
+  done
+  unset x y
+fi
+
+# 3.4.1 Positional Parameters
+
+if false; then
+  set -- a b c d e f g h i j k l m n o p q r s t u v w x y z
+  # shellcheck disable=SC1037  # Braces are required for positionals over 9, e.g. ${10}
+  echo "bad: $10"    # a0
+  echo "ok:  ${10}"  # j
+fi
+
+# 3.4.2 Special Parameters
+
+if false; then
+  false "$*"  # ($*) Expands to the positional parameters, starting from one. When the expansion is not within double quotes, each positional parameter expands to a separate word. In contexts where it is performed, those words are subject to further word splitting and filename expansion. When the expansion occurs within double quotes, it expands to a single word with the value of each parameter separated by the first character of the IFS special variable. That is, "$*" is equivalent to "$1c$2c…", where c is the first character of the value of the IFS variable. If IFS is unset, the parameters are separated by spaces. If IFS is null, the parameters are joined without intervening separators.
+  false "$@"  # ($@) Expands to the positional parameters, starting from one. In contexts where word splitting is performed, this expands each positional parameter to a separate word; if not within double quotes, these words are subject to word splitting. In contexts where word splitting is not performed, this expands to a single word with each positional parameter separated by a space. When the expansion occurs within double quotes, and word splitting is performed, each parameter expands to a separate word. That is, "$@" is equivalent to "$1" "$2" …. If the double-quoted expansion occurs within a word, the expansion of the first parameter is joined with the beginning part of the original word, and the expansion of the last parameter is joined with the last part of the original word. When there are no positional parameters, "$@" and $@ expand to nothing (i.e., they are removed).
+  false "$#"  # ($#) Expands to the number of positional parameters in decimal.
+  false "$?"  # ($?) Expands to the exit status of the most recently executed foreground pipeline.
+  false "$-"  # ($-, a hyphen.) Expands to the current option flags as specified upon invocation, by the set builtin command, or those set by the shell itself (such as the -i option).
+  false "$$"  # ($$) Expands to the process ID of the shell. In a subshell, it expands to the process ID of the invoking shell, not the subshell.
+  false "$!"  # ($!) Expands to the process ID of the job most recently placed into the background, whether executed as an asynchronous command or using the bg builtin (see Job Control Builtins).
+  false "$0"  # ($0) Expands to the name of the shell or shell script. This is set at shell initialization. If Bash is invoked with a file of commands (see Shell Scripts), $0 is set to the name of that file. If Bash is started with the -c option (see Invoking Bash), then $0 is set to the first argument after the string to be executed, if one is present. Otherwise, it is set to the filename used to invoke Bash, as given by argument zero.
+
+  echo "$-"  # hB
+  set -x
+  echo "$-"  # hxB
+
+  echo "$0"
+  # bash FILE -> FILE
+  # bash -c "..." arg0 arg1 arg2 -> arg0
+fi
+
+# 3.5 Shell Expansions
+
+# 3.5.1 Brace Expansion
+
+# sequence expression {x..y[..incr]}
+if false; then
+  echo_array {1..3}  # 1 2 3
+  echo_array {3..1}  # 3 2 1
+  echo_array {0..10..2}  # 0 2 4 6 8 10
+  echo_array {10..0..2}  # 10 8 6 4 2 0
+  echo_array {10..0..-2}  # same
+  echo_array {01..100}  # 001 002 ... 009 010 011 ... 100
+  echo_array {001..100}  # same, prefer
+  echo_array {a..c}  # a b c
+  echo_array {a..c..2}  # a c
+  echo_array {Z..a}  # Z [ SPACE ] ^ _ ` a
+  echo_array {_..a}  # (not expanded) {_..a}
+  echo_array {a..Z}  # (not expanded) {_..a}
+  # 文字は [a-zA-Z] だけかな？
+fi
+
+# 3.5.2 Tilde Expansion
+
+# 3.5.3 Shell Parameter Expansion
+
+# [](file:///home/wsh/qc/bash/subst.c)
+# /* ${[#][!]name[[:][^[^]][,[,]]#[#]%[%]-=?+[word][:e1[:e2]]]} */
+# static WORD_DESC *
+# parameter_brace_expand (string, indexp, quoted, pflags, quoted_dollar_atp, contains_dollar_at)
+# この関数だけで700行くらいある…
+
+if false; then
+  # # parameter: a shell parameter as described above (see Shell Parameters) or an array reference (see Arrays)
+  # 3.4 Shell Parameters
+  # 6.7 Arrays
+  false && ${parameter}
+
+  log_info "\${!parameter} indirection"
+  # parameter is not a nameref
+  tmp="foo bar"
+  parameter="tmp"
+  echo "${!parameter}"  # -> "${tmp}" -> "foo bar"
+  # exception (described below):
+  # shellcheck disable=SC2145  # Argument mixes string and array. Use * or separate argument
+  false "${!prefix*} ${!name[@]}"
+  # nth argument
+  set -- a b c && n=1             && echo "${!n}"        # [1]   a
+  set -- a b c && n=1 && ((n++))  && echo "${!n}"        # [1+1] b  # n=1 && echo "${!n+1}"  # 1 (bad)
+  set -- a b c && n=1 && ((n+=2)) && echo "${!n}"        # [1+2] c  # n=1 && echo "${!n+2}"  # 2 (bad)
+  set -- a b c && n=1             && echo "${@:$n:1}"    # [1]   a
+  set -- a b c && n=1             && echo "${@:$n+1:1}"  # [1+1] b
+  set -- a b c && n=1             && echo "${@:$n+2:1}"  # [1+2] c
+  #
+  set -- a b c && n=3             && echo "${!n}"        # [3]   c
+  set -- a b c && n=3 && ((n--))  && echo "${!n}"        # [3-1] b  # n=3 && echo "${!n-1}"  # c (bad)
+  set -- a b c && n=3 && ((n-=2)) && echo "${!n}"        # [3-2] a  # n=3 && echo "${!n-2}"  # c (bad)
+  set -- a b c && n=3             && echo "${@:$n:1}"    # [3]   c
+  set -- a b c && n=3             && echo "${@:$n-1:1}"  # [3-1] b
+  set -- a b c && n=3             && echo "${@:$n-2:1}"  # [3-2] a
+fi
+
+if false; then
+  # ${parameter:-word}  # If parameter is unset or null, the expansion of word is substituted. Otherwise, the value of parameter is substituted.
+  # ${parameter:=word}  # If parameter is unset or null, the expansion of word is assigned to parameter. The value of parameter is then substituted. Positional parameters and special parameters may not be assigned to in this way.
+  # ${parameter:?word}  # If parameter is null or unset, the expansion of word (or a message to that effect if word is not present) is written to the standard error and the shell, if it is not interactive, exits. Otherwise, the value of parameter is substituted.
+  # ${parameter:+word}  # If parameter is null or unset, nothing is substituted, otherwise the expansion of word is substituted.
+
+  # ${parameter:-word}  # $parameter が空かunsetなら word
+  # ${parameter:=word}  # $parameter が空かunsetなら parameter=word; word
+  # ${parameter:?word}  # $parameter が空かunsetなら エラーメッセージ "word" を出して exit 1
+  # ${parameter:+word}  # $parameter が空かunsetなら 空; set -u で有効
+
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  log_info '"${parameter:-word}"'
+  unset parameter      #        declare -p parameter -> /home/wsh/sh/bash_man.bash: line 42: declare: parameter: not found
+  # declare parameter  # null?  declare -p parameter -> declare -- parameter
+  # parameter=         # null   declare -p parameter -> declare -- parameter=""  > If value is not given, the variable is assigned the null string.
+  # parameter=""       # null?  declare -p parameter -> declare -- parameter=""
+  echo "${parameter:-word}"  # word
+  parameter="x"              #  declare -p parameter -> declare -- parameter="x"
+  echo "${parameter:-word}"  # x
+
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  log_info '"${parameter:=word}"'
+  unset parameter
+  echo "${parameter:=word}"  # word
+  declare -p parameter  # "word"
+  # Positional parameters and special parameters may not be assigned to in this way.
+  false && echo "${1:=word}"  # /home/wsh/sh/bash_man.bash: line 42: $1: cannot assign in this way
+
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  log_info '"${parameter:?word}"'
+  unset parameter
+  false && echo "${parameter:?word}"  # /home/wsh/sh/bash_man.bash: line 42: parameter: word  exit 1
+
+  # shellcheck disable=SC2016  # Expressions don't expand in single quotes, use double quotes for that
+  log_info '"${parameter:+word}"'
+  unset parameter
+  set -u
+  echo ">${parameter:+word}<"  # ><
+  false && echo ">$parameter<"  # /home/wsh/sh/bash_man.bash: line 42: parameter: unbound variable  exit 1
+  set +u
+
+  # > the expansion of word
+  log_info "the expansion of word"
+  unset parameter
+  echo "${parameter:-$(tr "[:lower:]" "[:upper:]" <<< "foo")}"  # FOO
+  echo "${parameter:=$(tr "[:lower:]" "[:upper:]" <<< "foo")}"
+  echo "${parameter:?$(tr "[:lower:]" "[:upper:]" <<< "foo")}"
+  echo "${parameter:+$(tr "[:lower:]" "[:upper:]" <<< "foo")}"
+
+  log_info "\${parameter:offset:length} Substring Expansion"
+  # This is referred to as Substring Expansion. ...
+  # ${parameter:offset}
+  # ${parameter:offset:length}
+  parameter="0123456789"
+  log_debug "${parameter:1}"    # 123456789
+  log_debug "${parameter:1:3}"  # 123
+  log_debug "${parameter::3}"   # 012  "${parameter:0:3}" の方が好み
+  # > length and offset are arithmetic expressions (see Shell Arithmetic)
+  log_debug "${parameter:0+1:1+2}" # 123
+  # shellcheck disable=SC2116  # Useless echo? Instead of 'cmd $(echo foo)', just use 'cmd foo'
+  log_debug "${parameter:$(echo 1):1+2}" # 123
+
+  # slice substring subarray
+  string=01234567890abcdefgh
+  echo "\${string:7}              __ ${string:7}"         # 7890abcdefgh
+  echo "\${string:7:0}            __ ${string:7:0}"       # (empty) (length 0)
+  echo "\${string:7:2}            __ ${string:7:2}"       # 78
+  echo "\${string:7:-2}           __ ${string:7:-2}"      # 7890abcdef (<- "gh")
+  echo "\${string: -7}            __ ${string: -7}"       # bcdefgh
+  echo "\${string: -7:0}          __ ${string: -7:0}"     #
+  echo "\${string: -7:2}          __ ${string: -7:2}"     # bc
+  echo "\${string: -7:-2}         __ ${string: -7:-2}"    # bcdef
+  echo "\${string: -7} (not work) __ ${string: -7}"       # > confused with the ‘:-’ expansion
+  set -- 01234567890abcdefgh
+  echo "\${1:7}                   __ ${1:7}"              # 7890abcdefgh
+  echo "\${1:7:0}                 __ ${1:7:0}"            #
+  echo "\${1:7:2}                 __ ${1:7:2}"            # 78
+  echo "\${1:7:-2}                __ ${1:7:-2}"           # 7890abcdef
+  echo "\${1: -7}                 __ ${1: -7}"            # bcdefgh
+  echo "\${1: -7:0}               __ ${1: -7:0}"          #
+  echo "\${1: -7:2}               __ ${1: -7:2}"          # bc
+  echo "\${1: -7:-2}              __ ${1: -7:-2}"         # bcdef
+  array[0]=01234567890abcdefgh
+  echo "\${array[0]:7}            __ ${array[0]:7}"       # 7890abcdefgh
+  echo "\${array[0]:7:0}          __ ${array[0]:7:0}"     #
+  echo "\${array[0]:7:2}          __ ${array[0]:7:2}"     # 78
+  echo "\${array[0]:7:-2}         __ ${array[0]:7:-2}"    # 7890abcdef
+  echo "\${array[0]: -7}          __ ${array[0]: -7}"     # bcdefgh
+  echo "\${array[0]: -7:0}        __ ${array[0]: -7:0}"   #
+  echo "\${array[0]: -7:2}        __ ${array[0]: -7:2}"   # bc
+  echo "\${array[0]: -7:-2}       __ ${array[0]: -7:-2}"  # bcdef
+
+  log_info "> If parameter is ‘@’ or ‘*’,"
+  set -- 1 2 3 4 5 6 7 8 9 0 a b c d e f g h
+  echo "\${@:7}     ${*:7}    " # 7 8 9 0 a b c d e f g h
+  echo "\${@:7:0}   ${*:7:0}  " #
+  echo "\${@:7:2}   ${*:7:2}  " # 7 8
+  false && echo "\${@:7:-2}  ${*:7:-2} " # bash: -2: substring expression < 0
+  echo "\${@: -7:2} ${*: -7:2}" # b c
+  echo "\${@:0}     ${*:0}    " # ./bash 1 2 3 4 5 6 7 8 9 0 a b c d e f g h
+  echo "\${@:0:2}   ${*:0:2}  " # ./bash 1
+  echo "\${@: -7:0} ${*: -7:0}" #
+
+  log_info "indexed array"
+  array=(0 1 2 3 4 5 6 7 8 9 0 a b c d e f g h)
+  echo "\${array[@]:7}      ${array[*]:7}     " # 7 8 9 0 a b c d e f g h
+  echo "\${array[@]:7:2}    ${array[*]:7:2}   " # 7 8
+  echo "\${array[@]: -7:2}  ${array[*]: -7:2} " # b c
+  false && echo "\${array[@]: -7:-2} ${array[*]: -7:-2}" # bash: -2: substring expression < 0
+  echo "\${array[@]:0}      ${array[*]:0}     " # 0 1 2 3 4 5 6 7 8 9 0 a b c d e f g h
+  echo "\${array[@]:0:2}    ${array[*]:0:2}   " # 0 1
+  echo "\${array[@]: -7:0}  ${array[*]: -7:0} " #
+  echo "\${array[@]: -7:99} ${array[*]: -7:99}" # b c d e f g h
+
+  log_info "\${!prefix*} \${!prefix@}"
+  # Expands to the names of variables whose names begin with prefix, separated by the first character of the IFS special variable. When ‘@’ is used and the expansion appears within double quotes, each variable name expands to a separate word.
+  var1="a"
+  var2="b"
+  log_debug "${!var*}"  # var1 var2
+  log_debug "${!var@}"  # var1 var2
+  unest var1 var2
+
+  log_info "\${!name[@]} \${!name[*]}"
+  # If name is an array variable, expands to the list of array indices (keys) assigned in name. If name is not an array, expands to 0 if name is set and null otherwise. When ‘@’ is used and the expansion appears within double quotes, each key expands to a separate word.
+  arr=("a" "b")
+  log_debug "${!arr[@]}"  # 0 1
+  log_debug "${!arr[*]}"  # 0 1
+  unset arr
+
+  log_info "\${#parameter}"
+  # The length in characters of the expanded value of parameter is substituted. If parameter is ‘*’ or ‘@’, the value substituted is the number of positional parameters. If parameter is an array name subscripted by ‘*’ or ‘@’, the value substituted is the number of elements in the array. If parameter is an indexed array name subscripted by a negative number, that number is interpreted as relative to one greater than the maximum index of parameter, so negative indices count back from the end of the array, and an index of -1 references the last element.
+  s="foo"
+  set -- a b
+  log_debug "${#s}"  # 3 ("foo".length)
+  log_debug "${#*}"  # 2
+  log_debug "${#@}"  # 2
+  unset s
+  arr=("xx" "yyyy")
+  log_debug "${#arr[@]}"   # 2
+  log_debug "${#arr[*]}"   # 2
+  log_debug "${#arr}"      # 2 "xx".length
+  log_debug "${#arr[0]}"   # 2 "xx".length
+  log_debug "${#arr[1]}"   # 4 "yyyy".length
+  log_debug "${#arr[-1]}"  # 4 "yyyy".length
+  log_debug "${#arr[-2]}"  # 2 "xx".length
+
+  log_info "\${parameter#word} \${parameter##word} \${parameter%word} \${parameter%%word}"
+  # \{\w+#.+?\}
+  # \{\w+%.+?\}
+  parameter="a/b/c"
+  echo "${parameter#a}"    #  /b/c  removes: ^a
+  echo "${parameter#*/}"   #   b/c  removes: ^.*?/ (ungreedy)
+  echo "${parameter##*/}"  #     c  removes: ^.*/ (greedy)
+  echo "${parameter%/*}"   # a/b    removes: /.*?$ (ungreedy)
+  echo "${parameter%%/*}"  # a      removes: /.*$ (greedy)
+  echo "${parameter%c}"    # a/b/   removes: c$
+  # parent directory: "${f%/*}"
+  # 2025-01-01 Wed TODO: https://github.com/ko1nksm/readlinkf
+  f=$(readlink -f "${BASH_SOURCE[0]}")  # ref: https://github.com/bats-core/bats-core/blob/v1.10.0/bin/bats#L52
+  f="/tmp/foo.bar.baz/a.b.sh"
+  echo "$f"              # /tmp/foo.bar.baz/a.b.sh
+  echo "${f%/*}"         # /tmp/foo.bar.baz
+  echo "${f%/*/*}"       # /tmp
+  echo "${f%/*/*/*}"     #
+  echo "${f%/*/*/*/*}"   # /tmp/foo.bar.baz/a.b.sh
+  # remove extension
+  f="/tmp/foo.bar.baz/a.b.sh"
+  echo "$f"              # /tmp/foo.bar.baz/a.b.sh
+  echo "${f%.*}"         # /tmp/foo.bar.baz/a.b
+  # basename, remove extension
+  f="/tmp/foo.bar.baz/a.b.sh"
+  (tmp="${f##*/}"; echo "${tmp%.*}")  # a.b
+  # both % and #
+  {
+    parameter="aaa.%#%.bbb.%#%.ccc"
+    # 同時にはできない
+    echo "${parameter#aaa.%#%.}"  # removes ^aaa.%#%.
+    echo "${parameter%.%#%.ccc}"  # removes .%#%.ccc$
+    # tmp する
+    tmp="${parameter#aaa.%#%.}"  # removes ^aaa.%#%.
+    echo "${tmp%.%#%.ccc}"       # removes .%#%.ccc$
+  }
+  # remove preceding spaces
+  foo="  foo  " && while [[ $foo != "${foo# }" ]]; do foo="${foo# }"; done && echo "|$foo|"  # |foo  |
+  # remove trailing spaces
+  foo="  foo  " && while [[ $foo != "${foo% }" ]]; do foo="${foo% }"; done && echo "|$foo|"  # |  foo|
+  # remove preceding/trailing spaces
+  foo="  foo  " && while [[ $foo != "${foo# }" ]]; do foo="${foo# }"; done && while [[ $foo != "${foo% }" ]]; do foo="${foo% }"; done && echo "|$foo|"  # |foo|
+  # remove trailing spaces (bad)
+  foo="  foo  " && echo "|${foo% }|"            # |  foo | 1個しか消せない
+  foo="  foo  " && echo "|${foo%[[:space:]]}|"  # |  foo | 1個しか消せない
+  # set
+  set -- "a/b/c"
+  echo "${1#a}"    #  /b/c  removes: ^a
+  echo "${1#*/}"   #   b/c  removes: ^.*?/ (ungreedy)
+  echo "${1##*/}"  #     c  removes: ^.*/ (greedy)
+  echo "${1%/*}"   # a/b    removes: /.*?$ (ungreedy)
+  echo "${1%%/*}"  # a      removes: /.*$ (greedy)
+  echo "${1%c}"    # a/b/   removes: c$
+  # split
+  s="aaa   bbb"
+  echo "|${s%% *}|"  # |aaa|
+  echo "|${s##* }|"  #        |bbb|
+  echo "|${s% *}|"   # |aaa  |
+  echo "|${s#* }|"   #      |  bbb|
+
+  log_info "\${parameter/pattern/string}"
+  log_info "\${parameter//pattern/string}"
+  log_info "\${parameter/#pattern/string}"
+  log_info "\${parameter/%pattern/string}"
+  # replace (sed s///)
+  log_debug "${parameter/pattern/string}    "
+  log_debug "${parameter//pattern/string}   "  # /g       | all matches of pattern are replaced with string
+  log_debug "${parameter/#pattern/string}   "  # ^pattern | at the beginning of
+  log_debug "${parameter/%pattern/string}   "  # pattern$ | at the end of
+  log_debug "${parameter/pattern/"$(date)"} "
+  log_debug "${parameter/pattern/__ & __}   "  # TODO: bash 5.2 patsub_replacement -> __ pattern __
+  parameter=$' foo \n bar \n baz \n ' ; echo -n "${parameter//[^$'\r\n']/""}"  # emptify (preserves only \r and \n)
+  parameter=$' foo bar \n baz \n ' ; echo -n "${parameter//[^[:space:]]/"x"}"  # xxx
+  # nocasematch shell option ... TODO
+  # If parameter is ‘@’ or ‘*’, ... TODO
+
+  log_info "TODO below"
+
+  false ${parameter^pattern}
+  false ${parameter^^pattern}
+  false ${parameter,pattern}
+  false ${parameter,,pattern}
+
+  false ${parameter@operator}  # The expansion is either a transformation of the value of parameter or information about parameter itself, depending on the value of operator. Each operator is a single letter:
+  false ${parameter@U} # The expansion is a string that is the value of parameter with lowercase alphabetic characters converted to uppercase.
+  false ${parameter@u} # The expansion is a string that is the value of parameter with the first character converted to uppercase, if it is alphabetic.
+  false ${parameter@L} # The expansion is a string that is the value of parameter with uppercase alphabetic characters converted to lowercase.
+  false ${parameter@Q} # The expansion is a string that is the value of parameter quoted in a format that can be reused as input.
+  false ${parameter@E} # The expansion is a string that is the value of parameter with backslash escape sequences expanded as with the $'…' quoting mechanism.
+  false ${parameter@P} # The expansion is a string that is the result of expanding the value of parameter as if it were a prompt string (see Controlling the Prompt).
+  false ${parameter@A} # The expansion is a string in the form of an assignment statement or declare command that, if evaluated, will recreate parameter with its attributes and value.
+  false ${parameter@K} # Produces a possibly-quoted version of the value of parameter, except that it prints the values of indexed and associative arrays as a sequence of quoted key-value pairs (see Arrays).
+  false ${parameter@a} # The expansion is a string consisting of flag values representing parameter’s attributes.
+  false ${parameter@k} # Like the ‘K’ transformation, but expands the keys and values of indexed and associative arrays to separate words after word splitting.
+fi
+
+# ${!name[@]}
+if false; then
+arr=(
+'a b' # comment
+# comment
+'c d'
+)
+for i in "${!arr[@]}"; do
+    echo "$i: ${arr[$i]}"
+done
+fi
+# 0: a b
+# 1: c d
+
+# 3.5.4 Command Substitution
+
+# 3.5.5 Arithmetic Expansion
+
+# $(( expression ))
+
+# 3.5.6 Process Substitution
+
+# <(list)
+# >(list)
+
+# 3.5.7 Word Splitting
+# 3.5.8 Filename Expansion
+# 3.5.8.1 Pattern Matching
+# 3.5.9 Quote Removal
+
+# 3.6 Redirections
+
+if false; then
+  # > {varname} ... a file descriptor greater than 10
+
+  touch /tmp/bash_varname0
+
+  exec {varname0}</tmp/bash_varname0 {varname1}>/tmp/bash_varname1 {varname2}<>/tmp/bash_varname2
+  echo "varname0:$varname0 varname1:$varname1 varname2:$varname2"  # 10 11 12
+  lsof -nP -p "$BASHPID"
+  #COMMAND    PID USER   FD   TYPE DEVICE SIZE/OFF     NODE NAME
+  #bash    401318  wsh   10r   REG  253,1        0 31101440 /tmp/bash_varname0
+  #bash    401318  wsh   11w   REG  253,1        0 31101443 /tmp/bash_varname1
+  #bash    401318  wsh   12u   REG  253,1        0 31101444 /tmp/bash_varname2
+
+  # varnable0 varnable1 varnable2: unset
+  # fd 10 11 12: unchanged
+  false && bash -c 'echo "varname0:$varname0 varname1:$varname1 varname2:$varname2"; lsof -nP -p "$BASHPID"'
+
+  exec {varname0}<&- {varname1}<&- {varname2}<&-  # close fd 10 11 12; varname0 varname1 varname2 は 10 11 12 のまま
+  false && lsof -nP -p "$BASHPID"
+
+  # <&- と >&- はどっちでも良い
+  # https://unix.stackexchange.com/questions/131801/closing-a-file-descriptor-vs
+  exec {varname0}</tmp/bash_varname0 {varname1}>/tmp/bash_varname1 {varname2}<>/tmp/bash_varname2
+  exec {varname0}>&- {varname1}>&- {varname2}>&-  # close fd 10 11 12; varname0 varname1 varname2 は 10 11 12 のまま
+
+  # https://github.com/bminor/bash/blob/master/CHANGES
+  # bash 5.2
+  # varredir_close で {} を抜けた後に fd が close されるんだと思う
+  if false; then
+    # shopt -o varredir_close
+    {
+      echo "varname0:$varname0 varname1:$varname1 varname2:$varname2"  # 10 11 12
+      lsof -nP -p "$BASHPID"
+    } {varname0}</tmp/bash_varname0 {varname1}>/tmp/bash_varname1 {varname2}<>/tmp/bash_varname2
+    # still exists
+    echo "varname0:$varname0 varname1:$varname1 varname2:$varname2"  # 10 11 12
+    lsof -nP -p "$BASHPID"
+  fi
+
+  # Bash handles several filenames specially
+  # /dev/fd/fd
+  # /dev/stdin
+  # /dev/stdout
+  # /dev/stderr
+  # /dev/tcp/host/port  note: /dev/tcp は存在しない
+  # /dev/udp/host/port  note: /dev/udp は存在しない
+  exec 3<>/dev/tcp/example.com/80
+  false && lsof -nP -p "$BASHPID"
+  #bash    412651  wsh    3u  IPv6 3084994      0t0      TCP [2001:240:1bc:8005:b849:f0e6:cc87:245a]:55658->[2606:2800:220:1:248:1893:25c8:1946]:80 (ESTABLISHED)
+  echo "GET /" >&3
+  echo "" >&3
+  cat <&3  # HTTP/1.0 404 Not Found ...
+  false && lsof -nP -p "$BASHPID"
+  #bash    412651  wsh    3u  IPv6 3097808      0t0      TCP [2001:240:1bc:8005:b849:f0e6:cc87:245a]:55660->[2606:2800:220:1:248:1893:25c8:1946]:80 (CLOSE_WAIT)
+  exec 3>&-
+fi
+
+# 3.6.1 Redirecting Input
+
+# 3.6.2 Redirecting Output
+
+# bash extension (Appendix B Major Differences From The Bourne Shell)
+# noclobber >|
+# set -C
+
+# 3.6.3 Appending Redirected Output
+
+# 3.6.4 Redirecting Standard Output and Standard Error
+
+# bash extension (Appendix B Major Differences From The Bourne Shell)
+if false; then
+  # all same:
+  tail -F /tmp/bash.log &
+  lsof -nP -p "$BASHPID" >/tmp/bash.log 2>&1
+  lsof -nP -p "$BASHPID" >/tmp/bash.log 2>/tmp/bash.log
+  lsof -nP -p "$BASHPID" &> /tmp/bash.log
+  lsof -nP -p "$BASHPID" >& /tmp/bash.log
+  # > Of the two forms, the first is preferred
+  # なので &> を使う
+fi
+
+# 3.6.5 Appending Standard Output and Standard Error
+
+if false; then
+  tail -F /tmp/bash.log &
+  # append なので tail: /tmp/bash.log: file truncated が出ない
+  lsof -nP -p "$BASHPID" >>/tmp/bash.log 2>&1
+  lsof -nP -p "$BASHPID" &>>/tmp/bash.log
+fi
+
+# 3.6.6 Here Documents
+
+# [n]<<[-]word
+#         here-document
+# delimiter
+
+# 3.6.7 Here Strings
+
+# bash extension (Appendix B Major Differences From The Bourne Shell)
+# [n]<<< word
+
+# 3.6.8 Duplicating File Descriptors
+
+# bash extension (Appendix B Major Differences From The Bourne Shell)
+# [n]<&word
+# [n]>&word
+
+# 3.6.9 Moving File Descriptors
+
+# [n]<&digit-
+# [n]>&digit-
+
+# 3.6.10 Opening File Descriptors for Reading and Writing
+
+# bash extension (Appendix B Major Differences From The Bourne Shell)
+# [n]<>word
+
+# 3.7 Executing Commands
+# 3.7.1 Simple Command Expansion
+# 3.7.2 Command Search and Execution
+# 3.7.3 Command Execution Environment
+# 3.7.4 Environment
+# 3.7.5 Exit Status
+# 3.7.6 Signals
+# 3.8 Shell Scripts
+
+# @end:man_3
+fi  # if false
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 4 Shell Builtin Commands
+
+if false; then
+# @beg:man_4
+
+# 4.1 Bourne Shell Builtins
+
+# exec
+# If no command is specified, redirections may be used to affect the current shell environment.
+if false; then
+exec  # noop
+exec 3>/tmp/foo
+echo foo >&3
+fi
+
+# test
+# [
+# see 6.4 Bash Conditional Expressions
+
+# 4.2 Bash Builtin Commands
+# $x(`//div[@id="Bash-Builtins"]/dl/dt/span/code`).map(x => x.textContent)
+
+# alias
+# bind
+# builtin
+
+# caller
+# see: BASH_LINENO BASH_SOURCE FUNCNAME LINENO
+
+# command
+
+# declare
+if false; then
+  # declare     # list
+  # declare -p  # list
+  # declare -p name
+
+  # TODO: 違いが分からないのでdebug: [](file:///home/wsh/qc/bash/build/builtins/declare.c)
+  # declare -f   # list functions
+  # declare -fp  # list functions
+  # declare -F   # list functions oneline
+  # declare -Fp  # list functions oneline
+  # If the extdebug shell option is enabled... TODO
+
+  # declare -g  # global [declare_g]
+  # declare -I  # inherit TODO
+
+  declare -a indexed_array
+  declare -A associative_array
+  declare -i integer=foo  # -> 0
+  integer=bar  # 0
+  ((integer++))  # -> 1
+  # declare -f  Use function names only.
+  declare -l lower_case=FOO  # foo
+  declare -n nameref=integer  # 1
+  declare -r readonly_
+  # declare -t  Give each name the trace attribute. Traced functions inherit the DEBUG and RETURN traps from the calling shell. The trace attribute has no special meaning for variables.
+  declare -u upper_case=foo  # FOO
+  declare -x export_
+
+  # + でturns off the attribute
+  declare +l lower_case
+
+  indexed_array+=(a b c)
+  # declare     # indexed_array=([0]="a" [1]="b" [2]="c")
+  # declare -p  # declare -a indexed_array=([0]="a" [1]="b" [2]="c")
+
+  # -g は見れない？
+  fn() {
+    local assign_local=1
+    assign_global=1
+    declare declare_local=1
+    declare -g declare_global=1
+
+    declare
+    #assign_global=1
+    #assign_local=1
+    #declare_global=1
+    #declare_local=1
+
+    declare -p assign_local assign_global declare_local declare_global
+    #declare -- assign_local="1"
+    #declare -- assign_global="1"
+    #declare -- declare_local="1"
+    #declare -- declare_global="1"
+  }
+  # fn
+fi
+
+# echo
+# enable
+# help
+# let
+# local
+# logout
+
+# mapfile
+if false; then
+  shopt -s lastpipe && set +m  # set +m for interactive shell
+  echo $'1\n2' | mapfile
+  declare -p MAPFILE
+  #declare -a MAPFILE=([0]=$'1\n' [1]=$'2\n')
+  # without shopt -s lastpipe:
+  #/home/wsh/sh/bash_man.bash: line 779: declare: MAPFILE: not found
+  # interactive: without shopt -s lastpipe and/or set +m:
+  #bash: declare: MAPFILE: not found
+fi
+# iterate over multi lines
+mapfile -t lines < <(echo "$lines")
+for line in "${lines[@]}"; do echo "$line"; done
+
+# printf
+
+# read
+if false; then
+  declare line  # local line
+  echo -n $' \ foo \ \n bar \n ' | while IFS= read -r line; do  # `IFS=`: prevent removing leading/preceding spaces
+    declare -p line
+  done
+  #declare -- line=" \\ foo \\ "
+  #declare -- line=" bar "
+  # experiment:
+  echo -n $' \ foo \ \n bar \n ' | while IFS= read -r line; do declare -p line; done  # declare -- line=" \\ foo \\ "  declare -- line=" bar "  # `IFS=`: prevent removing leading/preceding spaces
+  echo -n $' \ foo \ \n bar \n ' | while IFS= read    line; do declare -p line; done  # declare -- line="  foo  "      declare -- line=" bar "  # `IFS=`: prevent removing leading/preceding spaces
+  echo -n $' \ foo \ \n bar \n ' | while      read -r line; do declare -p line; done  # declare -- line="\\ foo \\"    declare -- line="bar"
+  echo -n $' \ foo \ \n bar \n ' | while      read    line; do declare -p line; done  # declare -- line=" foo"         declare -- line="bar"
+
+  # multiline
+  shopt -s lastpipe && set +m  # set +m for interactive shell
+  declare txt  # local txt
+  echo -n $' \ foo \ \n bar \n ' | IFS= read -d "" -r txt || true; declare -p txt  # 1 declare -- txt=" \\ foo \\ NL bar NL "  # `IFS=`: prevent removing leading/preceding spaces; `|| true`: -d "" always returns 1
+  # experiment:
+  echo -n $' \ foo \ \n bar \n ' | IFS= read -d "" -r txt; echo $? declare -p txt  # 1 declare -- txt=" \\ foo \\ NL bar NL "  # `IFS=`: prevent removing leading/preceding spaces
+  echo -n $' \ foo \ \n bar \n ' | IFS= read -d ""    txt; echo $? declare -p txt  # 1 declare -- txt="  foo  NL bar NL "      # `IFS=`: prevent removing leading/preceding spaces
+  echo -n $' \ foo \ \n bar \n ' |      read -d "" -r txt; echo $? declare -p txt  # 1 declare -- txt="\\ foo \\ NL bar"
+  echo -n $' \ foo \ \n bar \n ' |      read -d ""    txt; echo $? declare -p txt  # 1 declare -- txt=" foo  NL bar"
+  # -d が無いと最初の行だけ
+  echo -n $' \ foo \ \n bar \n ' | IFS= read       -r txt; echo $? declare -p txt  # 0 declare -- txt=" \\ foo \\ "  #`IFS=`: prevent removing leading/preceding spaces
+  echo -n $' \ foo \ \n bar \n ' | IFS= read          txt; echo $? declare -p txt  # 0 declare -- txt="  foo  "      #`IFS=`: prevent removing leading/preceding spaces
+  echo -n $' \ foo \ \n bar \n ' |      read       -r txt; echo $? declare -p txt  # 0 declare -- txt="\\ foo \\"
+  echo -n $' \ foo \ \n bar \n ' |      read          txt; echo $? declare -p txt  # 0 declare -- txt=" foo"
+fi
+
+# readarray
+# source
+# type
+
+# 4.3 Modifying Shell Behavior
+
+# 4.3.1 The Set Builtin
+
+if false; then
+  set
+
+  set -o | grep on
+  bash -c "set -o | grep on"
+  #braceexpand    	on         -B
+  #emacs          	on             only in interactive shell
+  #hashall        	on         -h
+  #histexpand     	on         -H  only in interactive shell
+  #history        	on             only in interactive shell
+  #interactive-comments	on         undocumented?
+  #monitor        	on         -m  only in interactive shell
+
+  echo $-            # himBHs | h hashall, i (bash option: interactive), m monitor, B braceexpand, H histexpand, s (bash option: standard input)
+  bash -c 'echo $-'  # hBc    | h hashall,                                          B braceexpand, c (bash option: command),
+
+  # -a allexport                      == Each variable or function that is created or modified is given the export attribute and marked for export to the environment of subsequent commands.
+  # -b notify                         == Cause the status of terminated background jobs to be reported immediately, rather than before printing the next primary prompt.
+  # -c (bash option: command)
+  # -e errexit                        == Exit immediately if a pipeline (see Pipelines), which may consist of a single simple command (see Simple Commands), a list (see Lists of Commands), or a compound command (see Compound Commands) returns a non-zero status. The shell does not exit if the command that fails is part of the command list immediately following a while or until keyword, part of the test in an if statement, part of any command executed in a && or || list except the command following the final && or ||, any command in a pipeline but the last, or if the command’s return status is being inverted with !. If a compound command other than a subshell returns a non-zero status because a command failed while -e was being ignored, the shell does not exit. A trap on ERR, if set, is executed before the shell exits.  This option applies to the shell environment and each subshell environment separately (see Command Execution Environment), and may cause subshells to exit before executing all the commands in the subshell.  If a compound command or shell function executes in a context where -e is being ignored, none of the commands executed within the compound command or function body will be affected by the -e setting, even if -e is set and a command returns a failure status. If a compound command or shell function sets -e while executing in a context where -e is ignored, that setting will not have any effect until the compound command or the command containing the function call completes.
+  # -f noglob                         == Disable filename expansion (globbing).
+  # -h hashall                        == Locate and remember (hash) commands as they are looked up for execution. This option is enabled by default.
+  # -i (bash option: interactive)
+  # -k keyword                        == All arguments in the form of assignment statements are placed in the environment for a command, not just those that precede the command name.
+  # -l (bash option: login)
+  # -m monitor                        == Job control is enabled (see Job Control). All processes run in a separate process group. When a background job completes, the shell prints a line containing its exit status.
+  # -n noexec                         == Read commands but do not execute them. This may be used to check a script for syntax errors. This option is ignored by interactive shells.
+  # -p privileged                     == Turn on privileged mode. In this mode, the $BASH_ENV and $ENV files are not processed, shell functions are not inherited from the environment, and the SHELLOPTS, BASHOPTS, CDPATH and GLOBIGNORE variables, if they appear in the environment, are ignored. If the shell is started with the effective user (group) id not equal to the real user (group) id, and the -p option is not supplied, these actions are taken and the effective user id is set to the real user id. If the -p option is supplied at startup, the effective user id is not reset. Turning this option off causes the effective user and group ids to be set to the real user and group ids.
+  # -r                                == Enable restricted shell mode. This option cannot be unset once it has been set.
+  # -r (bash option: restricted)
+  # -s (bash option: standard input)
+  # -t onecmd                         == Exit after reading and executing one command.
+  # -u nounset                        == Treat unset variables and parameters other than the special parameters ‘@’ or ‘*’, or array variables subscripted with ‘@’ or ‘*’, as an error when performing parameter expansion. An error message will be written to the standard error, and a non-interactive shell will exit.
+  # -v (bash option: verbose)
+  # -v verbose                        == Print shell input lines as they are read.
+  # -x (bash option: xtrace)
+  # -x xtrace                         == Print a trace of simple commands, for commands, case commands, select commands, and arithmetic for commands and their arguments or associated word lists after they are expanded and before they are executed. The value of the PS4 variable is expanded and the resultant value is printed before the command and its expanded arguments.
+  # -B braceexpand                    == The shell will perform brace expansion (see Brace Expansion). This option is on by default.
+  # -C noclobber                      == Prevent output redirection using ‘>’, ‘>&’, and ‘<>’ from overwriting existing files.
+  # -D (bash option: debug?)
+  # -E errtrace                       == If set, any trap on ERR is inherited by shell functions, command substitutions, and commands executed in a subshell environment. The ERR trap is normally not inherited in such cases.
+  # -H histexpand                     == Enable ‘!’ style history substitution (see History Expansion). This option is on by default for interactive shells.
+  # -P physical                       == If set, do not resolve symbolic links when performing commands such as cd which change the current directory. The physical directory is used instead. By default, Bash follows the logical chain of directories when performing commands which change the current directory.  For example, if /usr/sys is a symbolic link to /usr/local/sys then:  ...
+  # -T functrace                      == If set, any trap on DEBUG and RETURN are inherited by shell functions, command substitutions, and commands executed in a subshell environment. The DEBUG and RETURN traps are normally not inherited in such cases.
+
+  # (none)       Same as -r.  Enable restricted shell mode. This option cannot be unset once it has been set.
+  # allexport    Same as -a.  Each variable or function that is created or modified is given the export attribute and marked for export to the environment of subsequent commands.
+  # braceexpand  Same as -B.  The shell will perform brace expansion (see Brace Expansion). This option is on by default.
+  # emacs                     Use an emacs-style line editing interface (see Command Line Editing). This also affects the editing interface used for read -e.
+  # errexit      Same as -e.  Exit immediately if a pipeline (see Pipelines), which may consist of a single simple command (see Simple Commands), a list (see Lists of Commands), or a compound command (see Compound Commands) returns a non-zero status. The shell does not exit if the command that fails is part of the command list immediately following a while or until keyword, part of the test in an if statement, part of any command executed in a && or || list except the command following the final && or ||, any command in a pipeline but the last, or if the command’s return status is being inverted with !. If a compound command other than a subshell returns a non-zero status because a command failed while -e was being ignored, the shell does not exit. A trap on ERR, if set, is executed before the shell exits.  This option applies to the shell environment and each subshell environment separately (see Command Execution Environment), and may cause subshells to exit before executing all the commands in the subshell.  If a compound command or shell function executes in a context where -e is being ignored, none of the commands executed within the compound command or function body will be affected by the -e setting, even if -e is set and a command returns a failure status. If a compound command or shell function sets -e while executing in a context where -e is ignored, that setting will not have any effect until the compound command or the command containing the function call completes.
+  # errtrace     Same as -E.  If set, any trap on ERR is inherited by shell functions, command substitutions, and commands executed in a subshell environment. The ERR trap is normally not inherited in such cases.
+  # functrace    Same as -T.  If set, any trap on DEBUG and RETURN are inherited by shell functions, command substitutions, and commands executed in a subshell environment. The DEBUG and RETURN traps are normally not inherited in such cases.
+  # hashall      Same as -h.  Locate and remember (hash) commands as they are looked up for execution. This option is enabled by default.
+  # histexpand   Same as -H.  Enable ‘!’ style history substitution (see History Expansion). This option is on by default for interactive shells.
+  # history                   Enable command history, as described in Bash History Facilities. This option is on by default in interactive shells.
+  # ignoreeof                 An interactive shell will not exit upon reading EOF.
+  # keyword      Same as -k.  All arguments in the form of assignment statements are placed in the environment for a command, not just those that precede the command name.
+  # monitor      Same as -m.  Job control is enabled (see Job Control). All processes run in a separate process group. When a background job completes, the shell prints a line containing its exit status.
+  # noclobber    Same as -C.  Prevent output redirection using ‘>’, ‘>&’, and ‘<>’ from overwriting existing files.
+  # noexec       Same as -n.  Read commands but do not execute them. This may be used to check a script for syntax errors. This option is ignored by interactive shells.
+  # noglob       Same as -f.  Disable filename expansion (globbing).
+  # nolog                     Currently ignored.
+  # notify       Same as -b.  Cause the status of terminated background jobs to be reported immediately, rather than before printing the next primary prompt.
+  # nounset      Same as -u.  Treat unset variables and parameters other than the special parameters ‘@’ or ‘*’, or array variables subscripted with ‘@’ or ‘*’, as an error when performing parameter expansion. An error message will be written to the standard error, and a non-interactive shell will exit.
+  # onecmd       Same as -t.  Exit after reading and executing one command.
+  # physical     Same as -P.  If set, do not resolve symbolic links when performing commands such as cd which change the current directory. The physical directory is used instead. By default, Bash follows the logical chain of directories when performing commands which change the current directory.  For example, if /usr/sys is a symbolic link to /usr/local/sys then:  ...
+  # pipefail                  If set, the return value of a pipeline is the value of the last (rightmost) command to exit with a non-zero status, or zero if all commands in the pipeline exit successfully. This option is disabled by default.
+  # posix                     Change the behavior of Bash where the default operation differs from the POSIX standard to match the standard (see Bash POSIX Mode). This is intended to make Bash behave as a strict superset of that standard.
+  # privileged   Same as -p.  Turn on privileged mode. In this mode, the $BASH_ENV and $ENV files are not processed, shell functions are not inherited from the environment, and the SHELLOPTS, BASHOPTS, CDPATH and GLOBIGNORE variables, if they appear in the environment, are ignored. If the shell is started with the effective user (group) id not equal to the real user (group) id, and the -p option is not supplied, these actions are taken and the effective user id is set to the real user id. If the -p option is supplied at startup, the effective user id is not reset. Turning this option off causes the effective user and group ids to be set to the real user and group ids.
+  # verbose      Same as -v.  Print shell input lines as they are read.
+  # vi                        Use a vi-style line editing interface. This also affects the editing interface used for read -e.
+  # xtrace       Same as -x.  Print a trace of simple commands, for commands, case commands, select commands, and arithmetic for commands and their arguments or associated word lists after they are expanded and before they are executed. The value of the PS4 variable is expanded and the resultant value is printed before the command and its expanded arguments.
+
+  # -a allexport                      == Each variable or function that is created or modified is given the export attribute and marked for export to the environment of subsequent commands.
+  set -a
+  set -o allexport
+  env | sort > /tmp/env.1
+  FOO=foo  # exported
+  env | sort > /tmp/env.2
+  diff -u /tmp/env.1 /tmp/env.2  # +FOO=foo
+
+  # -b notify                         == Cause the status of terminated background jobs to be reported immediately, rather than before printing the next primary prompt.
+  # -c (bash option: command)
+
+  # -e errexit                        == Exit immediately if a pipeline (see Pipelines), which may consist of a single simple command (see Simple Commands), a list (see Lists of Commands), or a compound command (see Compound Commands) returns a non-zero status. The shell does not exit if the command that fails is part of the command list immediately following a while or until keyword, part of the test in an if statement, part of any command executed in a && or || list except the command following the final && or ||, any command in a pipeline but the last, or if the command’s return status is being inverted with !. If a compound command other than a subshell returns a non-zero status because a command failed while -e was being ignored, the shell does not exit. A trap on ERR, if set, is executed before the shell exits.  This option applies to the shell environment and each subshell environment separately (see Command Execution Environment), and may cause subshells to exit before executing all the commands in the subshell.  If a compound command or shell function executes in a context where -e is being ignored, none of the commands executed within the compound command or function body will be affected by the -e setting, even if -e is set and a command returns a failure status. If a compound command or shell function sets -e while executing in a context where -e is ignored, that setting will not have any effect until the compound command or the command containing the function call completes.
+  # > or a compound command
+  (
+    set -e
+    ret() { return "$1"; }
+    case "$(echo x; ret 1; echo "alive 2" >&2)" in
+      x) ret 3; unreachable;;
+    esac
+    unreachable
+  ); echo $?  # alive 2  3
+  # > The shell does not exit if the command that fails is part of the command list immediately following a while or until keyword, part of the test in an if statement, part of any command executed in a && or || list except the command following the final && or ||, any command in a pipeline but the last, or if the command’s return status is being inverted with !.
+  # part of the command list immediately following a while or until keyword
+  (set -e; while false; false; do unreachable; done ; echo "$? alive"); echo $?  # 0 alive  0
+  # part of the test in an if statement
+  (set -e; if false; false; then unreachable; fi    ; echo "$? alive"); echo $?  # 0 alive  0
+  # part of any command executed in a && or || list except the command following the final && or ||
+  (set -e; false && false                           ; echo "$? alive"); echo $?  # 1 alive  0  false (, last false skipped)
+  (set -e; false || false                           ; echo "$? alive"); echo $?  #          1  false, false (die)
+  # any command in a pipeline but the last
+  see pipefail
+  # if the command’s return status is being inverted with !.
+  (set -e; ! false                                  ; echo "$? alive"); echo $?  # 0 alive  0
+  (set -e; ! true                                   ; echo "$? alive"); echo $?  # 1 alive  0
+
+  # case + jq -e
+  (
+    set -e
+    # bad:
+    case "$(echo '{}' | jq -er '.x')" in
+      *) echo reached;;
+    esac
+    # ok:
+    a=$(echo '{}' | jq -er '.x')
+    unreachable
+    case "$a" in
+      *) echo unreachable;;
+    esac
+  )
+
+
+  # -f noglob                         == Disable filename expansion (globbing).
+
+  # -h hashall                        == Locate and remember (hash) commands as they are looked up for execution. This option is enabled by default.
+  type cc  # cc is /usr/bin/cc
+  cc
+  type cc  # cc is hashed (/usr/bin/cc)
+  set +h
+  type cc  # cc is /usr/bin/cc
+
+  # -i (bash option: interactive)
+  # -k keyword                        == All arguments in the form of assignment statements are placed in the environment for a command, not just those that precede the command name.
+  # -l (bash option: login)
+  # -m monitor                        == Job control is enabled (see Job Control). All processes run in a separate process group. When a background job completes, the shell prints a line containing its exit status.
+  # -n noexec                         == Read commands but do not execute them. This may be used to check a script for syntax errors. This option is ignored by interactive shells.
+  # -p privileged                     == Turn on privileged mode. In this mode, the $BASH_ENV and $ENV files are not processed, shell functions are not inherited from the environment, and the SHELLOPTS, BASHOPTS, CDPATH and GLOBIGNORE variables, if they appear in the environment, are ignored. If the shell is started with the effective user (group) id not equal to the real user (group) id, and the -p option is not supplied, these actions are taken and the effective user id is set to the real user id. If the -p option is supplied at startup, the effective user id is not reset. Turning this option off causes the effective user and group ids to be set to the real user and group ids.
+  # -r                                == Enable restricted shell mode. This option cannot be unset once it has been set.
+  # -r (bash option: restricted)
+  # -s (bash option: standard input)
+  # -t onecmd                         == Exit after reading and executing one command.
+  # -u nounset                        == Treat unset variables and parameters other than the special parameters ‘@’ or ‘*’, or array variables subscripted with ‘@’ or ‘*’, as an error when performing parameter expansion. An error message will be written to the standard error, and a non-interactive shell will exit.
+  # -v (bash option: verbose)
+  # -v verbose                        == Print shell input lines as they are read.
+  # -x (bash option: xtrace)
+  # -x xtrace                         == Print a trace of simple commands, for commands, case commands, select commands, and arithmetic for commands and their arguments or associated word lists after they are expanded and before they are executed. The value of the PS4 variable is expanded and the resultant value is printed before the command and its expanded arguments.
+  # -B braceexpand                    == The shell will perform brace expansion (see Brace Expansion). This option is on by default.
+  # -C noclobber                      == Prevent output redirection using ‘>’, ‘>&’, and ‘<>’ from overwriting existing files.
+  # -D (bash option: debug?)
+  # -E errtrace                       == If set, any trap on ERR is inherited by shell functions, command substitutions, and commands executed in a subshell environment. The ERR trap is normally not inherited in such cases.
+  # -H histexpand                     == Enable ‘!’ style history substitution (see History Expansion). This option is on by default for interactive shells.
+  # -P physical                       == If set, do not resolve symbolic links when performing commands such as cd which change the current directory. The physical directory is used instead. By default, Bash follows the logical chain of directories when performing commands which change the current directory.  For example, if /usr/sys is a symbolic link to /usr/local/sys then:  ...
+  # -T functrace                      == If set, any trap on DEBUG and RETURN are inherited by shell functions, command substitutions, and commands executed in a subshell environment. The DEBUG and RETURN traps are normally not inherited in such cases.
+fi
+
+# 4.3.2 The Shopt Builtin
+
+if false; then
+  shopt
+  shopt -p
+  shopt -o  # set -o
+  shopt -p -o
+
+  echo "$BASHOPTS"            # checkwinsize:cmdhist:complete_fullquote:expand_aliases:extglob:extquote:force_fignore:globasciiranges:histappend:interactive_comments:progcomp:promptvars:sourcepath
+  bash -c 'echo "$BASHOPTS"'  # checkwinsize:cmdhist:complete_fullquote:                       extquote:force_fignore:globasciiranges:hostcomplete:interactive_comments:progcomp:promptvars:sourcepath
+  shopt -p | grep -- -s
+  bash -c "shopt -p" | grep -- -s
+  echo "shopt -p" | bash -s | grep -- -s
+  #shopt -s checkwinsize            #                      [](file:///home/wsh/.bashrc)
+  #shopt -s cmdhist                 #
+  #shopt -s complete_fullquote      #
+  #shopt -s expand_aliases          # only in interactive
+  #shopt -s extglob                 # only in interactive
+  #shopt -s extquote                #
+  #shopt -s force_fignore           #
+  #shopt -s globasciiranges         #
+  #shopt -s histappend              # only in interactive  [](file:///home/wsh/.bashrc)
+  #shopt -s hostcomplete            # only in -c, -s
+  #shopt -s interactive_comments    #
+  #shopt -s progcomp                #
+  #shopt -s promptvars              #
+  #shopt -s sourcepath              #
+
+  shopt       autocd  && echo "autocd enabled"
+  shopt -q    autocd  && echo "autocd enabled"
+  shopt       cmdhist && echo "cmdhist enabled"
+  shopt -q    cmdhist && echo "cmdhist enabled"
+  shopt    -o xtrace       && echo "extrace enabled"
+  shopt -q -o xtrace       && echo "extrace enabled"
+  shopt    -o braceexpand  && echo "braceexpand enabled"
+  shopt -q -o braceexpand  && echo "braceexpand enabled"
+
+  # assoc_expand_once
+  # autocd
+  # cdable_vars
+  # cdspell
+  # checkhash
+  # checkjobs
+  # checkwinsize
+  # cmdhist
+  # compat31
+  # compat32
+  # compat40
+  # compat41
+  # compat42
+  # compat43
+  # compat44
+  # complete_fullquote
+  # direxpand
+  # dirspell
+  # dotglob
+  # execfail
+  # expand_aliases
+  # extdebug
+  # extglob
+  # extquote
+  # failglob
+  # force_fignore
+  # globasciiranges
+  # globskipdots
+  # globstar
+  # gnu_errfmt
+  # histappend
+  # histreedit
+  # histverify
+  # hostcomplete
+  # huponexit
+  # inherit_errexit
+  # interactive_comments
+
+  # lastpipe
+  # https://qiita.com/BlackCat_617/items/2b3003c4bb79b5d89bc8
+  # > ・インタラクティブモード（対話的に入力する場合）ではsetコマンドでモニターオプションをオフにする（set +m）。
+  shopt -s lastpipe && set +m  # set +m for interactive shell
+  echo foo | read -r foo; echo "$foo"  # foo
+
+  out="init"; shopt -u lastpipe; set +m; echo a | read -r out; declare -p out  # "init"
+  out="init"; shopt -u lastpipe; set -m; echo a | read -r out; declare -p out  # "init"
+  out="init"; shopt -s lastpipe; set +m; echo a | read -r out; declare -p out  # "a"
+  out="init"; shopt -s lastpipe; set -m; echo a | read -r out; declare -p out  # "init"
+
+  # 一時的に shopt -s lastpipe; set +m はやや面倒
+  shopt -q lastpipe && orig_lastpipe="on" || orig_lastpipe="off"; [[ -o monitor ]] && orig_monitor="on" || orig_monitor="off"; shopt -s lastpipe && set +m
+  out="init"; echo a | read -r out; declare -p out  # a
+  [[ $orig_lastpipe == "off" ]] && shopt -u lastpipe; [[ $orig_monitor == "on" ]] && set -m
+  # bad:
+  out="init"; (shopt -s lastpipe; set +m; echo a | read -r out); declare -p out  # "init"
+  # ok 1:
+  shopt -u lastpipe && set +m  # orig
+  shopt -q lastpipe && orig_lastpipe="on" || orig_lastpipe="off"; [[ -o monitor ]] && orig_monitor="on" || orig_monitor="off"; shopt -s lastpipe && set +m
+  out="init"; echo a | read -r out; declare -p out  # a
+  [[ $orig_lastpipe == "off" ]] && shopt -u lastpipe; [[ $orig_monitor == "on" ]] && set -m; shopt lastpipe; set -o | grep monitor  # off off
+  # ok 2:
+  shopt -s lastpipe && set -m  # orig
+  shopt -q lastpipe && orig_lastpipe="on" || orig_lastpipe="off"; [[ -o monitor ]] && orig_monitor="on" || orig_monitor="off"; shopt -s lastpipe && set +m
+  out="init"; echo a | read -r out; declare -p out  # a
+  [[ $orig_lastpipe == "off" ]] && shopt -u lastpipe; [[ $orig_monitor == "on" ]] && set -m; shopt lastpipe; set -o | grep monitor  # on on
+  # note:
+  shopt -u lastpipe && shopt -q lastpipe && echo ok
+  shopt -s lastpipe && shopt -q lastpipe && echo ok  # ok
+  #
+  shopt -u lastpipe
+  shopt -q lastpipe && orig_lastpipe="on" || orig_lastpipe="off"
+  declare -p orig_lastpipe  # "off"
+  #
+  shopt -s lastpipe
+  shopt -q lastpipe && orig_lastpipe="on" || orig_lastpipe="off"
+  declare -p orig_lastpipe  # "on"
+  #
+  set +m && [[ -o monitor ]] && echo ok
+  set -m && [[ -o monitor ]] && echo ok  # ok
+  #
+  set +m
+  [[ -o monitor ]] && orig_monitor="on" || orig_monitor="off"
+  declare -p orig_monitor  # "off"
+  #
+  set -m
+  [[ -o monitor ]] && orig_monitor="on" || orig_monitor="off"
+  declare -p orig_monitor  # "on"
+
+  # interactive bash:
+  shopt lastpipe  # lastpipe       	off
+  set -o          # monitor        	on
+  # script:
+  shopt lastpipe  # lastpipe       	off
+  set -o          # monitor        	off
+  #
+  sleep 1 & sleep 2
+  #[1] 2008725
+  #[1]+  Done                    sleep 1 ← interactive && set -m のときのみ出る; script では set +m/-m どちらでも出ない
+
+  shopt -u lastpipe; set +m; sleep 1000 | sleep 1001 | sleep 1002
+  shopt -u lastpipe; set -m; sleep 1000 | sleep 1001 | sleep 1002
+  shopt -s lastpipe; set +m; sleep 1000 | sleep 1001 | sleep 1002
+  shopt -s lastpipe; set -m; sleep 1000 | sleep 1001 | sleep 1002
+  # c.bash -vv pstree (pgrep sleep)
+  # 全部変わらないな; subshell が関係すると思ったのだが
+  #wsh      1995381  0.0  0.0 181056 21880 pts/14   Ss   12:44   0:00               fish
+  #wsh      1995499  0.0  0.0  16092  6384 pts/14   S+   12:44   0:00                 bash
+  #wsh      1997515  0.0  0.0  12332   520 pts/14   S+   12:51   0:00                   sleep 1000
+  #wsh      1997516  0.0  0.0  12332   584 pts/14   S+   12:51   0:00                   sleep 1001
+  #wsh      1997517  0.0  0.0  12332   588 pts/14   S+   12:51   0:00                   sleep 1002
+
+  # lithist
+  # localvar_inherit
+  # localvar_unset
+  # login_shell
+  # mailwarn
+  # no_empty_cmd_completion
+  # nocaseglob
+  # nocasematch
+  # noexpand_translation
+  # nullglob
+  # patsub_replacement
+  # progcomp
+  # progcomp_alias
+  # promptvars
+  # restricted_shell
+  # shift_verbose
+  # sourcepath
+  # varredir_close
+  # xpg_echo
+fi
+
+# 4.4 Special Builtins
+
+# @end:man_4
+fi  # if false
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 5 Shell Variables
+
+if false; then
+# @beg:man_5
+
+# 5.1 Bourne Shell Variables
+
+# 5.2 Bash Variables
+
+# BASH_LINENO BASH_SOURCE FUNCNAME LINENO
+# shellcheck disable=SC2046  # Quote this to prevent word splitting.
+if false; then
+  #echo_array "${BASH_SOURCE[@]}"  # /home/wsh/sh/bash_man.bash
+  #echo_array "self:$LINENO"  # 273
+  #echo_array "${BASH_LINENO[@]}"  # 0
+  #echo_array "${FUNCNAME[@]}"  # (empty; main すら出さない)
+  func2() { echo -e '\n\e[32m---func2---\e[0m'; echo -e '\e[37m--BASH_SOURCE--\e[0m'; echo_array "${BASH_SOURCE[@]}"; echo -e "\e[37m--LINENO(self)--\e[0m $LINENO"; echo -e '\e[37m--BASH_LINENO--\e[0m'; echo_array "${BASH_LINENO[@]}"; echo -e '\e[37m--FUNCNAME--\e[0m'; echo_array "${FUNCNAME[@]}"; echo -e '\e[37m--caller--\e[0m'; echo_array $(caller); echo -e '\e[37m--caller 0--\e[0m'; echo_array $(caller 0); echo -e '\e[37m--caller 1--\e[0m'; echo_array $(caller 1); echo -e '\e[37m--caller 2--\e[0m'; echo_array $(caller 2); echo -e '\e[37m--caller 3--\e[0m'; echo_array $(caller 3); }         # ---func2--- --BASH_SOURCE-- /home/wsh/sh/bash_man.bash /home/wsh/sh/bash_man.bash /home/wsh/sh/bash_man.bash --LINENO(self)-- 275 --BASH_LINENO-- 276(func1) 277(main) 0(?) --FUNCNAME-- func2 func1 main --caller-- 276 ...bash --caller 0-- 276 func1 ...bash --caller 1-- 277 main ...bash --caller 2-- (empty) --caller 3-- (empty)
+  func1() { echo -e '\n\e[32m---func1---\e[0m'; echo -e '\e[37m--BASH_SOURCE--\e[0m'; echo_array "${BASH_SOURCE[@]}"; echo -e "\e[37m--LINENO(self)--\e[0m $LINENO"; echo -e '\e[37m--BASH_LINENO--\e[0m'; echo_array "${BASH_LINENO[@]}"; echo -e '\e[37m--FUNCNAME--\e[0m'; echo_array "${FUNCNAME[@]}"; echo -e '\e[37m--caller--\e[0m'; echo_array $(caller); echo -e '\e[37m--caller 0--\e[0m'; echo_array $(caller 0); echo -e '\e[37m--caller 1--\e[0m'; echo_array $(caller 1); echo -e '\e[37m--caller 2--\e[0m'; echo_array $(caller 2); echo -e '\e[37m--caller 3--\e[0m'; echo_array $(caller 3); func2; }  # ---func1--- --BASH_SOURCE-- /home/wsh/sh/bash_man.bash /home/wsh/sh/bash_man.bash                            --LINENO(self)-- 276 --BASH_LINENO-- 277(main) 0(?)            --FUNCNAME-- func1 main       --caller-- 277 ...bash --caller 0-- 277 main  ...bash --caller 1-- (empty)          --caller 2-- (empty) --caller 3-- (empty)
+            echo -e '\n\e[32m---main----\e[0m'; echo -e '\e[37m--BASH_SOURCE--\e[0m'; echo_array "${BASH_SOURCE[@]}"; echo -e "\e[37m--LINENO(self)--\e[0m $LINENO"; echo -e '\e[37m--BASH_LINENO--\e[0m'; echo_array "${BASH_LINENO[@]}"; echo -e '\e[37m--FUNCNAME--\e[0m'; echo_array "${FUNCNAME[@]}"; echo -e '\e[37m--caller--\e[0m'; echo_array $(caller); echo -e '\e[37m--caller 0--\e[0m'; echo_array $(caller 0); echo -e '\e[37m--caller 1--\e[0m'; echo_array $(caller 1); echo -e '\e[37m--caller 2--\e[0m'; echo_array $(caller 2); echo -e '\e[37m--caller 3--\e[0m'; echo_array $(caller 3);           # ---func1--- --BASH_SOURCE-- /home/wsh/sh/bash_man.bash /home/wsh/sh/bash_man.bash                            --LINENO(self)-- 276 --BASH_LINENO-- 277(main) 0(?)            --FUNCNAME-- func1 main       --caller-- 277 ...bash --caller 0-- 277 main  ...bash --caller 1-- (empty)          --caller 2-- (empty) --caller 3-- (empty)
+  func1
+fi
+: <<'OUTPUT'
+---main----
+--BASH_SOURCE--
+$1: /home/wsh/sh/sandbox.bash
+--LINENO(self)-- 18
+--BASH_LINENO--
+$1: 0
+--FUNCNAME--
+--caller--
+$1: 0
+$2: NULL
+--caller 0--
+--caller 1--
+--caller 2--
+--caller 3--
+
+---func1---
+--BASH_SOURCE--
+$1: /home/wsh/sh/sandbox.bash
+$2: /home/wsh/sh/sandbox.bash
+--LINENO(self)-- 17
+--BASH_LINENO--
+$1: 19
+$2: 0
+--FUNCNAME--
+$1: func1
+$2: main
+--caller--
+$1: 19
+$2: /home/wsh/sh/sandbox.bash
+--caller 0--
+$1: 19
+$2: main
+$3: /home/wsh/sh/sandbox.bash
+--caller 1--
+--caller 2--
+--caller 3--
+
+---func2---
+--BASH_SOURCE--
+$1: /home/wsh/sh/sandbox.bash
+$2: /home/wsh/sh/sandbox.bash
+$3: /home/wsh/sh/sandbox.bash
+--LINENO(self)-- 16
+--BASH_LINENO--
+$1: 17
+$2: 19
+$3: 0
+--FUNCNAME--
+$1: func2
+$2: func1
+$3: main
+--caller--
+$1: 17
+$2: /home/wsh/sh/sandbox.bash
+--caller 0--
+$1: 17
+$2: func1
+$3: /home/wsh/sh/sandbox.bash
+--caller 1--
+$1: 19
+$2: main
+$3: /home/wsh/sh/sandbox.bash
+--caller 2--
+--caller 3--
+
+interactive:
+
+---main----
+--BASH_SOURCE--
+--LINENO(self)-- 14 ← コマンドを入力していくと増えていく
+--BASH_LINENO--
+--FUNCNAME--
+--caller--
+--caller 0--
+--caller 1--
+--caller 2--
+--caller 3--
+
+---func1---
+--BASH_SOURCE--
+$1: main
+--LINENO(self)-- 1
+--BASH_LINENO--
+$1: 15 ← コマンドを入力していくと増えていく
+--FUNCNAME--
+$1: func1
+--caller--
+$1: 15 ← コマンドを入力していくと増えていく
+$2: NULL
+--caller 0--
+--caller 1--
+--caller 2--
+--caller 3--
+
+---func2---
+--BASH_SOURCE--
+$1: main
+$2: main
+--LINENO(self)-- 1
+--BASH_LINENO--
+$1: 1
+$2: 15 ← コマンドを入力していくと増えていく
+--FUNCNAME--
+$1: func2
+$2: func1
+--caller--
+$1: 1
+$2: main
+--caller 0--
+$1: 1
+$2: func1
+$3: main
+--caller 1--
+--caller 2--
+--caller 3--
+OUTPUT
+
+# BASHPID
+
+# old
+if false; then
+
+
+echo $LINENO # 21
+echo "${FUNCNAME}"
+echo "${FUNCNAME[0]}"
+echo "${FUNCNAME[@]}"
+
+func1
+
+echo $LINENO # 21
+echo "${FUNCNAME}"
+echo ${#FUNCNAME[@]}  # 0
+echo "${FUNCNAME[0]}"
+echo "${FUNCNAME[@]}"
+
+fi
+
+PIPESTATUS
+# shellcheck disable=SC2216  # Piping to 'false', a command that doesn't read stdin. Wrong command or missing xargs?
+true | false | sh -c 'exit 2' | sh -c 'return 3'
+# $?: 3
+echo "${PIPESTATUS[@]}"  # 0 1 2 3
+
+# @end:man_5
+fi  # if false
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 6 Bash Features
+
+if false; then
+# @beg:man_6
+
+# 6.1 Invoking Bash
+# 6.2 Bash Startup Files
+# 6.3 Interactive Shells
+# 6.3.1 What is an Interactive Shell?
+# 6.3.2 Is this Shell Interactive?
+# 6.3.3 Interactive Shell Behavior
+
+# 6.4 Bash Conditional Expressions
+if false; then
+if test -e /tmp/; then
+    echo /tmp/ exists
+fi
+fi
+# -b block special file
+# -c character special file
+# -d directory
+# -e any
+# -f regular file
+# -g symbolic link
+# -p naped pipe (FIFO)
+# -S socket
+
+# 6.5 Shell Arithmetic
+# > the (( compound command, the let builtin, or the -i option to the declare builtin
+i=0
+for ((i=0; i<3; i++)); do echo $i; done           # 3.2.5 Compound Commands          > for name [ [in [words …] ] ; ] do commands; done
+((i++))                                           # 3.2.5 Compound Commands          > (( expression ))
+string=01234567890abcdefgh; echo ${string:0:1+1}  # 3.5.3 Shell Parameter Expansion  > ${parameter:offset} ${parameter:offset:length}
+echo $((1+1))                                     # 3.5.5 Arithmetic Expansion > $(( expression ))
+declare -i i; i="1 + 1"                           # 4.2 Bash Builtin Commands        > declare [-aAfFgiIlnrtux] [-p] [name[=value] …]
+let i++                                           # 4.2 Bash Builtin Commands        > let expression [expression …]
+[[ "1 + 1" -eq "2" ]] && echo "true"              # 6.4 Bash Conditional Expressions > arg1 OP arg2
+arr[1+1]="val"                                    # 6.7 Arrays
+
+# 6.6 Aliases
+
+# 6.7 Arrays
+
+# arr[4] = "four" と初期化すると {null, null, null "four"} だが
+# 長さ ${#arr[@]} は 1 だったり闇が深いが、あまり深追いしない
+
+if false; then
+
+print_argv() {
+    echo len: ${#@}
+    # echo len: ${#*}
+    local i=0
+    # for i in "${!@}"; do
+    for item in "$@"; do
+       echo argv[$i]: "$item"
+       ((i++))
+    done
+}
+
+var=foobar
+arr=(zero one)
+arr[2]=two
+
+echo ${#var}     # 6 "foobar"
+echo ${#arr[@]}  # 2 {two, four}
+echo ${#arr[0]}  # 4 "zero"
+echo ${#arr[1]}  # 3 "one"
+echo ${#arr[2]}  # 3 "two"
+
+print_argv ${arr[@]}    # {"zero", "one", "two"}
+print_argv ${arr[*]}    # {"zero", "one", "two"}
+print_argv "${arr[@]}"  # {"zero", "one", "two"}
+print_argv "${arr[*]}"  #  "zero one two"
+IFS=-
+print_argv "${arr[*]}"  #  "zero-one-two"
+
+# zero, one, two
+for item in "${arr[@]}"; do
+    echo $item
+done
+
+# 0: zero, 1: one, 2: two
+for i in "${!arr[@]}"; do
+    echo $i: ${arr[$i]}
+done
+
+unset arr
+print_argv "${arr[@]}" # null
+print_argv             # same (not "" !)
+
+fi
+
+# associative array
+if false; then
+  declare -A hash
+  hash=([a]=1 [b]=2)
+  declare -p hash  # declare -A hash=([b]="2" [a]="1" )
+  #echo_array "${hash[@]}"  # 2 1
+  echo "${hash[@]}"  # passes "2", "1"
+  echo "${hash[*]}"  # passes "2 1"
+  # echo_array "${!hash[@]}"  # b a
+  # echo_array "${!hash[*]}"  # "b a"
+
+  # TODO:
+  # compat51 (set using BASH_COMPAT)
+  # The unset builtin will unset the array a given an argument like ‘a[@]’. Bash-5.2 will unset an element with key ‘@’ (associative arrays) or remove all the elements without unsetting the array (indexed arrays)
+  # test -v, when given an argument of ‘A[@]’, where A is an existing associative array, will return true if the array has any set elements. Bash-5.2 will look for and report on a key named ‘@’
+  # assoc_expand_once
+fi
+
+# 6.8 The Directory Stack
+# 6.8.1 Directory Stack Builtins
+# 6.9 Controlling the Prompt
+# 6.10 The Restricted Shell
+# 6.11 Bash POSIX Mode
+
+# @end:man_6
+fi  # if false
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 7 Job Control
+
+if false; then
+# @beg:man_7
+
+# 7.1 Job Control Basics
+
+# delayed suspend character (typically ‘^Y’, Control-Y) 分からん
+
+# The character ‘%’ introduces a job specification (jobspec).
+
+false &
+wait %1 || echo -e "\e[31m""false failed with $?\e[0m"
+
+sleep 0.2 | sleep 0.3 | sh -c "exit 10" & # [1] 10010
+jobs
+#[1]+  Running                 sleep 0.2 | sleep 0.3 | sh -c "exit 10" &
+# wait %1           ; echo $?  # 10
+# wait %-           ; echo $?  # 10
+# wait %%           ; echo $?  # 10
+# wait %+           ; echo $?  # 10
+# wait %"sleep 0.5" ; echo $?  # 10
+# wait PID          ; echo $?  # 10
+
+sleep 0.2 | sleep 0.3 | sh -c "exit 10" & # [1] 10010
+sleep 0.3 | sleep 0.4 | sh -c "exit 11" & # [2] 10011
+sleep 0.4 | sleep 0.5 | sh -c "exit 12" & # [3] 10012
+sleep 0.5 | sleep 0.6 | sh -c "exit 13" & # [4] 10013
+jobs
+#[1]   Running                 sleep 0.2 | sleep 0.3 | sh -c "exit 10" &
+#[2]   Running                 sleep 0.3 | sleep 0.4 | sh -c "exit 11" &
+#[3]-  Running                 sleep 0.4 | sleep 0.5 | sh -c "exit 12" &
+#[4]+  Running                 sleep 0.5 | sleep 0.6 | sh -c "exit 13" &
+jobs -l
+#[1]  438839 Running                 sleep 0.2
+#     438840                       | sleep 0.3
+#     438841 Running                 | sh -c "exit 10" &
+#[2]  438842 Running                 sleep 0.3
+#     438843                       | sleep 0.4
+#     438844                       | sh -c "exit 11" &
+#[3]- 438845 Running                 sleep 0.4
+#     438846                       | sleep 0.5
+#     438847                       | sh -c "exit 12" &
+#[4]+ 438848 Running                 sleep 0.5
+#     438849                       | sleep 0.6
+#     438850                       | sh -c "exit 13" &
+# jobs -n  # only cahnged
+jobs -p  # process ID of the job’s process group leader
+#10010
+#10011
+#10012
+#10013
+# jobs -r  # only Running
+# jobs -s  # only stopped
+
+# wait; echo $?  # 0; job 1 つでも 0 (wait 引数なしは returns 0)
+# wait %1           ; echo $?  # 10
+# wait %2           ; echo $?  # 11
+# wait %3           ; echo $?  # 12
+# wait %4           ; echo $?  # 13
+# wait %-           ; echo $?  # 12
+# wait %%           ; echo $?  # 13
+# wait %+           ; echo $?  # 13
+# wait "%sleep"     ; echo $?  # PROG: line 17: wait: sleep: ambiguous job spec
+# wait "%sleep 0.2" ; echo $?  # 10 starts with "sleep 0.2"
+# wait "%?exit 13"  ; echo $?    #    contains    "exit 13"; PROG: line 19: wait: exit 13: ambiguous job spec なぜだ？ group leader (pipe の一番最初のコマンド) のみマッチするっぽいな
+
+fg %1
+bg %1
+%1 &  # bg %1
+
+shopt -s checkjobs
+sleep 9999 &
+exit
+#There are running jobs.
+#[1]+  Running                 sleep 9999 &
+exit
+#exit
+
+# 7.2 Job Control Builtins
+
+# wait [-fn] [-p varname] [jobspec or pid …]
+# https://github.com/bminor/bash/blob/master/builtins/wait.def
+
+wait -f  # ?
+
+# wait -n: any
+sleep 0.2 | sh -c "exit 10" &
+sleep 0.1 | sh -c "exit 11" &
+wait -n; echo "?:$?"  # 11
+wait -n; echo "?:$?"  # 10
+wait -n; echo "?:$?"  # 127
+# タイミングによっては回収できない…
+sleep 0.2 | sh -c "exit 10" &
+sleep 0.1 | sh -c "exit 11" &
+sleep 0.3  # or terminal 待機
+wait -n; echo "?:$?"  # 127
+wait -n; echo "?:$?"  # 127
+
+# wait -n {jobspec or pid…} と補足するjobspec指定もできる
+
+# wait -p varname: bash 5.1? https://github.com/bminor/bash/blob/master/CHANGES
+# This is useful only when the -n option is supplied.
+# 20:04: GNU bash, version 5.0.17(1)-release (x86_64-pc-linux-gnu)
+# 22.04: GNU bash, version 5.1.16(1)-release (x86_64-pc-linux-gnu)
+
+kill $(jobs -p)
+
+# 7.3 Job Control Variables
+
+# @end:man_7
+fi  # if false
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 8 Command Line Editing
+
+# 8.1 Introduction to Line Editing
+# 8.2 Readline Interaction
+# 8.2.1 Readline Bare Essentials
+# 8.2.2 Readline Movement Commands
+# 8.2.3 Readline Killing Commands
+# 8.2.4 Readline Arguments
+# 8.2.5 Searching for Commands in the History
+# 8.3 Readline Init File
+# 8.3.1 Readline Init File Syntax
+# 8.3.2 Conditional Init Constructs
+# 8.3.3 Sample Init File
+# 8.4 Bindable Readline Commands
+# 8.4.1 Commands For Moving
+# 8.4.2 Commands For Manipulating The History
+# 8.4.3 Commands For Changing Text
+# 8.4.4 Killing And Yanking
+# 8.4.5 Specifying Numeric Arguments
+# 8.4.6 Letting Readline Type For You
+# 8.4.7 Keyboard Macros
+# 8.4.8 Some Miscellaneous Commands
+# 8.5 Readline vi Mode
+# 8.6 Programmable Completion
+# 8.7 Programmable Completion Builtins
+# 8.8 A Programmable Completion Example
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 9 Using History Interactively
+
+# 9.1 Bash History Facilities
+# 9.2 Bash History Builtins
+# 9.3 History Expansion
+# 9.3.1 Event Designators
+# 9.3.2 Word Designators
+# 9.3.3 Modifiers
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - 10 Installing Bash
+
+# 10.1 Basic Installation
+# 10.2 Compilers and Options
+# 10.3 Compiling For Multiple Architectures
+# 10.4 Installation Names
+# 10.5 Specifying the System Type
+# 10.6 Sharing Defaults
+# 10.7 Operation Controls
+# 10.8 Optional Features
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - Appendix A Reporting Bugs
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - Appendix B Major Differences From The Bourne Shell
+
+# B.1 Implementation Differences From The SVR4.2 Shell
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - Appendix C GNU Free Documentation License
+
+# ------------------------------------------------------------------------------
+# z Bash Reference Manual - Appendix D Indexes
+
+# D.1 Index of Shell Builtin Commands
+# D.2 Index of Shell Reserved Words
+# D.3 Parameter and Variable Index
+# D.4 Function Index
+# D.5 Concept Index
+
+# ------------------------------------------------------------------------------
+# z scraps
+
+if false; then
+
+# ------------------------------------------------------------------------------
+# z scraps - 0 draft
+
+sudo systemd-run -- bash -c '{ TERM=xterm clear; lsof -nP -p "$$BASHPID"; echo -e "\e[32m""done\e[0m"; } >>/tmp/tmp.systemd.log 2> >(sed -e "s/^/\x1b[31m/" -e "s/\$/\x1b[0m/" >> /tmp/tmp.systemd.log)'
+
+# ------------------------------------------------------------------------------
+# z scraps - 0 references
+
+# /usr/local/bin/bats               [](file:///usr/local/bin/bats)
+# /usr/local/libexec/bats-core/bats [](file:///usr/local/libexec/bats-core/bats)
+
+# ------------------------------------------------------------------------------
+# z scraps - ansi escape sequences - colors
+
+# @ref:shell_color
+
+# colors
+echo -e '\e[30m' black  '\e[0m'
+echo -e '\e[31m' red    '\e[0m'
+echo -e '\e[32m' green  '\e[0m'
+echo -e '\e[33m' yellow '\e[0m'
+echo -e '\e[34m' blue   '\e[0m'
+echo -e '\e[35m' purple '\e[0m'
+echo -e '\e[36m' cyan   '\e[0m'
+echo -e '\e[37m' white  '\e[0m'
+
+echo -e '\e[1;30m' bright black  '\e[0m'
+echo -e '\e[1;31m' bright red    '\e[0m'
+echo -e '\e[1;32m' bright green  '\e[0m'
+echo -e '\e[1;33m' bright yellow '\e[0m'
+echo -e '\e[1;34m' bright blue   '\e[0m'
+echo -e '\e[1;35m' bright purple '\e[0m'
+echo -e '\e[1;36m' bright cyan   '\e[0m'
+echo -e '\e[1;37m' bright white  '\e[0m'
+
+echo_black()  { tput setaf 0 ; echo "$@" ; tput sgr0 ; }
+echo_red()    { tput setaf 1 ; echo "$@" ; tput sgr0 ; }
+echo_green()  { tput setaf 2 ; echo "$@" ; tput sgr0 ; }
+echo_yellow() { tput setaf 3 ; echo "$@" ; tput sgr0 ; }
+echo_blue()   { tput setaf 4 ; echo "$@" ; tput sgr0 ; }
+echo_purple() { tput setaf 5 ; echo "$@" ; tput sgr0 ; }
+echo_cyan()   { tput setaf 6 ; echo "$@" ; tput sgr0 ; }
+echo_white()  { tput setaf 7 ; echo "$@" ; tput sgr0 ; }
+
+echo_black()  { echo -e "\e[30m$*\e[0m" ; }
+echo_red()    { echo -e "\e[31m$*\e[0m" ; }
+echo_green()  { echo -e "\e[32m$*\e[0m" ; }
+echo_yellow() { echo -e "\e[33m$*\e[0m" ; }
+echo_blue()   { echo -e "\e[34m$*\e[0m" ; }
+echo_purple() { echo -e "\e[35m$*\e[0m" ; }
+echo_cyan()   { echo -e "\e[36m$*\e[0m" ; }
+echo_white()  { echo -e "\e[37m$*\e[0m" ; }
+
+# ------------------------------------------------------------------------------
+# z scraps - arguments - shell-arguments array to sh -c
+
+# https://stackoverflow.com/questions/73722324/convert-bash-array-to-a-single-stringified-shell-argument-list-handable-by-sh
+shell_arguments=(echo "foo bar" baz)
+sh -c "${shell_arguments[*]@Q}"
+sh -c "${*@Q}"  # not tested
+sh -c "${@@Q}"  # not tested
+
+# ------------------------------------------------------------------------------
+# z scraps - bash - argv - print argv (declare -p tmp=($@) "${@}")
+
+declare -p @  # bash: declare: @: not found
+tmp=("$@")
+declare -p tmp
+
+# ------------------------------------------------------------------------------
+# z scraps - env
+
+must_set() {
+    if ! [[ -v $1 ]]; then
+        err "fatal: $1 must be exported before"
+        exit 1
+    fi
+}
+
+must_set HOME  # /home/wsh
+
+[[ -v HOME ]] || { echo "do export HOME=/path/to/home before." ; exit 1 ; }
+
+# ------------------------------------------------------------------------------
+# z scraps - grep environment variable
+
+DBUS_SESSION_BUS_ADDRESS=$(strings /proc/"$(pgrep -u wsh pipewire | head -1)"/environ | grep -P -o '(?<=DBUS_SESSION_BUS_ADDRESS=).+$')
+
+# ------------------------------------------------------------------------------
+# z scraps - IFS - temporary IFS
+# https://unix.stackexchange.com/a/92190/231543
+
+# join by join_by
+
+# summary
+arr=(a b c)
+(IFS=-; echo "{arr[*]}")                                # OK (subshell)
+var=$(IFS=-; echo "${arr[*]}") && echo "$var"           # var=a-b-c
+shopt -s lastpipe && set +m  # set +m for interactive shell
+(IFS=-; echo "${arr[*]}") | read -r var && echo "$var"  # var=a-b-c
+
+arr=(a b c)
+echo -n "$IFS" | xxd  # default IFS: 20 09 0a (space \t \n)
+echo "IFS: $(xxd -p <<<"$IFS") | ${arr[*]}"
+IFS=- echo "IFS: $(xxd -p <<<"$IFS") | ${arr[*]}"       # not work (environment vaiable) | This assignment is only seen by the forked process. shellcheckSC2097
+env IFS=- echo "IFS: $(xxd -p <<<"$IFS") | ${arr[*]}"   # not work (environment vaiable)
+(IFS=-; echo "IFS: $(xxd -p <<<"$IFS") | ${arr[*]}")    # OK (subshell)
+(IFS=-; echo "{arr[*]}")                                # OK (subshell)
+echo "IFS: $(xxd -p <<<"$IFS") | ${arr[*]}"             # IFS restored
+# IFS= read -r line は read command 自体？実行結果？に IFS が効くが、
+# IFS=- echo "{arr[*]}" は IFS より先に "{arr[*]}" が評価されるのだと思われる
+
+# assign to variable
+arr=(a b c)
+var=$(IFS=-; echo "${arr[*]}") && echo "$var"           # var=a-b-c
+echo "IFS: $(xxd -p <<<"$IFS") | ${arr[*]}"             # IFS restored
+
+arr=(a b c)
+shopt -s lastpipe && set +m  # set +m for interactive shell
+(IFS=-; echo "${arr[*]}") | read -r var && echo "$var"  # var=a-b-c
+echo "IFS: $(xxd -p <<<"$IFS") | ${arr[*]}"             # IFS restored
+
+# ------------------------------------------------------------------------------
+# z scraps - jq
+
+
+# TODO: https://github.com/ynqa/jnv
+
+# https://stedolan.github.io/jq/manual/
+
+# https://github.com/elkowar/pipr でテストすると良い
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - draft
+
+echo '{"arr": [1, 2]}' >/tmp/a.json
+echo '{"arr": [3, 4]}' >/tmp/b.json
+jq -c    'inputs'       /tmp/a.json /tmp/b.json  # stdin?:a    inputs:b   {"arr":[3,4]}
+jq -c -n 'inputs'       /tmp/a.json /tmp/b.json  # stdin?:null inputs:a,b {"arr":[1,2]} {"arr":[3,4]}
+jq -c -n 'inputs.arr'   /tmp/a.json /tmp/b.json  # [1,2] [3,4]
+jq -c -n 'inputs.arr[]' /tmp/a.json /tmp/b.json  # 1 2 3 4
+
+# > {user: .user, title: .title}
+# > Because that is so common, there's a shortcut syntax for it: {user, title}.
+echo '{"key1": "val1"}'           | jq -c '{key1}'                     # {"key1":"val1"}
+echo '{"key1": {"key2": "val1"}}' | jq -c '{key1}'                     # {"key1":{"key2":"val1"}}
+echo '{"key1": {"key2": "val1"}}' | jq -c '{key1.key2}'                # syntax error
+echo '{"key1": {"key2": "val1"}}' | jq -c '{key2: .key1.key2}'         # {"key2":"val1"}
+echo '{"key1": {"key2": "val1"}}' | jq -c '{"key1.key2": .key1.key2}'  # {"key1.key2":"val1"}
+
+# -e
+echo invalid_json | jq    '.'   # 4 parse error: Invalid numeric literal at line 2, column 0
+echo '{}'         | jq    '.'   # 0 {}
+echo '{}'         | jq    '.x'  # 0 null
+echo '{}'         | jq -e '.x'  # 1 null
+# case + jq -e
+(
+  set -e
+  # bad:
+  case "$(echo '{}' | jq -er '.x')" in
+    *) echo reached;;
+  esac
+  # ok:
+  a=$(echo '{}' | jq -er '.x')
+  unreachable
+  case "$a" in
+    *) unreachable;;
+  esac
+)
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - 0 iterator
+
+echo '[1, 2, 3]' | jq '  .           ' # [1, 2, 3] array
+echo '[1, 2, 3]' | jq '  .[]         ' #  1  2  3  iterator
+echo '[1, 2, 3]' | jq '[ .[] ]       ' # [1, 2, 3] iterator -> array
+echo '[1, 2, 3]' | jq '  .[]' | jq -s  # [1, 2, 3] iterator -> array; --slurp / -s
+echo ' 1  2  3 '              | jq -s  # [1, 2, 3] iterator -> array; --slurp / -s
+
+echo '[{"directory": "/dir0", "file": "file0"}, {"directory": "/dir1", "file": "file1"}]' | jq '.[].directory'  # "/dir0"  "/dir1"
+echo '[{"directory": "/dir0", "file": "file0"}, {"directory": "/dir1", "file": "file1"}]' | jq '.[].file'       # "file0"  "file1"
+echo '[{"directory": "/dir0", "file": "file0"}, {"directory": "/dir1", "file": "file1"}]' | jq '.[].directory + "/" + .[].file'       # iterater + string("/") + iterator: 積 組み合わせ "/dir0/file0"  "/dir1/file0"  "/dir0/file1"  "/dir1/file1"
+
+echo '[{"directory": "/dir0", "file": "file0"}, {"directory": "/dir1", "file": "file1"}]' | jq '.[] | .directory'  # "/dir0"  "/dir1"
+echo '[{"directory": "/dir0", "file": "file0"}, {"directory": "/dir1", "file": "file1"}]' | jq '.[] | .file'       # "file0"  "file1"
+echo '[{"directory": "/dir0", "file": "file0"}, {"directory": "/dir1", "file": "file1"}]' | jq '.[] | .directory + "/" + .file'       # string("/dir0") + string("/") + string("file0"): string  "/dir0/file0"  "/dir1/file1"
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - 0 string
+
+echo '"foo"' | jq '.'  # "foo"
+
+# --raw-output / -r
+
+echo '"foo"' | jq -r '.'          #  foo
+echo '"foo"' | jq    '.' | jq -r  #  foo 1個目のjqの引数が長いならこっちで
+# non-striong と string の区別が付かなくなるので注意
+echo '"null"' | jq -r  # null
+echo ' null ' | jq -r  # null ttyなら灰色
+
+# --raw-input/-R
+# --ascii-output / -a
+# --slurp/-s
+
+echo -e 'foo\n世界' | jq       # parse error: Invalid literal at line 2, column 0
+echo -e 'foo\n世界' | jq -R    # "foo" "世界"
+echo -e 'foo\n世界' | jq -aR   # "foo" "\u4e16\u754c"
+echo -e 'foo\n世界' | jq -sR   # "foo\n世界\n"
+echo -e 'foo\n世界' | jq -asR  # "foo\n\u4e16\u754c\n"
+echo     null       | jq       #  null
+echo     null       | jq -R    # "null"
+
+# Builtin operators and functions
+
+# Builtin operators and functions - Addition: +
+echo '[]' | jq '"a" + "b"'  # "ab"
+
+# Builtin operators and functions - ascii_downcase, ascii_upcase
+echo '["foo", "bar"]' | jq '  .[]  '                 #  "foo" "bar"  iterator
+echo '["foo", "bar"]' | jq '  .[] | ascii_upcase '   #  "FOO" "BAR"
+echo '["foo", "bar"]' | jq '[ .[] | ascii_upcase ]'  # ["FOO", "BAR"]
+
+# Builtin operators and functions - contains(element)
+echo '["foo", "bar"]' | jq '[ .[] | contains("o") ]'  # [true, false]
+
+# Builtin operators and functions - explode
+echo '["foo", "bar"]' | jq '[ .[] | explode ]'  # [[102, 111, 111], [98, 97, 114]]
+
+# Builtin operators and functions - join(str)
+echo '["foo", "bar"]' | jq '. | join("-")'  # "foo-bar"
+echo '["foo", "bar"]' | jq 'join("-")'  # "foo-bar"
+
+# Builtin operators and functions - length utf8bytelength
+echo '"あ"' | jq 'length'  # 1
+echo '"あ"' | jq 'utf8bytelength'  # 3
+
+# Builtin operators and functions - ltrimstr(str) rtrimstr(str)
+echo '["foo", "bar"]' | jq '[ .[] | ltrimstr("f")  ]'  # ["oo", "bar"]
+echo '["foo", "bar"]' | jq '[ .[] | rtrimstr("oo") ]'  # ["f", "bar"]
+
+# Builtin operators and functions - Multiplication, division, modulo: *, /, and %
+echo '"a"' | jq '. * 3'  # "aaa"
+
+# Builtin operators and functions - sort
+echo '["foo", "bar"]' | jq 'sort'  # ["bar", "foo"]
+
+# Builtin operators and functions - split(str)
+echo '["foo", "bar"]' | jq '[ .[] | split("a") ]'  # [["foo"], ["b", "r"]]
+
+# Builtin operators and functions - endswith(str) startswith(str)
+echo '["foo", "bar"]' | jq '[ .[] | endswith("o") ]'  # [true, false]
+echo '["foo", "bar"]' | jq '[ .[] | startswith("f") ]'  # [true, false]
+
+# Builtin operators and functions - tonumber
+echo '["0", "1"]' | jq '[ .[] | tonumber ]'  # [0, 1]
+
+# Builtin operators and functions - String interpolation - \(foo)
+
+echo '["foo", "bar"]' | jq '"=== \(.[0]) ==="'  # "=== foo ==="
+echo '{"path": "/"}' | jq '"=== \(.path) ==="'  # "=== / ==="
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - 1 select (filter)
+
+echo '[{"key": true}, {"key": false}]' | jq -c '.'                           # as-is
+echo '[{"key": true}, {"key": false}]' | jq -c '.   | select(true)'          # same
+echo '[{"key": true}, {"key": false}]' | jq -c '      select(true)'          # same
+echo '[{"key": true}, {"key": false}]' | jq -c '      select(false)'         # (empty)
+echo '[{"key": true}, {"key": false}]' | jq -c '.[] | select(.key == true)'  # {"key":true}
+
+echo '[{"key": true}, {"key": false}]' | jq -c 'map(., .)'                  # [{"key":true},{"key":true},{"key":false},{"key":false}]
+echo '[{"key": true}, {"key": false}]' | jq -c 'map([., .])'                # [{"key":true},{"key":true},{"key":false},{"key":false}]
+echo '[{"key": true}, {"key": false}]' | jq -c 'select(.key == true)'       # jq: error (at <stdin>:1): Cannot index array with string "key"
+echo '[{"key": true}, {"key": false}]' | jq -c 'map(select(.key == true))'  # [{"key": true}]
+
+# select - string - contains()
+echo '["foo", "bar"]' | jq -c '.[] | select(contains("o"))'  #  "foo"
+echo '["foo", "bar"]' | jq -c 'map(select(contains("o")))'   # ["foo"]
+
+# select - string - endswith(str) startswith(str)
+echo '["foo", "bar"]' | jq -c '.[] | select(endswith("o"))'    # "foo"
+echo '["foo", "bar"]' | jq -c 'map(select(endswith("o")))'     # ["foo"]
+echo '["foo", "bar"]' | jq -c '.[] | select(startswith("f"))'  # "foo"
+echo '["foo", "bar"]' | jq -c 'map(select(startswith("f")))'   # ["foo"]
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - compile_commands.json
+
+# TODO: old:
+#   ~/qc/linux/
+#   ~/qc/linux-build/
+
+jq <~/qc/linux/focal-d/compile_commands.json '.'       # [ {}, {} ]
+jq <~/qc/linux/focal-d/compile_commands.json '.[]'     #   {}, {}
+jq <~/qc/linux/focal-d/compile_commands.json '.[0]'    #   {}
+jq <~/qc/linux/focal-d/compile_commands.json '[ .[] ]' #  [ {}, {} ]
+jq <~/qc/linux/focal-d/compile_commands.json '{ a: .[] }' #  { "a":{}, "a":{} } ("a" duplicate)
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file'
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | wc -l  # 6392
+jq <~/qc/linux/focal-d/compile_commands.json '[ .[].file ]'
+jq <~/qc/linux/focal-d/compile_commands.json '[ .[] | .file ]'
+jq <~/qc/linux/focal-d/compile_commands.json '[ .[] | [.file] ]'
+jq <~/qc/linux/focal-d/compile_commands.json '[ .[] | [.file, .directory] ]'
+jq <~/qc/linux/focal-d/compile_commands.json '[ .[] | {f:.file, d:.directory} ]'
+
+jq <~/qc/linux/focal-d/compile_commands.json '  .[] | select(  .file | startswith("/home/wsh/qc/linux/init/")  )'
+jq <~/qc/linux/focal-d/compile_commands.json '  .[] | select( (.file | startswith("/home/wsh/qc/linux/init/")) )'  # same
+jq <~/qc/linux/focal-d/compile_commands.json '  .[] | select( (.file | startswith("/home/wsh/qc/linux/init/")) or (.file | startswith("/home/wsh/qc/linux/arch/")) )'
+jq <~/qc/linux/focal-d/compile_commands.json '[ .[] | select( (.file | startswith("/home/wsh/qc/linux/init/")) or (.file | startswith("/home/wsh/qc/linux/arch/")) ) ]'
+
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | sort   # 眺めてどれがほしいか決める
+
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/arch/'                  | wc -l  # 379 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/block/'                 | wc -l  # 64 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/certs/'                 | wc -l  # 3 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/crypto/'                | wc -l  # 144 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/Documentation/'         | wc -l  # 0
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/'               | wc -l  # 10533
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/acpi/'          | wc -l  # 252 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/base/'          | wc -l  # 61 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/block/'         | wc -l  # 64 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/bluetooth/'     | wc -l  # 45 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/char/'          | wc -l  # 85 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/firmware/'      | wc -l  # 32 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/firmware/efi/'  | wc -l  # 24
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/gpio/'          | wc -l  # 71 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/hid/'           | wc -l  # 144 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/input/'         | wc -l  # 283 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/tty/'           | wc -l  # 76 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/usb/'           | wc -l  # 344 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/drivers/virtio/'        | wc -l  # 10 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/fs/'                    | wc -l  # 1189 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/include/'               | wc -l  # 0
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/init/'                  | wc -l  # 8 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/ipc/'                   | wc -l  # 11 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/kernel/'                | wc -l  # 285 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/lib/'                   | wc -l  # 220 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/LICENSES/'              | wc -l  # 0
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/mm/'                    | wc -l  # 93 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/net/'                   | wc -l  # 1364 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/samples/'               | wc -l  # 1 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/scripts/'               | wc -l  # 0
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/security/'              | wc -l  # 119 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/sound/'                 | wc -l  # 757 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/tools/'                 | wc -l  # 0
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/usr/'                   | wc -l  # 0
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/virt/'                  | wc -l  # 8 *
+jq <~/qc/linux/focal-d/compile_commands.json '.[].file' | ag '^"/home/wsh/qc/linux/zmisc/'                 | wc -l  # 0
+
+jq <~/qc/linux/focal-d/compile_commands.json >~/qc/linux/compile_commands.json '[ .[] | select(
+    (.file | startswith("/home/wsh/qc/linux/arch/")) or
+    ...
+    false
+  ) ]'
+
+# 1ファイル足す
+jq <~/qc/linux/focal-d/compile_commands.json '[ .[] | select(.file | endswith("drivers/tty/vt/vt.c")) ]' > tmp.json
+jq -s 'add' compile_commands.json tmp.json | sponge compile_commands.json
+
+# backtraceのファイル一覧
+echo '[]' > compile_commands.json
+for f in \
+arch/x86/entry/entry_64.S \
+arch/x86/include/asm/idtentry.h \
+arch/x86/include/asm/irq_stack.h \
+arch/x86/kernel/irq.c \
+drivers/input/input.c \
+drivers/input/keyboard/atkbd.c \
+drivers/input/serio/i8042.c \
+drivers/input/serio/serio.c \
+drivers/tty/vt/keyboard.c \
+include/linux/input.h \
+kernel/irq/handle.c \
+;
+  echo add $f
+  jq <~/qc/linux/focal-d/compile_commands.json '[ .[] | select(.file | endswith("'$f'")) ]' > tmp.json
+  jq -s 'add' compile_commands.json tmp.json | sponge compile_commands.json
+end
+
+Loading... で固まる
+kernel/irq/chip.c    1597
+drivers/tty/vt/vt.c  4865
+なんか固まる原因になっている共通のマクロありそうだな
+
+# insertion to array
+
+jq --arg IPWD "-I$PWD" --arg IRUBY \
+  "-I$HOME/src/ruby/include" '.[].arguments |= [ .[0], $IPWD, $IRUBY, .[1:][] ]' \
+  compile_commands.json
+
+# software - ruby
+
+jq <~/qc/ruby/build/compile_commands.json >~/qc/ruby/compile_commands.json '[ .[] | select(
+    (.file | endswith("/dln.c")) or  #
+    (.file | endswith("/eval.c")) or  #
+    (.file | endswith("/ext/pty/pty.c")) or  #
+    (.file | endswith("/load.c")) or  #
+    (.file | endswith("/main.c")) or  #
+    (.file | endswith("/object.c")) or  #
+    (.file | endswith("/vm_insnhelper.c")) or  #
+    (.file | endswith("/vm.c")) or  #
+    false
+  ) ]'
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - concatenate compile_commands.json
+
+echo '[{"arguments": "cc", "directory": "/", "file": "a.c"}, {"arguments": "cc", "directory": "/", "file": "b.c"}]' > a.json
+jq    '.'         a.json a.json  #  [{a}, {b}][{a}, {b}]
+jq    '.[]'       a.json a.json  #   {a}  {b}  {a}  {b}
+jq    '[ .[] ]'   a.json a.json  #  [{a}, {b}][{a}, {b}]  元通り; それぞれ独立に処理されてしまう
+# # --slurp/-s Instead of running the filter for each JSON object in the input, read the entire input stream into a large array and run the filter just once.
+jq -s '.'         a.json a.json  # [[{a}, {b}][{a}, {b}]]
+jq -s '.[]'       a.json a.json  #  [{a}, {b}][{a}, {b}]
+jq -s '.[][]'     a.json a.json  #   {a}  {b}  {a}  {b}
+jq -s '[ .[][] ]' a.json a.json  #  [{a}, {b}, {a}, {b}]
+jq -s '[ .[][] ]' a.json a.json a.json  #  [{a}, {b}, {a}, {b}, {a}, {b}]
+
+jq    'add' a.json  #       {b}
+jq -s 'add' a.json  # [{a}, {b}]
+jq -s 'add' a.json a.json a.json  # [{a}, {b}, {a}, {b}, {a}, {b}]
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - scrapbox.json sort by title
+
+# @ref:jq-scrapbox.json
+jq <~/doc/scrapbox.json '.'              # {"name": "wataash", "displayName": "wataash", "exported": 1616609828, "pages": [...]}
+jq <~/doc/scrapbox.json 'del(.pages)'    # {"name": "wataash", "displayName": "wataash", "exported": 1616609828}
+jq <~/doc/scrapbox.json '.pages'
+jq <~/doc/scrapbox.json '.pages | sort_by(.title)'
+jq <~/doc/scrapbox.json '.pages = null'  # {"name": "wataash", "displayName": "wataash", "exported": 1616609828, "pages": null}
+jq <~/doc/scrapbox.json '.pages = (.pages | sort_by(.title))'  # {"name": "wataash", "displayName": "wataash", "exported": 1616609828, "pages": [...]}
+jq <~/doc/scrapbox.json '.pages = (.pages | sort_by(.title))' | sponge ~/doc/scrapbox.json
+
+# ------------------------------------------------------------------------------
+# z scraps - jq
+# https://stedolan.github.io/jq/manual/
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Invoking jq
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Basic filters
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Types and Values
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Builtin operators and functions
+
+# Addition: +
+# > Strings are added by being joined into a larger string.
+echo '["foo", "bar"]' | jq '.[0] + .[1]'  # "foobar"
+echo '["foo", 42]'    | jq '.[0] + .[1]'  # jq: error (at <stdin>:1): string ("foo") and number (42) cannot be added
+echo '["foo", 42]'    | jq '.[0] + (.[1] | tostring)'  # "foo42"
+echo '["foo", 42]'    | jq '"\(.[0])\(.[1])"'          # "foo42"
+echo '["foo", 42]'    | jq '"\(.[0]) \(.[1])"'         # "foo 42"
+
+# select(boolean_expression)
+# compdb
+# https://stackoverflow.com/a/26701851/4085441
+jq <compile_commands.json.linux '  .[] | select(.file | contains("gcov"))'
+jq <compile_commands.json.linux '[ .[] | select(.file | contains("gcov")) ]'
+jq <compile_commands.json.linux '[ .[] | select(.file | contains("gcov")) ]' > compile_commands.json
+jq <compile_commands.json.linux '[ .[] | select(.file | contains("fortran") | not ) ]' > compile_commands.json
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Conditionals and Comparisons
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Regular expressions (PCRE)
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Advanced features
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Math
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - I/O
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Streaming
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Assignment
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Modules
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - Colors
+
+# ------------------------------------------------------------------------------
+# z scraps - node -e
+# @ref:bash-node
+
+# read file ?? stdin
+node -e 'const txt = fs.readFileSync(process.argv[1] ?? "/dev/stdin", "utf8"); process.stdout.write(txt)' </etc/hostname
+node -e 'const txt = fs.readFileSync(process.argv[1] ?? "/dev/stdin", "utf8"); process.stdout.write(txt)'  /etc/hostname _arg2
+
+# read file ?? stdin - __filename
+node -e "console.log(__filename)"                                                       # [eval]
+node -e "console.log(__filename)"                     --input-type=commonjs             # [eval]
+node -e "console.log(__filename)"                     --input-type=module               # ReferenceError: __filename is not defined in ES module scope
+node -p "            __filename "                                                       # [eval]
+node -p "            __filename "                     --input-type=commonjs             # [eval]
+node -p "            __filename "                     --input-type=module               # ReferenceError: __filename is not defined in ES module scope
+echo    "console.log(__filename)"              | node                                   # [stdin]
+echo    "console.log(__filename)"              | node                                   # [stdin]
+echo    "console.log(__filename)"              | node --input-type=commonjs             # [stdin]
+echo    "console.log(__filename)"              | node --input-type=module               # ReferenceError: __filename is not defined in ES module scope
+echo    "console.log(__filename)" >/tmp/a.js  && node                       /tmp/a.js   # /tmp/a.js
+echo    "console.log(__filename)" >/tmp/a.js  && node --input-type=commonjs /tmp/a.js   # /tmp/a.js  --input-type は無視されてるっぽい
+echo    "console.log(__filename)" >/tmp/a.js  && node --input-type=module   /tmp/a.js   # /tmp/a.js  --input-type は無視されてるっぽい
+echo    "console.log(__filename)" >/tmp/a.mjs && node                       /tmp/a.mjs  # ReferenceError: __filename is not defined in ES module scope
+echo    "console.log(__filename)" >/tmp/a.mjs && node --input-type=commonjs /tmp/a.mjs  # Error [ERR_INPUT_TYPE_NOT_ALLOWED]: --input-type can only be used with string input via --eval, --print, or STDIN
+echo    "console.log(__filename)" >/tmp/a.mjs && node --input-type=module   /tmp/a.mjs  # Error [ERR_INPUT_TYPE_NOT_ALLOWED]: --input-type can only be used with string input via --eval, --print, or STDIN
+
+# read file ?? stdin - process.argv
+node -e "console.log(__filename, process.argv)"                                   arg1 arg2  # [eval]    [ '/usr/bin/node', 'arg1', 'arg2' ]
+echo    "console.log(__filename, process.argv)"              | node                          # [stdin]   [ '/usr/bin/node' ]
+echo    "console.log(__filename, process.argv)"              | node            -             # [stdin]   [ '/usr/bin/node', '-' ]
+echo    "console.log(__filename, process.argv)"              | node               arg1 arg2  # Error: Cannot find module '/home/wsh/qjs/tesjs/arg1'
+echo    "console.log(__filename, process.argv)"              | node            -  arg1 arg2  # [stdin]   [ '/usr/bin/node', '-', 'arg1', 'arg2' ]
+echo    "console.log(__filename, process.argv)" >/tmp/a.js  && node /tmp/a.js     arg1 arg2  # /tmp/a.js [ '/usr/bin/node', '/tmp/a.js', 'arg1', 'arg2' ]
+echo    "console.log(__filename, process.argv)" >/tmp/a.js  && node /tmp/a.js  -- arg1 arg2  # /tmp/a.js [ '/usr/bin/node', '/tmp/a.js', '--', 'arg1', 'arg2' ]
+echo    "console.log(            process.argv)" >/tmp/a.mjs && node /tmp/a.mjs    arg1 arg2  #           [ '/usr/bin/node', '/tmp/a.mjs',       'arg1', 'arg2' ]
+echo    "console.log(            process.argv)" >/tmp/a.mjs && node /tmp/a.mjs -- arg1 arg2  #           [ '/usr/bin/node', '/tmp/a.mjs', '--', 'arg1', 'arg2' ]
+
+# variables
+# https://stackoverflow.com/questions/31173473/list-all-global-variables-in-node-js
+
+node -e "console.dir(Object.getOwnPropertyNames(globalThis), {maxArrayLength: null})"                              a b >/tmp/node.e   # [Object Function ... Response (assert async_hooks ... fs ... zlib) __filename module exports __dirname require]
+echo    "console.dir(Object.getOwnPropertyNames(globalThis), {maxArrayLength: null})" >/tmp/a.js && node /tmp/a.js a b >/tmp/node.a   # [Object Function ... Response                                                                                 ]
+echo    "console.dir(Object.getOwnPropertyNames(globalThis), {maxArrayLength: null})"             | node    -      a b >/tmp/node.s   # [Object Function ... Response                                      __filename module exports __dirname require]
+
+# stdin
+
+rm -f /tmp/node.stdin.empty           && echo -n $''           >/tmp/node.stdin.empty
+rm -f /tmp/node.stdin.nl              && echo -n $'\n'         >/tmp/node.stdin.nl
+rm -f /tmp/node.stdin.nl_nl           && echo -n $'\n\n'       >/tmp/node.stdin.nl_nl
+rm -f /tmp/node.stdin.a               && echo -n $'a'          >/tmp/node.stdin.a
+rm -f /tmp/node.stdin.a_nl            && echo -n $'a\n'        >/tmp/node.stdin.a_nl
+rm -f /tmp/node.stdin.a_nl_nl         && echo -n $'a\n\n'      >/tmp/node.stdin.a_nl_nl
+rm -f /tmp/node.stdin.a_nl_nl_z       && echo -n $'a\n\nz'     >/tmp/node.stdin.a_nl_nl_z
+rm -f /tmp/node.stdin.a_nl_nl_z_nl    && echo -n $'a\n\nz\n'   >/tmp/node.stdin.a_nl_nl_z_nl
+rm -f /tmp/node.stdin.a_nl_nl_z_nl_nl && echo -n $'a\n\nz\n\n' >/tmp/node.stdin.a_nl_nl_z_nl_nl
+for f in $(ls -tr /tmp/node.stdin.*); do
+  echo -en "\e[32m$f\e[0m "
+  cat $f | xxd
+  cat $f | xxd
+  node -e 'process.stdin.on("data", (data) => process.stdout.write(data.toString()))' <"$f" | xxd
+  node -e 'const txt = fs.readFileSync("/dev/stdin", "utf8");
+    process.stdout.write(txt);' <"$f" | xxd
+done
+#/tmp/node.stdin.empty
+#/tmp/node.stdin.nl              00000000: 0a                                       .
+#/tmp/node.stdin.nl_nl           00000000: 0a0a                                     ..
+#/tmp/node.stdin.a               00000000: 61                                       a
+#/tmp/node.stdin.a_nl            00000000: 610a                                     a.
+#/tmp/node.stdin.a_nl_nl_z       00000000: 610a 0a7a                                a..z
+#/tmp/node.stdin.a_nl_nl         00000000: 610a 0a                                  a..
+#/tmp/node.stdin.a_nl_nl_z_nl    00000000: 610a 0a7a 0a                             a..z.
+#/tmp/node.stdin.a_nl_nl_z_nl_nl 00000000: 610a 0a7a 0a0a                           a..z..
+
+# ------------------------------------------------------------------------------
+# z scraps - os
+
+if [ "$(uname -s)" = 'Darwin' ]; then
+  :
+fi
+
+# ------------------------------------------------------------------------------
+# z scraps - self path
+
+# https://stackoverflow.com/a/34208365/4085441
+readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "$0"
+DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "$0")")
+
+# ------------------------------------------------------------------------------
+# z scraps - set -x - mask credentials password
+
+export PASSWORD=foo
+set -x
+(
+  BASH_XTRACEFD=$fd_xtrace
+  echo "$PASSWORD" | sha1sum
+) {fd_xtrace}> >(node -e 'process.stdout.write(fs.readFileSync("/dev/stdin", "utf8").replaceAll(process.env.PASSWORD, "$PASSWORD".replaceAll("$", "$$$$")))' >&2)
+
+# TODO: PASSWORD が環境変数でない場合; node に process.argv として渡せば良さそうだが、そのxtraceを消すのも面倒
+
+# ------------------------------------------------------------------------------
+# z scraps - set -x - コマンドを実行させる度にsleepさせて標準出力・エラーが出力されるのを待つ
+
+exec {FD_DEVNULL}>/dev/null
+BASH_XTRACEFD=$FD_DEVNULL
+PS4='$(sleep 0.001)'
+set -x
+
+# ------------------------------------------------------------------------------
+# z scraps - signal - for loop ^C
+
+tail -F /tmp/strace.out
+strace -f -o /tmp/strace.out -- sh
+# set +m
+for i in 1 2 3; do echo "$i";                                        sleep 10; done  # ^C -> 終了
+for i in 1 2 3; do echo "$i"; ssh -T -oControlMaster=no localhost -- sleep 10; done  # ^C -> 次のループ (-T は無くても同じ; 明示的にした) set +m だと終了する
+
+# wait4(2) の結果を見て、killed by signal ならforループ終了するようだ
+# bash manual に記述は見つからなかった; POSIX定義か？
+
+#951095 execve("/usr/bin/sh", ["sh"], 0x7ffe590bd290 /* 88 vars */) = 0
+sleep:
+#951171 execve("/usr/bin/sleep", ["sleep", "10"], 0x55895e1257d8 /* 88 vars */) = 0
+#951171 clock_nanosleep(CLOCK_REALTIME, 0, {tv_sec=10, tv_nsec=0}, 
+(ctrl-C)
+#NULL) = ? ERESTART_RESTARTBLOCK (Interrupted by signal)
+#951171 --- SIGINT {si_signo=SIGINT, si_code=SI_KERNEL} ---
+#951171 +++ killed by SIGINT +++
+#951095 <... wait4 resumed>[{WIFSIGNALED(s) && WTERMSIG(s) == SIGINT}], WSTOPPED, NULL) = 951171
+#951095 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_KILLED, si_pid=951171, si_uid=1000, si_status=SIGINT, si_utime=0, si_stime=0} ---
+#951095 rt_sigreturn({mask=[]})          = 951171
+#951095 ioctl(10, TIOCSPGRP, [951095])   = 0
+#951095 rt_sigprocmask(SIG_BLOCK, ~[RTMIN RT_1], [], 8) = 0
+ssh sleep:
+#951314 execve("/usr/bin/ssh", ["ssh", "-T", "-oControlMaster=no", "localhost", "--", "sleep", "10"], 0x55895e125a38 /* 88 vars */) = 0
+#951314 select(7, [3 4], [], NULL, {tv_sec=10, tv_usec=0}
+(ctrl-C)
+#) = ? ERESTARTNOHAND (To be restarted if no handler)
+#951314 --- SIGINT {si_signo=SIGINT, si_code=SI_KERNEL} ---
+#951314 rt_sigreturn({mask=[]})          = -1 EINTR (Interrupted system call)
+#951314 rt_sigaction(SIGWINCH, {sa_handler=SIG_DFL, sa_mask=~[RTMIN RT_1], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f1ebddda090}, {sa_handler=0x555f3e282970, sa_mask=~[KILL STOP RTMIN RT_1], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f1ebddda090}, 8) = 0
+...
+#951314 exit_group(0)                    = ?
+#951314 +++ exited with 0 +++
+#951095 <... wait4 resumed>[{WIFEXITED(s) && WEXITSTATUS(s) == 0}], WSTOPPED, NULL) = 951314
+#951095 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=951314, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+#951095 rt_sigreturn({mask=[]})          = 951314
+#951095 ioctl(10, TIOCSPGRP, [951095])   = 0
+#951095 write(1, "2\n", 2)               = 2
+
+# @ref:sh-for-loop-SIGINT
+
+# ssh sleep でもループ抜けたい場合
+# ssh が ctrl-C で non-zero で終了することに依存
+(
+  set -e
+  for i in 1 2 3; do echo "$i"; ssh -T -oControlMaster=no localhost -- sleep 10; done
+)
+
+TODO: trap 'echo " SIGINT $$"' SIGINT
+
+# ------------------------------------------------------------------------------
+# z scraps - source - include guard
+
+if ! [[ -v _INCLUDE_GUARD_BASH ]]; then
+    return
+fi
+_INCLUDE_GUARD_BASH=1
+
+# ------------------------------------------------------------------------------
+# z scraps - stop.sh
+
+#!/bin/bash
+
+echo kill -STOP $$
+kill -STOP $$
+# here, argv[0] (NOTE: this is not bash's $0) is "bash"
+exec "$@"
+
+# argv[0] を "stop-sh" にする
+# $@ に " が含まれているとバグる
+#
+#cat <<EOF > /tmp/stop.sh.tmp
+#echo "\$\$ (stop-sh \$0): kill -STOP \$\$"
+#kill -STOP \$\$
+#echo "\$\$ (stop-sh \$0): exec $@"
+#exec $@
+#EOF
+#
+## strace -f -- stop.sh
+## [pid 3257274] execve("/usr/bin/bash", ["stop-sh", "/tmp/stop.sh.tmp"], 0x561ea88520f0 /* 0 vars */) = 0
+#echo "$$ (bash $0): execve(\".../bash\", [\"stop-sh\", \"/tmp/stop.sh.tmp\"])"
+#exec -a stop-sh -c bash /tmp/stop.sh.tmp
+
+# ------------------------------------------------------------------------------
+# z scraps - string - split
+
+IFS=$'\t' read -ra tmp <<<$(echo -e "\tfoo\t\tbar\t")
+declare -p tmp
+#declare -a tmp=([0]="foo" [1]="bar")
+
+# ------------------------------------------------------------------------------
+# z scraps - string - starts with / ends with
+# start with start_with starts with starts_with
+# end with end_with ends with ends_with
+# prefix suffix
+
+[[ $var =~ ^*"Z"$ ]]
+[[ $var =~ ^"A"*$ ]]
+
+# ------------------------------------------------------------------------------
+# z scraps - subshell
+
+# > $
+# > ($$) ... not the subshell
+# > BASHPID
+# > This differs from $$ under certain circumstances, such as subshells
+
+echo $$ $BASHPID $BASH_SUBSHELL  # same, 0
+( echo $$ $BASHPID $BASH_SUBSHELL )
+( echo $$ $BASHPID $BASH_SUBSHELL ) | cat
+{ echo $$ $BASHPID $BASH_SUBSHELL; }  # same, 0 (no subshell)
+{ echo $$ $BASHPID $BASH_SUBSHELL; } | cat
+{ echo $$ $BASHPID $BASH_SUBSHELL; } &
+echo $$ $BASHPID $BASH_SUBSHELL &  # same(!), 1
+echo $$ $BASHPID $BASH_SUBSHELL & echo $$ $BASHPID $BASH_SUBSHELL &
+
+echo $BASH_SUBSHELL; ( echo $BASH_SUBSHELL; (echo $BASH_SUBSHELL; (echo $BASH_SUBSHELL)) )  # 0 1 2 3
+
+# subshellで set -e を使うのはムズい
+# https://mywiki.wooledge.org/BashFAQ/105
+# https://github.com/koalaman/shellcheck/issues/1484
+
+cat <<'EOS' | bash
+set -e
+(
+  false  # exits at here
+  echo 1
+)
+echo 2
+EOS
+
+cat <<'EOS' | bash
+set -e
+(
+  false
+  echo 1  # reach!
+) || true
+echo 2  # reach
+EOS
+
+# for のredirectionはsubshellにならないっぽい
+for _once in _; do
+  echo $$ $BASHPID $BASH_SUBSHELL $fd  # same, 0
+done {fd}>/dev/null
+
+# ------------------------------------------------------------------------------
+# z scraps - variables - dynamic variable name assignment
+
+nameref() {
+  local -n nameref_local_scalar=local_scalar
+  local -n nameref_local_indexed_array=local_indexed_array
+  local -n nameref_local_associative_array=local_associative_array
+  local -n nameref_global_scalar=global_scalar
+  local -n nameref_global_indexed_array=global_indexed_array
+  local -n nameref_global_associative_array=global_associative_array
+  nameref_local_scalar="y"
+  nameref_local_indexed_array+=("y")
+  nameref_local_associative_array["z"]="w"
+  nameref_global_scalar="y"
+  nameref_global_indexed_array+=("y")
+  nameref_global_associative_array["z"]="w"
+}
+others() {
+  printf -v ...TODO
+}
+fn () {
+  local local_scalar="x"
+  local local_indexed_array=("x")
+  local local_associative_array=(["x"]="y")
+  global_scalar="x"
+  global_indexed_array=("x")
+  global_associative_array=(["x"]="y")
+  $1
+  echo "---------- $1"
+  echo "local_scalar: $local_scalar"
+  echo "local_indexed_array: ${local_indexed_array[*]}"
+  echo "local_associative_array: ${local_associative_array[*]}"
+  echo "global_scalar: $global_scalar"
+  echo "global_indexed_array: ${global_indexed_array[*]}"
+  echo "global_associative_array: ${global_associative_array[*]}"
+}
+fn "nameref"
+
+# ------------------------------------------------------------------------------
+# z scraps - z end
+
+fi  # if false
+
+# ------------------------------------------------------------------------------
+# EOF
