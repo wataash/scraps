@@ -4555,16 +4555,6 @@ shopt -s lastpipe && set +m  # set +m for interactive shell
 echo "IFS: $(xxd -p <<<"$IFS") | ${arr[*]}"             # IFS restored
 
 # ------------------------------------------------------------------------------
-# z scraps - jq
-
-
-# TODO: https://github.com/ynqa/jnv
-
-# https://stedolan.github.io/jq/manual/
-
-# https://github.com/elkowar/pipr でテストすると良い
-
-# ------------------------------------------------------------------------------
 # z scraps - jq - draft
 
 echo '{"arr": [1, 2]}' >/tmp/a.json
@@ -4853,6 +4843,25 @@ jq -s '[ .[][] ]' a.json a.json a.json  #  [{a}, {b}, {a}, {b}, {a}, {b}]
 jq    'add' a.json  #       {b}
 jq -s 'add' a.json  # [{a}, {b}]
 jq -s 'add' a.json a.json a.json  # [{a}, {b}, {a}, {b}, {a}, {b}]
+
+# ------------------------------------------------------------------------------
+# z scraps - jq - pandoc
+
+'
+@beg:pandoc_table
+> |**col1** |col2
+> |---      |---
+> |val1     | **`val2`**
+@end:pandoc_table
+'
+c.bash bef pandoc_table /home/wsh/sh/c.bash | pandoc -t json
+# Recursive Descent: .. (recurse)
+c.bash bef pandoc_table /home/wsh/sh/c.bash | pandoc -t json | jq -c '.. | iterables'
+c.bash bef pandoc_table /home/wsh/sh/c.bash | pandoc -t json | jq -c '.. | scalars'
+c.bash bef pandoc_table /home/wsh/sh/c.bash | pandoc -t json | jq -c '.. | arrays'
+c.bash bef pandoc_table /home/wsh/sh/c.bash | pandoc -t json | jq -c '.. | objects'
+c.bash bef pandoc_table /home/wsh/sh/c.bash | pandoc -t json | jq -c '.. | .t?'
+c.bash bef pandoc_table /home/wsh/sh/c.bash | pandoc -t json | jq -c '.. | select(.t?=="Strong").c'  # [{"t":"Str","c":"col1"}]  [{"t":"Code","c":[["",[],[]],"val2"]}]
 
 # ------------------------------------------------------------------------------
 # z scraps - jq - scrapbox.json sort by title

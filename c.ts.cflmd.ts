@@ -58,10 +58,12 @@ import type pty_ from "node-pty";
 import fetchSync from "sync-fetch";
 const fetchSync_ = fetchSync; // avoid unused-removal
 
-import { cliCommandExit, cliMain, logger, program } from "./c.js";
+import { cliCommandExit, logger } from "./c.js";
+import * as libNode from "./lib-node.js";
 import { Logger } from "./logger.js";
 
 const __filename = url.fileURLToPath(import.meta.url);
+const program = new commander.Command();
 
 // -----------------------------------------------------------------------------
 // lib
@@ -69,7 +71,6 @@ const __filename = url.fileURLToPath(import.meta.url);
 import {
   AppError,
   bp,
-  CLI,
   DIR_CACHE,
   DIR_TMP,
   ie,
@@ -78,7 +79,6 @@ import {
   integersSummary,
   io,
   isObject,
-  jsonParsePath,
   Queue,
   reExec,
   reExecThrowAppError,
@@ -123,6 +123,19 @@ import {
   txtMarkdownCodeB64,
   txtMarkdownH2SectionReduce,
 } from "./c.js";
+import { CLI } from "./lib-node.js";
+
+// -----------------------------------------------------------------------------
+// command
+
+let cli: CLI;
+if (esMain(import.meta) && !process.env.CTS_TEST_CLI) {
+  cli = new CLI();
+  setImmediate(async () => {
+    await cli.main(program, AppError, logger);
+    "breakpoint".match(/breakpoint/);
+  });
+}
 
 // -----------------------------------------------------------------------------
 // command - cflmd
@@ -407,7 +420,7 @@ async function cflmdFetchJSON(url: Parameters<typeof fetch>[0], init: NonNullabl
     if (opts.cache === undefined) return null;
     if (opts.cache.validSecs === undefined) return null;
     if (!fs.existsSync(opts.cache.path)) return null;
-    const json = jsonParsePath(opts.cache.path);
+    const json = libNode.jsonParsePathSync(opts.cache.path);
     if (typeof json.at !== "number") {
       logger.warn(`${opts.cache.path}: invalid cache file: ".at": ${json.at}`);
       return null;
@@ -769,7 +782,7 @@ async function cflmdProcess1MarkdownPreProcessImages(txt: string, args: CflmdPro
           logger.warn(`${f}.json not found`);
           continue;
         }
-        const json = jsonParsePath(f + ".json");
+        const json = libNode.jsonParsePathSync(f + ".json");
         if (sha1 === crypto.createHash("sha1").update(fs.readFileSync(f)).digest("hex")) {
           return json;
         }
@@ -1143,11 +1156,7 @@ function cflmdWrite(txts: { name: string; txt: string }[], name: string, txt: st
 }
 
 // -----------------------------------------------------------------------------
-// main
-
-if (esMain(import.meta) && !process.env.CTS_TEST_CLI) {
-  await cliMain();
-}
+// EOF
 
 // import whyIsNodeRunning from "why-is-node-running";
 // whyIsNodeRunning();

@@ -46,6 +46,9 @@ const fetchSync_ = fetchSync; // avoid unused-removal
 import * as tmp from "tmp";
 
 import { Logger } from "./logger.js";
+import * as libNode from "./lib-node.js";
+import * as lib from "./lib.js";
+import { CLI } from "./lib-node.js";
 
 const __filename = url.fileURLToPath(import.meta.url);
 const progname = path.basename(__filename);
@@ -100,6 +103,18 @@ function child_process_checkExecSyncErrorThrow(ret, args, cmd) {
   const err = child_process_checkExecSyncError(ret, args, cmd);
   if (err)
     throw err;
+}
+
+export function debounce<T extends (...args: any[]) => any>(ms: number, fn: T): T {
+  let timeoutID = 0;
+  // @ts-expect-error
+  return (...args) => {
+    clearTimeout(timeoutID);
+    // @ts-expect-error
+    timeoutID = setTimeout(() => {
+      fn(...args);
+    }, ms);
+  };
 }
 
 async function fetchCheckTxt(url: Parameters<typeof fetch>[0], init: NonNullable<Parameters<typeof fetch>[1]>): Promise<[Awaited<ReturnType<typeof fetch>>, string]> {
@@ -182,24 +197,11 @@ export function integersSummary(numbers: number[]): string[] {
   return ret;
 }
 
-// https://github.com/jonschlinkert/isobject/blob/master/index.js
-export function isObject(value: unknown): value is object {
-  return value !== null && typeof value === "object" && Array.isArray(value) === false;
+export function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-export function jsonParsePath(path: string): ReturnType<typeof JSON.parse> {
-  try {
-    return JSON.parse(fs.readFileSync(path, "utf8"));
-  } catch (e) {
-    if (!(e instanceof SyntaxError)) throw e;
-    e.message = `invalid JSON: ${path}: ${e.message}`;
-    throw e;
-  }
-}
-if (0) {
-  jsonParsePath(`/etc/hosts`);
-  unreachable();
-}
+const jsonParsePathSync = libNode.jsonParsePathSync;
 
 export class Queue<T> {
   private readonly q: T[];
@@ -378,17 +380,8 @@ export function sh(cmd: string): string {
   return child_process.execSync(cmd, { encoding: "utf8" });
 }
 
-export async function sleep(milliSeconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliSeconds));
-}
-
-export async function sleepForever(): Promise<never> {
-  while (true) {
-    // wakeup every 1 second so that debugger can break here
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-}
+export const sleep = lib.sleep;
+export const sleepForever = lib.sleepForever;
 
 export function strColsWhichAre(s: string, c: string, opts?: { ignoreToTheRightOfShortLine: boolean }): number[] {
   // TODO: full width characters
@@ -819,7 +812,6 @@ export function strTrimTrailingSlashes(s: string): string {
 export function streamShouldColorize(stream: NodeJS.WriteStream): boolean {
   // https://github.com/nodejs/node/blob/v22.13.0/lib/util.js styleText()
   // https://github.com/nodejs/node/blob/v22.13.0/lib/internal/util/colors.js shouldColorize()
-  // @ts-expect-error util.d.ts is wrong
   return util.styleText("reset", "", { stream }) !== "";
 }
 
@@ -889,81 +881,18 @@ program
 const cliCommandExitResolvers  = Promise.withResolvers<number>();
 export const cliCommandExit = cliCommandExitResolvers.resolve;
 
-export async function cliMain(): Promise<void> {
-  try {
-    await program.parseAsync(process.argv);
-    process.exitCode = await cliCommandExitResolvers.promise;
-    assert.ok(process.exitCode !== undefined);
-    return;
-  } catch (e) {
-    if (!(e instanceof AppError)) {
-      logger.error(`unexpected error: ${e}`);
-      throw e;
-    }
-    // assert.ok(e.constructor.name === "AppError")
-    logger.error(e.message);
-    if (process.exitCode === undefined) {
-      process.exitCode = 1;
-    }
-    return;
-  }
-  unreachable();
-}
-
 const cliCmds: { [cmdName: string]: (...args: any[]) => void | Promise<void> } = {};
 
 // -----------------------------------------------------------------------------
-// lib for commands
+// command
 
-export class CLI {
-  // https://github.com/tj/commander.js#custom-option-processing
-
-  static parseDuration(value: string, dummyPrevious?: number): number {
-    if (value.match(/^\d+$/)) return parseInt(value);
-    const cmd = `date -d ${strEscapeShell(`19700101 ${value}`)} -u +%s`;
-    const secs = parseInt(sh(cmd));
-    if (secs < 0) throw new commander.InvalidArgumentError(`value: ${value} < 0 (cmd: ${cmd})`); // e.g. -1sec
-    return secs;
-  }
-
-  // accept: -2 -1 0 1 2
-  static parseInt(value: string, dummyPrevious?: number): number {
-    const parsedValue = parseInt(value, 10);
-    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
-    return parsedValue;
-  }
-
-  // accept:         1 2
-  static parseIntPositive(value: string, dummyPrevious?: number): number {
-    const parsedValue = parseInt(value, 10);
-    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
-    if (parsedValue <= 0) throw new commander.InvalidArgumentError("must be >0.");
-    return parsedValue;
-  }
-
-  // accept:       0 1 2
-  static parseIntPositiveOrZero(value: string, dummyPrevious?: number): number {
-    const parsedValue = parseInt(value, 10);
-    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
-    if (parsedValue < 0) throw new commander.InvalidArgumentError("must be >=0.");
-    return parsedValue;
-  }
-
-  // accept:    -1 0 1 2
-  static parseIntPositiveOrZeroOrNegativeOne(value: string, dummyPrevious?: number): number {
-    const parsedValue = parseInt(value, 10);
-    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
-    if (parsedValue < -1) throw new commander.InvalidArgumentError("must be >=0 or -1.");
-    return parsedValue;
-  }
-
-  // accept: 0-65535
-  static parseIntPort(value: string, dummyPrevious?: number): number {
-    const parsedValue = parseInt(value, 10);
-    if (Number.isNaN(parsedValue)) throw new commander.InvalidArgumentError("not a number.");
-    if (parsedValue < 0 || parsedValue > 65535) throw new commander.InvalidArgumentError("must be 0-65535.");
-    return parsedValue;
-  }
+let cli: CLI;
+if (esMain(import.meta) && !process.env.CTS_TEST_CLI) {
+  cli = new CLI();
+  setImmediate(async () => {
+    await cli.main(program, AppError, logger);
+    "breakpoint".match(/breakpoint/);
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -1056,25 +985,25 @@ c.js -qq aTemplate -h
   [out, err] = [r.stdout, r.stderr];
 
 /*
-c.js -q aTemplate ---z-dangerous-eval "                       throw new AppError('app err')"  # 1
-c.js -q aTemplate ---z-dangerous-eval "process.exitCode = 42; throw new AppError('app err')"  # 42
-c.js -q aTemplate ---z-dangerous-eval "                       throw new Error('err')"         # 1
-c.js -q aTemplate ---z-dangerous-eval "process.exitCode = 42; throw new Error('err')"         # 1 (exitCode ignored)
+c.js -q aTemplate --z-dangerous-eval "                       throw new AppError('app err')"  # 1
+c.js -q aTemplate --z-dangerous-eval "process.exitCode = 42; throw new AppError('app err')"  # 42
+c.js -q aTemplate --z-dangerous-eval "                       throw new Error('err')"         # 1
+c.js -q aTemplate --z-dangerous-eval "process.exitCode = 42; throw new Error('err')"         # 1 (exitCode ignored)
 */
 
-  r = child_process.spawnSync(`c.js -q aTemplate ---z-dangerous-eval "                       throw new AppError('app err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  r = child_process.spawnSync(`c.js -q aTemplate --z-dangerous-eval "                       throw new AppError('app err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
   assert.ok(r.signal === null && !("error" in r) && r.status === 1 && r.stdout === "" && r.stderr !== "");
   assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ app err(\r?\n)$/);
   [out, err] = [r.stdout, r.stderr];
 
-  r = child_process.spawnSync(`c.js -q aTemplate ---z-dangerous-eval "process.exitCode = 42; throw new AppError('app err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  r = child_process.spawnSync(`c.js -q aTemplate --z-dangerous-eval "process.exitCode = 42; throw new AppError('app err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
   assert.ok(r.signal === null && !("error" in r) && r.status === 42 && r.stdout === "" && r.stderr !== "");
   assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ app err(\r?\n)$/);
   [out, err] = [r.stdout, r.stderr];
 
   /*
 2006-01-02 15:04:05 [E][cliMain:690] unexpected error: Error: err
-undefined:1    ← ??? now shown when using debugger ?!
+<anonymous_script>:1
                        throw new Error('err')
                              ^
 
@@ -1091,14 +1020,14 @@ Error: err
 Node.js v22.12.0
 */
 
-  r = child_process.spawnSync(`c.js -qq aTemplate ---z-dangerous-eval "                       throw new Error('err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  r = child_process.spawnSync(`c.js -qq aTemplate --z-dangerous-eval "                       throw new Error('err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
   assert.ok(r.signal === null && !("error" in r) && r.status === 1 && r.stdout === "" && r.stderr !== "");
-  assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ unexpected error: Error: err(\r?\n)undefined:1(\r?\n) *throw new Error\(/);
+  assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ unexpected error: Error: err(\r?\n)/);
   [out, err] = [r.stdout, r.stderr];
 
-  r = child_process.spawnSync(`c.js -qq aTemplate ---z-dangerous-eval "process.exitCode = 42; throw new Error('err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
+  r = child_process.spawnSync(`c.js -qq aTemplate --z-dangerous-eval "process.exitCode = 42; throw new Error('err')"`, { encoding: "utf8", env, shell: true, stdio: "pipe" });
   assert.ok(r.signal === null && !("error" in r) && r.status === 1 && r.stdout === "" && r.stderr !== "");
-  assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ unexpected error: Error: err(\r?\n)undefined:1(\r?\n)process.exitCode = 42; throw new Error\(/);
+  assert.match(r.stderr, /^\d{4}-\d{2}-\d{2} .+ unexpected error: Error: err(\r?\n)/);
   [out, err] = [r.stdout, r.stderr];
 }
 
@@ -1159,111 +1088,110 @@ program.command("exec-gdbproxy").description("exec-gdbproxy description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["exec-gdbproxy"] = async function (arg: string[], opts: { gdb: string }) {
-  // TODO: dedent
-    logger.info(`${opts.gdb} ${arg}`);
-    const subprocess = child_process.spawn(opts.gdb, arg);
-    const promiseSubprocessClosed: Promise<[number | null, NodeJS.Signals | null]> = new Promise((resolve, reject) => {
-      subprocess.on("close", (code, signal) => {
-        logger.info(`subprocess.on close`);
-        resolve([code, signal]);
-      });
+  logger.info(`${opts.gdb} ${arg}`);
+  const subprocess = child_process.spawn(opts.gdb, arg);
+  const promiseSubprocessClosed: Promise<[number | null, NodeJS.Signals | null]> = new Promise((resolve, reject) => {
+    subprocess.on("close", (code, signal) => {
+      logger.info(`subprocess.on close`);
+      resolve([code, signal]);
     });
-    subprocess.on("error", (err) => { throw err; });
-    subprocess.stdin.on("error", (err) => { logger.error("stdin error", err); });
-    subprocess.stdout.on("error", (err: Error) => { logger.error("stdout error", err); });
-    subprocess.stderr.on("error", (err: Error) => { logger.error("stderr error", err); });
-    subprocess.stdin.on("close", () => {
-      logger.debug(`subprocess.stdin.on close`);
-    });
+  });
+  subprocess.on("error", (err) => { throw err; });
+  subprocess.stdin.on("error", (err) => { logger.error("stdin error", err); });
+  subprocess.stdout.on("error", (err: Error) => { logger.error("stdout error", err); });
+  subprocess.stderr.on("error", (err: Error) => { logger.error("stderr error", err); });
+  subprocess.stdin.on("close", () => {
+    logger.debug(`subprocess.stdin.on close`);
+  });
 
-    const decoderIn = new TextDecoder();
-    const decoderOut = new TextDecoder();
-    const decoderErr = new TextDecoder();
+  const decoderIn = new TextDecoder();
+  const decoderOut = new TextDecoder();
+  const decoderErr = new TextDecoder();
 
-    let xGDBCmd: { dummyCmd: string, decoder: TextDecoder, buf: string } | null = null;
+  let xGDBCmd: { dummyCmd: string, decoder: TextDecoder, buf: string } | null = null;
 
-    process.stdin.on("end", () => {
-      logger.debug(`[in end]`);
-      subprocess.stdin.end();
-    });
-    process.stdin.on("data", (data) => {
-      const txt = decoderIn.decode(data, { stream: true });
-      // logger.debug(`[in] ${data} (${txt})`);
-      logger.debug(`[in] ${data}`);
-      if (zGDBCmdIn(txt)) return;
-      subprocess.stdin.write(data);
-    });
-    subprocess.stdout.on("data", (chunk) => {
-      const txt = decoderOut.decode(chunk, { stream: true });
-      // logger.info(`[out] :${txt}`);
-      logger.info(`[out] ${chunk}`);
-      if (xGDBCmdOut(chunk)) return;
-      process.stdout.write(chunk);
-    });
-    subprocess.stderr.on("data", (chunk) => {
-      const txt = decoderOut.decode(chunk, { stream: true });
-      // logger.error(`[err] ${txt}`);
-      logger.error(`[err] ${chunk}`);
-      process.stderr.write(chunk);
-    });
+  process.stdin.on("end", () => {
+    logger.debug(`[in end]`);
+    subprocess.stdin.end();
+  });
+  process.stdin.on("data", (data) => {
+    const txt = decoderIn.decode(data, { stream: true });
+    // logger.debug(`[in] ${data} (${txt})`);
+    logger.debug(`[in] ${data}`);
+    if (zGDBCmdIn(txt)) return;
+    subprocess.stdin.write(data);
+  });
+  subprocess.stdout.on("data", (chunk) => {
+    const txt = decoderOut.decode(chunk, { stream: true });
+    // logger.info(`[out] :${txt}`);
+    logger.info(`[out] ${chunk}`);
+    if (xGDBCmdOut(chunk)) return;
+    process.stdout.write(chunk);
+  });
+  subprocess.stderr.on("data", (chunk) => {
+    const txt = decoderOut.decode(chunk, { stream: true });
+    // logger.error(`[err] ${txt}`);
+    logger.error(`[err] ${chunk}`);
+    process.stderr.write(chunk);
+  });
 
-    const [code, signal] = await promiseSubprocessClosed;
+  const [code, signal] = await promiseSubprocessClosed;
 
-    // XXX: doesn't exit with "(gdb) q" or "--gdb=echo"
-    // whyIsNodeRunning():
-    // # PROCESSWRAP
-    // dist/c.js:568                              - const subprocess = child_process.spawn(opts.gdb, arg);
-    // node_modules/commander/lib/command.js:542  - return fn.apply(this, actionArgs);
-    // node_modules/commander/lib/command.js:1502 - this._actionHandler(this.processedArgs),
-    // node_modules/commander/lib/command.js:1386 - return fn();
-    // node_modules/commander/lib/command.js:1501 - promiseChain = this._chainOrCall(promiseChain, () =>
-    // node_modules/commander/lib/command.js:1265 - return subCommand._parseCommand(operands, unknown);
-    setTimeout(() => {
-      process.exit();
-    }, 100);
-    if (code === null) {
-      logger.error(`TODO: code===null`, `signal:`, signal);
-      return cliCommandExit(1);
-    }
-    return cliCommandExit(code);
+  // XXX: doesn't exit with "(gdb) q" or "--gdb=echo"
+  // whyIsNodeRunning():
+  // # PROCESSWRAP
+  // dist/c.js:568                              - const subprocess = child_process.spawn(opts.gdb, arg);
+  // node_modules/commander/lib/command.js:542  - return fn.apply(this, actionArgs);
+  // node_modules/commander/lib/command.js:1502 - this._actionHandler(this.processedArgs),
+  // node_modules/commander/lib/command.js:1386 - return fn();
+  // node_modules/commander/lib/command.js:1501 - promiseChain = this._chainOrCall(promiseChain, () =>
+  // node_modules/commander/lib/command.js:1265 - return subCommand._parseCommand(operands, unknown);
+  setTimeout(() => {
+    process.exit();
+  }, 100);
+  if (code === null) {
+    logger.error(`TODO: code===null`, `signal:`, signal);
+    return cliCommandExit(1);
+  }
+  return cliCommandExit(code);
 
-    function zGDBCmdIn(txt: string) {
-      //    0-interpreter-exec --thread 1 --frame 0 mi2 "226-cidr-var-create var56_xzbt * \"x:zbt\""
-      // -> 0-interpreter-exec --thread 1 --frame 0 mi2 "226-cidr-var-create var56_xzbt * \"777\""
-      const match = reExec(/^0-interpreter-exec --thread (\d+) --frame (\d+) mi2 "(\d+)-cidr-var-create (var\w+) \* \\"x:(?<cmd>.+?)\\""(\r?\n)$/, txt);
-      if (typeof match === "string") return false;
-      assert.ok(match.groups !== undefined);
-      logger.info(match.groups.cmd);
-      subprocess.stdin.write(`${match.groups.cmd}\n`);
-      xGDBCmd = { dummyCmd: match[0].replace(`x:${match.groups.cmd}`, "777"), decoder: new TextDecoder(), buf: "" };
-      return true;
-    }
+  function zGDBCmdIn(txt: string) {
+    //    0-interpreter-exec --thread 1 --frame 0 mi2 "226-cidr-var-create var56_xzbt * \"x:zbt\""
+    // -> 0-interpreter-exec --thread 1 --frame 0 mi2 "226-cidr-var-create var56_xzbt * \"777\""
+    const match = reExec(/^0-interpreter-exec --thread (\d+) --frame (\d+) mi2 "(\d+)-cidr-var-create (var\w+) \* \\"x:(?<cmd>.+?)\\""(\r?\n)$/, txt);
+    if (typeof match === "string") return false;
+    assert.ok(match.groups !== undefined);
+    logger.info(match.groups.cmd);
+    subprocess.stdin.write(`${match.groups.cmd}\n`);
+    xGDBCmd = { dummyCmd: match[0].replace(`x:${match.groups.cmd}`, "777"), decoder: new TextDecoder(), buf: "" };
+    return true;
+  }
 
-    function xGDBCmdOut(chunk: Parameters<typeof TextDecoder.prototype.decode>[0]) {
-      if (xGDBCmd == null) return false;
-      // success:
-      // &"zbt\n"
-      // ^done
-      // (gdb)SPACE
-      //
-      // error:
-      // &"zbt\n"
-      // &"Traceback (most recent call last):\n"
-      //  ...
-      // &"Error occurred in Python: No stack.\n"
-      // ^error,msg="Error occurred in Python: No stack."
-      // (gdb)SPACE
-      xGDBCmd.buf += xGDBCmd.decoder.decode(chunk, { stream: true });
-      const match = reExec(/^&".+?\\n"(\r?\n)([\s\S]*?)\^.+(\r?\n)\(gdb\) (\r?\n)$/, xGDBCmd.buf);
-      if (typeof match === "string") {
-        logger.debug(`xGDBCmd: ${match}`);
-        return;
-      }
-      logger.debug(`xGDBCmd: ok; write dummy: ${xGDBCmd.dummyCmd}`);
-      subprocess.stdin.write(xGDBCmd.dummyCmd);
-      xGDBCmd = null;
+  function xGDBCmdOut(chunk: Parameters<typeof TextDecoder.prototype.decode>[0]) {
+    if (xGDBCmd == null) return false;
+    // success:
+    // &"zbt\n"
+    // ^done
+    // (gdb)SPACE
+    //
+    // error:
+    // &"zbt\n"
+    // &"Traceback (most recent call last):\n"
+    //  ...
+    // &"Error occurred in Python: No stack.\n"
+    // ^error,msg="Error occurred in Python: No stack."
+    // (gdb)SPACE
+    xGDBCmd.buf += xGDBCmd.decoder.decode(chunk, { stream: true });
+    const match = reExec(/^&".+?\\n"(\r?\n)([\s\S]*?)\^.+(\r?\n)\(gdb\) (\r?\n)$/, xGDBCmd.buf);
+    if (typeof match === "string") {
+      logger.debug(`xGDBCmd: ${match}`);
       return;
     }
+    logger.debug(`xGDBCmd: ok; write dummy: ${xGDBCmd.dummyCmd}`);
+    subprocess.stdin.write(xGDBCmd.dummyCmd);
+    xGDBCmd = null;
+    return;
+  }
 };
 
 // -----------------------------------------------------------------------------
@@ -1316,94 +1244,93 @@ program.command("exec-kill-orphan-script-fish").description("exec-kill-orphan-sc
 .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["exec-kill-orphan-script-fish"] = async function (opts: {}) {
-  // TODO: dedent
-    const txt = child_process.execSync(`set -x; ps -e -o user,tty,ppid,sess,pgid,pid,cmd -H -ww`, { encoding: "utf8" });
-    const lines = txt.replace(/(\r?\n)$/, "").split(/\r?\n/);
-    const ssv = strParseSSV(txt);
-    assert.ok(lines.length === ssv.length);
+  const txt = child_process.execSync(`set -x; ps -e -o user,tty,ppid,sess,pgid,pid,cmd -H -ww`, { encoding: "utf8" });
+  const lines = txt.replace(/(\r?\n)$/, "").split(/\r?\n/);
+  const ssv = strParseSSV(txt);
+  assert.ok(lines.length === ssv.length);
 
-    type PID = string;
+  type PID = string;
 
-    interface Process {
-      USER: string;
-      TT: string;
-      PPID: string;
-      SESS: string;
-      PGID: string;
-      PID: PID;
-      CMD: string;
-    }
+  interface Process {
+    USER: string;
+    TT: string;
+    PPID: string;
+    SESS: string;
+    PGID: string;
+    PID: PID;
+    CMD: string;
+  }
 
-    interface ProcessMeta extends Process {
-      _iLine: number;
-      _line: string;
-      children: ProcessMeta[];
-      parent: ProcessMeta | null;
-    }
+  interface ProcessMeta extends Process {
+    _iLine: number;
+    _line: string;
+    children: ProcessMeta[];
+    parent: ProcessMeta | null;
+  }
 
+  // @ts-expect-error
+  const header: (StrParseSSVEntry & { valueTrimmed: keyof Process })[] = ssv[0];
+  ssv.shift();
+
+  // { USER: [0, 8], TT: [8, 14], ..., CMD: [49,9007199254740991] }
+  // @ts-expect-error type of Object.fromEntries() is weak
+  const nameCol: { [key in keyof Process]: [number, number] } = Object.fromEntries(header.map((line) => [line.valueTrimmed, [line.colStartTrimmed, line.colEndTrimmed]]));
+
+  // { "0": { "PPID": "0", "PGID: "0", "PID": "0", "COMMAND": "[system]" } }
+  const processes: { [key: PID]: ProcessMeta } = ssv.entries().reduce((acc, [iLine, line]) => {
     // @ts-expect-error
-    const header: (StrParseSSVEntry & { valueTrimmed: keyof Process })[] = ssv[0];
-    ssv.shift();
-
-    // { USER: [0, 8], TT: [8, 14], ..., CMD: [49,9007199254740991] }
-    // @ts-expect-error type of Object.fromEntries() is weak
-    const nameCol: { [key in keyof Process]: [number, number] } = Object.fromEntries(header.map((line) => [line.valueTrimmed, [line.colStartTrimmed, line.colEndTrimmed]]));
-
-    // { "0": { "PPID": "0", "PGID: "0", "PID": "0", "COMMAND": "[system]" } }
-    const processes: { [key: PID]: ProcessMeta } = ssv.entries().reduce((acc, [iLine, line]) => {
-      // @ts-expect-error
-      const ps: ProcessMeta = { _iLine: iLine, _line: lines[iLine + 1], children: [], parent: "__uninitialized__" };
-      for (const [iVal, val] of line.entries()) {
-        ps[header[iVal].valueTrimmed] = val.valueTrimmed;
-      }
-      acc[ps.PID] = ps;
-      return acc;
-    }, {} as { [key: PID]: ProcessMeta });
-
-    const psRoot = { _iLine: -1, _line: "psRoot", children: [], parent: null };
-    for (const [pid, ps] of Object.entries(processes)) {
-      ps.parent = processes[ps.PPID] ?? psRoot;
-      ps.parent.children.push(ps);
+    const ps: ProcessMeta = { _iLine: iLine, _line: lines[iLine + 1], children: [], parent: "__uninitialized__" };
+    for (const [iVal, val] of line.entries()) {
+      ps[header[iVal].valueTrimmed] = val.valueTrimmed;
     }
-    assert.ok(processes[0] === undefined);
-    assert.ok(processes[1] !== undefined);
-    // @ts-expect-error
-    assert.ok(processes[1].parent === psRoot);
-    assert.ok(processes[2].parent === psRoot);
-    // @ts-expect-error
-    assert.ok(psRoot.children.length === 2);
+    acc[ps.PID] = ps;
+    return acc;
+  }, {} as { [key: PID]: ProcessMeta });
 
-    const processesScriptNoTTY = Object.values(processes).filter((ps) => ps.TT === "?" && /^script -efq -c fish .+$/.test(ps.CMD));
-    const pidsShow = new Set<string>();
-    // add script parents recursively
-    for (let ps of [...processesScriptNoTTY]) {
-      while (ps.parent !== null) {
-        pidsShow.add(ps.PID);
-        ps = ps.parent;
-      }
-    }
-    // add script children recursively
-    const psStack = [...processesScriptNoTTY];
-    while (psStack.length !== 0) {
-      const ps2 = psStack.pop()!;
-      pidsShow.add(ps2.PID);
-      psStack.push(...ps2.children);
-    }
+  const psRoot = { _iLine: -1, _line: "psRoot", children: [], parent: null };
+  for (const [pid, ps] of Object.entries(processes)) {
+    ps.parent = processes[ps.PPID] ?? psRoot;
+    ps.parent.children.push(ps);
+  }
+  assert.ok(processes[0] === undefined);
+  assert.ok(processes[1] !== undefined);
+  // @ts-expect-error
+  assert.ok(processes[1].parent === psRoot);
+  assert.ok(processes[2].parent === psRoot);
+  // @ts-expect-error
+  assert.ok(psRoot.children.length === 2);
 
-    logger.debug(lines[0]);
+  const processesScriptNoTTY = Object.values(processes).filter((ps) => ps.TT === "?" && /^script -efq -c fish .+$/.test(ps.CMD));
+  const pidsShow = new Set<string>();
+  // add script parents recursively
+  for (let ps of [...processesScriptNoTTY]) {
+    while (ps.parent !== null) {
+      pidsShow.add(ps.PID);
+      ps = ps.parent;
+    }
+  }
+  // add script children recursively
+  const psStack = [...processesScriptNoTTY];
+  while (psStack.length !== 0) {
+    const ps2 = psStack.pop()!;
+    pidsShow.add(ps2.PID);
+    psStack.push(...ps2.children);
+  }
+
+  logger.debug(lines[0]);
+  for (const ps of [...pidsShow].map((pid) => processes[pid]).sort((a, b) => a._iLine - b._iLine)) {
+    logger.debug(ps._line);
+  }
+
+  {
+    const logLines = ["to kill:"];
     for (const ps of [...pidsShow].map((pid) => processes[pid]).sort((a, b) => a._iLine - b._iLine)) {
-      logger.debug(ps._line);
+      logLines.push(`kill -TERM ${ps.PID.padEnd(10, " ")}# ${ps._line}`);
     }
+    console.log(logLines.join("\n"));
+  }
 
-    {
-      const logLines = ["to kill:"];
-      for (const ps of [...pidsShow].map((pid) => processes[pid]).sort((a, b) => a._iLine - b._iLine)) {
-        logLines.push(`kill -TERM ${ps.PID.padEnd(10, " ")}# ${ps._line}`);
-      }
-      console.log(logLines.join("\n"));
-    }
-
-    return cliCommandExit(0);
+  return cliCommandExit(0);
 };
 
 program.command("execDiffPipe").description("execDiffPipe description")
@@ -1457,17 +1384,16 @@ program.command("exec-slow-paste").description("exec-slow-paste description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["exec-slow-paste"] = async function (file: string | undefined, opts: {}) {
-  // TODO: dedent
-    let in_ = fs.readFileSync(file ?? "/dev/stdin");
-    const origClipBoard = child_process.execSync("xsel -b -o");
-    while (in_.length > 0) {
-      child_process.execSync("xsel -b -i", { input: in_.slice(0, 2048) });
-      // process.stdout.write(child_process.execSync("xsel -b -o"));
-      child_process.execSync("xdotool key $(: --delay default 12ms) ctrl+shift+v");
-      in_ = in_.slice(2048);
-    }
-    child_process.execSync("xsel -b -i", { input: origClipBoard });
-    return cliCommandExit(0);
+  let in_ = fs.readFileSync(file ?? "/dev/stdin");
+  const origClipBoard = child_process.execSync("xsel -b -o");
+  while (in_.length > 0) {
+    child_process.execSync("xsel -b -i", { input: in_.slice(0, 2048) });
+    // process.stdout.write(child_process.execSync("xsel -b -o"));
+    child_process.execSync("xdotool key $(: --delay default 12ms) ctrl+shift+v");
+    in_ = in_.slice(2048);
+  }
+  child_process.execSync("xsel -b -i", { input: origClipBoard });
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -1510,68 +1436,67 @@ program.command("exec-ssh-kill-sleeps").description("exec-ssh-kill-sleeps descri
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["exec-ssh-kill-sleeps"] = async function (host, opts: {}) {
-  // TODO: dedent
-    if (["h", "h4"].includes(host)) {
-    }
-    if (["s", "s4"].includes(host)) {
-      const txt = child_process.execSync(`ssh ${host} -- ps -e -o user,tty,ppid,sess,pgid,pid,cmd -H -ww`, { encoding: "utf8" });
-      const lines = txt.replace(/(\r?\n)$/, "").split(/\r?\n/);
-      const ssv = strParseSSV(txt);
-      assert.ok(lines.length === ssv.length);
+  if (["h", "h4"].includes(host)) {
+  }
+  if (["s", "s4"].includes(host)) {
+    const txt = child_process.execSync(`ssh ${host} -- ps -e -o user,tty,ppid,sess,pgid,pid,cmd -H -ww`, { encoding: "utf8" });
+    const lines = txt.replace(/(\r?\n)$/, "").split(/\r?\n/);
+    const ssv = strParseSSV(txt);
+    assert.ok(lines.length === ssv.length);
 
-      // { USER: [0, 8], TT: [8, 14], ..., CMD: [49,9007199254740991] }
-      const nameCol = Object.fromEntries(ssv[0].map((line) => [line.valueTrimmed, [line.colStartTrimmed, line.colEndTrimmed]]));
-      // { "0": { "PPID": "0", "PGID: "0", "PID": "0", "COMMAND": "[system]" } }
-      const processes: { [key: string]: { [key: string]: string } & { _iLine: number, _line: string } } = {};
+    // { USER: [0, 8], TT: [8, 14], ..., CMD: [49,9007199254740991] }
+    const nameCol = Object.fromEntries(ssv[0].map((line) => [line.valueTrimmed, [line.colStartTrimmed, line.colEndTrimmed]]));
+    // { "0": { "PPID": "0", "PGID: "0", "PID": "0", "COMMAND": "[system]" } }
+    const processes: { [key: string]: { [key: string]: string } & { _iLine: number, _line: string } } = {};
 
-      for (const [iLine, line] of ssv.entries()) {
-        if (iLine === 0) continue;
-        // @ts-expect-error (TS2322 ts BUG?)
-        const p: { [key: string]: string } & { _iLine: number, _line: string } = { _iLine: -1, _line: "__uninitialized__" };
-        for (const [iVal, val] of line.entries()) {
-          p[ssv[0][iVal].valueTrimmed] = val.valueTrimmed;
-        }
-        p._iLine = iLine;
-        p._line = lines[iLine];
-        processes[p.PID] = p;
+    for (const [iLine, line] of ssv.entries()) {
+      if (iLine === 0) continue;
+      // @ts-expect-error (TS2322 ts BUG?)
+      const p: { [key: string]: string } & { _iLine: number, _line: string } = { _iLine: -1, _line: "__uninitialized__" };
+      for (const [iVal, val] of line.entries()) {
+        p[ssv[0][iVal].valueTrimmed] = val.valueTrimmed;
       }
+      p._iLine = iLine;
+      p._line = lines[iLine];
+      processes[p.PID] = p;
+    }
 
-      const sleepPIDs = new Set(Object.entries(processes).filter(([pid, p]) => /^sleep \d+$/.test(p.CMD)).map(([pid, p]) => pid));
-      const sleepTreePIDs = new Set();
-      for (const sleepPID of sleepPIDs) {
-        let p = processes[sleepPID];
-        assert.ok(!sleepTreePIDs.has(p.PID));
+    const sleepPIDs = new Set(Object.entries(processes).filter(([pid, p]) => /^sleep \d+$/.test(p.CMD)).map(([pid, p]) => pid));
+    const sleepTreePIDs = new Set();
+    for (const sleepPID of sleepPIDs) {
+      let p = processes[sleepPID];
+      assert.ok(!sleepTreePIDs.has(p.PID));
+      sleepTreePIDs.add(p.PID);
+      while (1) {
+        p = processes[p.PPID];
+        if (p === undefined) break;
+        if (sleepTreePIDs.has(p.PID)) break;
         sleepTreePIDs.add(p.PID);
-        while (1) {
-          p = processes[p.PPID];
-          if (p === undefined) break;
-          if (sleepTreePIDs.has(p.PID)) break;
-          sleepTreePIDs.add(p.PID);
-        }
-      }
-
-      logger.debug(`kill PGIDs ${[...sleepPIDs].join(" ")}:`);
-      logger.debug(lines[0]);
-      // @ts-expect-error
-      for (const p of [...sleepTreePIDs].map((pid) => processes[pid]).sort((a, b) => a._iLine - b._iLine)) {
-        if (sleepPIDs.has(p.PID)) {
-          assert.ok(p._line.at(nameCol.CMD[0]) === " "); // except for "/sbin/init"
-          const line = p._line.slice(0, nameCol.CMD[0]) + "*" + p._line.slice(nameCol.CMD[0] + 1);
-          logger.debug(line);
-        } else {
-          logger.debug(p._line);
-        }
-      }
-      if (sleepPIDs.size === 0) {
-        logger.info("no sleep process found");
-      } else {
-        const cmd = `ssh ${host} -- kill -TERM ${[...sleepPIDs].join(" ")}`;
-        logger.info(cmd);
-        child_process.execSync(cmd, { encoding: "utf8", stdio: "inherit" });
       }
     }
 
-    return cliCommandExit(0);
+    logger.debug(`kill PGIDs ${[...sleepPIDs].join(" ")}:`);
+    logger.debug(lines[0]);
+    // @ts-expect-error
+    for (const p of [...sleepTreePIDs].map((pid) => processes[pid]).sort((a, b) => a._iLine - b._iLine)) {
+      if (sleepPIDs.has(p.PID)) {
+        assert.ok(p._line.at(nameCol.CMD[0]) === " "); // except for "/sbin/init"
+        const line = p._line.slice(0, nameCol.CMD[0]) + "*" + p._line.slice(nameCol.CMD[0] + 1);
+        logger.debug(line);
+      } else {
+        logger.debug(p._line);
+      }
+    }
+    if (sleepPIDs.size === 0) {
+      logger.info("no sleep process found");
+    } else {
+      const cmd = `ssh ${host} -- kill -TERM ${[...sleepPIDs].join(" ")}`;
+      logger.info(cmd);
+      child_process.execSync(cmd, { encoding: "utf8", stdio: "inherit" });
+    }
+  }
+
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -1629,69 +1554,68 @@ program.command("exec-tsserver-defs").description("exec-tsserver-defs descriptio
 .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["exec-tsserver-defs"] = async function (opts: {}) {
-  // TODO: dedent
-    const read = async (): Promise<string> => {
-      const content = (await r.read()).toString();
-      if (content.at(-1) !== "\n") {
-        throw new AppError(`unexpected: ${content}`);
-      }
-      logger.info(content.slice(0, -1));
-      return content.slice(0, -1);
-    };
+  const read = async (): Promise<string> => {
+    const content = (await r.read()).toString();
+    if (content.at(-1) !== "\n") {
+      throw new AppError(`unexpected: ${content}`);
+    }
+    logger.info(content.slice(0, -1));
+    return content.slice(0, -1);
+  };
 
-    const write = (s: string): void => {
-      logger.debug(s);
-      subprocess.stdin.write(`${s}\r\n`);
-    };
+  const write = (s: string): void => {
+    logger.debug(s);
+    subprocess.stdin.write(`${s}\r\n`);
+  };
 
-    sh(`mkdir -p /tmp/vscode/`);
-    const subprocess = child_process.spawn("tsserver");
-    const r = new ExecTSServerDefsHTTPReader(subprocess.stdout);
-    let resp = await read(); // {"seq":0,"type":"event","event":"typingsInstallerPid","body":{"pid":2463769}}
-    assert.ok(JSON.parse(resp).event == "typingsInstallerPid");
-    write(`{"type": "request", "seq": 0, "command": "open", "arguments": {"file": "/home/wsh/qjs/vscode-myext0/src/extension.ts"}}`);
-    // {"seq":0,"type":"event","event":"projectLoadingStart","body":{"projectName":"/home/wsh/qjs/vscode-myext0/tsconfig.json","reason":"Creating possible configured project for /home/wsh/qjs/vscode-myext0/src/extension.ts to open"}}
-    // {"seq":0,"type":"event","event":"projectLoadingFinish","body":{"projectName":"/home/wsh/qjs/vscode-myext0/tsconfig.json"}}
-    // {"seq":0,"type":"event","event":"telemetry","body":{"telemetryEventName":"projectInfo","payload":{"projectId":"86a3459aaa58a364e330bce05850fab43aed42a1293c7443e3df01ac897757b0","fileStats":{"js":0,"jsSize":0,"jsx":0,"jsxSize":0,"ts":5,"tsSize":35281,"tsx":0,"tsxSize":0,"dts":205,"dtsSize":3329244,"deferred":0,"deferredSize":0},"compilerOptions":{"module":"node16","target":"es2022","outDir":"","lib":["es2022"],"sourceMap":true,"rootDir":"","strict":true},"typeAcquisition":{"enable":false,"include":false,"exclude":false},"extends":false,"files":false,"include":false,"exclude":false,"compileOnSave":false,"configFileName":"tsconfig.json","projectType":"configured","languageServiceEnabled":true,"version":"5.3.3"}}}
-    while (false) {
+  sh(`mkdir -p /tmp/vscode/`);
+  const subprocess = child_process.spawn("tsserver");
+  const r = new ExecTSServerDefsHTTPReader(subprocess.stdout);
+  let resp = await read(); // {"seq":0,"type":"event","event":"typingsInstallerPid","body":{"pid":2463769}}
+  assert.ok(JSON.parse(resp).event == "typingsInstallerPid");
+  write(`{"type": "request", "seq": 0, "command": "open", "arguments": {"file": "/home/wsh/qjs/vscode-myext0/src/extension.ts"}}`);
+  // {"seq":0,"type":"event","event":"projectLoadingStart","body":{"projectName":"/home/wsh/qjs/vscode-myext0/tsconfig.json","reason":"Creating possible configured project for /home/wsh/qjs/vscode-myext0/src/extension.ts to open"}}
+  // {"seq":0,"type":"event","event":"projectLoadingFinish","body":{"projectName":"/home/wsh/qjs/vscode-myext0/tsconfig.json"}}
+  // {"seq":0,"type":"event","event":"telemetry","body":{"telemetryEventName":"projectInfo","payload":{"projectId":"86a3459aaa58a364e330bce05850fab43aed42a1293c7443e3df01ac897757b0","fileStats":{"js":0,"jsSize":0,"jsx":0,"jsxSize":0,"ts":5,"tsSize":35281,"tsx":0,"tsxSize":0,"dts":205,"dtsSize":3329244,"deferred":0,"deferredSize":0},"compilerOptions":{"module":"node16","target":"es2022","outDir":"","lib":["es2022"],"sourceMap":true,"rootDir":"","strict":true},"typeAcquisition":{"enable":false,"include":false,"exclude":false},"extends":false,"files":false,"include":false,"exclude":false,"compileOnSave":false,"configFileName":"tsconfig.json","projectType":"configured","languageServiceEnabled":true,"version":"5.3.3"}}}
+  while (false) {
+    resp = await read();
+    if (JSON.parse(resp).event == "telemetry") {
+      break;
+    }
+  }
+  for (const [i, req] of [
+    // prettier-ignore
+    `{"type": "request", "seq": 0, "command": "definition", "arguments": {"file": "/home/wsh/qjs/vscode-myext0/src/extension.ts", "line":150, "offset":2}}`,
+    `{"type": "request", "seq": 0, "command": "definition", "arguments": {"file": "/home/wsh/qjs/vscode-myext0/src/extension.ts", "line":150, "offset":8}}`,
+  ].entries()) {
+    write(req.replace(`"seq": 0`, `"seq": ${i + 1}`));
+    while (true) {
       resp = await read();
-      if (JSON.parse(resp).event == "telemetry") {
+      if (JSON.parse(resp).request_seq === i + 1) {
         break;
       }
     }
-    for (const [i, req] of [
-      // prettier-ignore
-      `{"type": "request", "seq": 0, "command": "definition", "arguments": {"file": "/home/wsh/qjs/vscode-myext0/src/extension.ts", "line":150, "offset":2}}`,
-      `{"type": "request", "seq": 0, "command": "definition", "arguments": {"file": "/home/wsh/qjs/vscode-myext0/src/extension.ts", "line":150, "offset":8}}`,
-    ].entries()) {
-      write(req.replace(`"seq": 0`, `"seq": ${i + 1}`));
-      while (true) {
-        resp = await read();
-        if (JSON.parse(resp).request_seq === i + 1) {
-          break;
-        }
-      }
-      JSON.parse(resp);
+    JSON.parse(resp);
+  }
+  for (const [i, line] of fs.readFileSync("/home/wsh/qjs/vscode-myext0/src/extension.ts", "utf8").split(/\r?\n/).entries()) {
+    const reArr = /^\tvscode\.([\w.]+?);\t+\/\//.exec(line);
+    if (reArr === null) {
+      continue;
     }
-    for (const [i, line] of fs.readFileSync("/home/wsh/qjs/vscode-myext0/src/extension.ts", "utf8").split(/\r?\n/).entries()) {
-      const reArr = /^\tvscode\.([\w.]+?);\t+\/\//.exec(line);
-      if (reArr === null) {
-        continue;
+    process.stdout.write(`${line}\n`);
+    // line.at(reArr[1].length + 2);
+    write(`{"type": "request", "seq": ${i + 1}, "command": "definition", "arguments": {"file": "/home/wsh/qjs/vscode-myext0/src/extension.ts", "line":${i + 1}, "offset":${reArr[1].length + 2}}}`);
+    while (true) {
+      resp = await read();
+      if (JSON.parse(resp).request_seq === i + 1) {
+        break;
       }
-      process.stdout.write(`${line}\n`);
-      // line.at(reArr[1].length + 2);
-      write(`{"type": "request", "seq": ${i + 1}, "command": "definition", "arguments": {"file": "/home/wsh/qjs/vscode-myext0/src/extension.ts", "line":${i + 1}, "offset":${reArr[1].length + 2}}}`);
-      while (true) {
-        resp = await read();
-        if (JSON.parse(resp).request_seq === i + 1) {
-          break;
-        }
-      }
-      assert.ok(JSON.parse(resp).body.length >= 1);
-      JSON.parse(resp).body[0];
     }
+    assert.ok(JSON.parse(resp).body.length >= 1);
+    JSON.parse(resp).body[0];
+  }
 
-    return cliCommandExit(0);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -1707,36 +1631,67 @@ program.command("fs-diff").description("fs-diff description")
   .allowExcessArguments(true).action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["fs-diff"] = async function (...args) {
-  // TODO: dedent
-    const command: commander.Command = args.pop();
-    // @ts-expect-error
-    const opts: { sudo: boolean } = command.opts();
-    const dirB: string = command.args.pop()!;
-    const dirA: string = command.args.pop()!;
-    const rsyncOpts: string[] = command.args;
-    const rsyncOpts_ :string = rsyncOpts.map((s) => strEscapeShell(s)).join(" ");
+  const command: commander.Command = args.pop();
+  // @ts-expect-error
+  const opts: { sudo: boolean } = command.opts();
+  const dirB: string = command.args.pop()!;
+  const dirA: string = command.args.pop()!;
+  const rsyncOpts: string[] = command.args;
+  const rsyncOpts_ :string = rsyncOpts.map((s) => strEscapeShell(s)).join(" ");
 
-    // when -n/--dry-run is specified:
-    // - -n and --dry-run are equivalent, but to be extra cautious to prevent accidental data loss
-    // - -S does nothing, but I want it when the command copy-pasted and `-n --dry-run` removed
+  // when -n/--dry-run is specified:
+  // - -n and --dry-run are equivalent, but to be extra cautious to prevent accidental data loss
+  // - -S does nothing, but I want it when the command copy-pasted and `-n --dry-run` removed
 
-    logger.info(`diff ${dirA} ${dirB}`);
-    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -rlp$(: t)goD -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirA)} ${strEscapeShell(dirB)}`, { shell: "bash", stdio: "inherit" });
-    logger.info(`diff ${dirB} ${dirA}`);
-    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -rlp$(: t)goD -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirB)} ${strEscapeShell(dirA)}`, { shell: "bash", stdio: "inherit" });
+  logger.info(`diff ${dirA} ${dirB}`);
+  cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -rlp$(: t)goD -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirA)} ${strEscapeShell(dirB)}`, { shell: "bash", stdio: "inherit" });
+  logger.info(`diff ${dirB} ${dirA}`);
+  cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -rlp$(: t)goD -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirB)} ${strEscapeShell(dirA)}`, { shell: "bash", stdio: "inherit" });
 
-    logger.info(`diff ${dirA} ${dirB}`);
-    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirA)} ${strEscapeShell(dirB)}`, { shell: "bash", stdio: "inherit" });
-    logger.info(`diff ${dirB} ${dirA}`);
-    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirB)} ${strEscapeShell(dirA)}`, { shell: "bash", stdio: "inherit" });
+  logger.info(`diff ${dirA} ${dirB}`);
+  cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirA)} ${strEscapeShell(dirB)}`, { shell: "bash", stdio: "inherit" });
+  logger.info(`diff ${dirB} ${dirA}`);
+  cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -ciuSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirB)} ${strEscapeShell(dirA)}`, { shell: "bash", stdio: "inherit" });
 
-    logger.info(`diff ${dirA} ${dirB}`);
-    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -c$(: i)uSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirA)} ${strEscapeShell(dirB)}`, { shell: "bash", stdio: "inherit" });
-    logger.info(`diff ${dirB} ${dirA}`);
-    cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -c$(: i)uSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirB)} ${strEscapeShell(dirA)}`, { shell: "bash", stdio: "inherit" });
+  logger.info(`diff ${dirA} ${dirB}`);
+  cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -c$(: i)uSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirA)} ${strEscapeShell(dirB)}`, { shell: "bash", stdio: "inherit" });
+  logger.info(`diff ${dirB} ${dirA}`);
+  cp.execSync(`PS4='+ \\e[32m''cmd: \\e[0m'; set -x; ${opts.sudo ? "sudo " : ""}rsync -a -c$(: i)uSv -n --dry-run --delete ${rsyncOpts_} ${strEscapeShell(dirB)} ${strEscapeShell(dirA)}`, { shell: "bash", stdio: "inherit" });
 
-    return cliCommandExit(0);
+  return cliCommandExit(0);
 };
+
+// -----------------------------------------------------------------------------
+// command - fsEditPart
+/*
+# /home/wsh/Documents/large.md
+# /home/wsh/.cache/wataash/c.ts-nodejs/060102.large.md/orig.md
+# /home/wsh/.cache/wataash/c.ts-nodejs/060102.large.md/part.md
+# /home/wsh/.cache/wataash/c.ts-nodejs/060102.large.md/meta.json {"path":"/home/wsh/Documents/large.md"}
+# /home/wsh/.cache/wataash/c.ts-nodejs/060102.large.md/.git/
+c.js fsEditPart c.ts --line=42,43 --sec80="// command"
+c.js fsEditPart large.md --line=42,43 --h2="section\d"
+*/
+
+program.command("fsEditPart").description("fsEditPart description")
+  .addArgument(new commander.Argument("<file>"))
+  .addOption(new commander.Option("--line <beginEnd...>", "begin[,end]"))
+  .addOption(new commander.Option("--h2 <re>"))
+  .addOption(new commander.Option("--sec80 <re>"))
+  .action((file, opts) => fsEditPart(file, { _cli: true, ...opts }));
+
+async function  fsEditPart(
+  file: string,
+  opts: {
+    _cli?: boolean,
+    line?: string[],
+    h2?: string,
+    sec80?: string,
+  },
+) {
+  // TODO
+  return cliCommandExit(0);
+}
 
 // -----------------------------------------------------------------------------
 // command - fs-large-files
@@ -1748,12 +1703,11 @@ program.command("fs-large-files").description("fs-large-files description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["fs-large-files"] = async function (dir: string, opts: { entries: number }) {
-  // TODO: dedent
-    const glob = await import("glob");
-    // TODO
-    const b = glob.globStream("/home/wsh/doc/*");
-    const a = glob.globSync("/home/wsh/doc/*");
-    return cliCommandExit(0);
+  const glob = await import("glob");
+  // TODO
+  const b = glob.globStream("/home/wsh/doc/*");
+  const a = glob.globSync("/home/wsh/doc/*");
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -1766,42 +1720,41 @@ program.command("fs-link-hard").description("fs-link-hard description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["fs-link-hard"] = async function (dir: string, dirSHA1: string, opts: {}) {
-  // TODO: dedent
-    fs.mkdirSync(dirSHA1, { recursive: true });
-    const sha1s = new Set(fs.readdirSync(dirSHA1));
+  fs.mkdirSync(dirSHA1, { recursive: true });
+  const sha1s = new Set(fs.readdirSync(dirSHA1));
 
-    function walk(dir: string) {
-      const files = fs.readdirSync(dir, { withFileTypes: true });
-      for (const file of files) {
-        const path_ = `${dir}/${file.name}`;
-        if (file.isFile()) {
-          const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path_)).digest("hex");
-          if (sha1s.has(sha1)) {
-            // assert.ok(fs.existsSync(`${dirSHA1}/${sha1}`));
-            // XXX: non atomic
-            fs.unlinkSync(path_);
-            fs.linkSync(`${dirSHA1}/${sha1}`, path_);
-          } else {
-            // assert.ok(!fs.existsSync(`${dirSHA1}/${sha1}`));
-            fs.linkSync(path_, `${dirSHA1}/${sha1}`);
-            sha1s.add(sha1);
-          }
-        } else if (file.isDirectory()) {
-          console.debug(`walk into ${path.join(dir, file.name)}`);
-          walk(path.join(dir, file.name));
-        } else if (file.isSymbolicLink()) {
-          // console.debug(`ignore symbolic link: ${path_}`)
+  function walk(dir: string) {
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+    for (const file of files) {
+      const path_ = `${dir}/${file.name}`;
+      if (file.isFile()) {
+        const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path_)).digest("hex");
+        if (sha1s.has(sha1)) {
+          // assert.ok(fs.existsSync(`${dirSHA1}/${sha1}`));
+          // XXX: non atomic
+          fs.unlinkSync(path_);
+          fs.linkSync(`${dirSHA1}/${sha1}`, path_);
         } else {
-          throw new Error(`unexpected file type: ${file}`);
+          // assert.ok(!fs.existsSync(`${dirSHA1}/${sha1}`));
+          fs.linkSync(path_, `${dirSHA1}/${sha1}`);
+          sha1s.add(sha1);
         }
-        "breakpoint".match(/breakpoint/);
+      } else if (file.isDirectory()) {
+        console.debug(`walk into ${path.join(dir, file.name)}`);
+        walk(path.join(dir, file.name));
+      } else if (file.isSymbolicLink()) {
+        // console.debug(`ignore symbolic link: ${path_}`)
+      } else {
+        throw new Error(`unexpected file type: ${file}`);
       }
       "breakpoint".match(/breakpoint/);
     }
+    "breakpoint".match(/breakpoint/);
+  }
 
-    walk(dir);
-    console.info("done");
-    return cliCommandExit(0);
+  walk(dir);
+  console.info("done");
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -1814,46 +1767,45 @@ program.command("fs-link-sym").description("fs-link-sym description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["fs-link-sym"] = async function (dir: string, dirSHA1: string, opts: {}) {
-  // TODO: dedent
-    fs.mkdirSync(dirSHA1, { recursive: true });
-    const sha1s = new Set(fs.readdirSync(dirSHA1));
+  fs.mkdirSync(dirSHA1, { recursive: true });
+  const sha1s = new Set(fs.readdirSync(dirSHA1));
 
-    function walk(dir: string) {
-      const files = fs.readdirSync(dir, { withFileTypes: true });
-      for (const file of files) {
-        const path_ = `${dir}/${file.name}`;
-        if (file.isFile()) {
-          const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path_)).digest("hex");
-          if (sha1s.has(sha1)) {
-            // assert.ok(fs.existsSync(`${dirSHA1}/${sha1}`));
-            // console.debug(`ln -s ${dirSHA1}/${sha1} ${path_}`);
-            // XXX: non atomic
-            fs.unlinkSync(path_);
-            fs.symlinkSync(`${dirSHA1}/${sha1}`, path_);
-          } else {
-            // assert.ok(!fs.existsSync(`${dirSHA1}/${sha1}`));
-            // console.debug(`[new sha1] ln -s ${dirSHA1}/${sha1} ${path_}`);
-            // XXX: non atomic
-            fs.renameSync(path_, `${dirSHA1}/${sha1}`);
-            fs.symlinkSync(`${dirSHA1}/${sha1}`, path_);
-            sha1s.add(sha1);
-          }
-        } else if (file.isDirectory()) {
-          console.debug(`walk into ${path.join(dir, file.name)}`);
-          walk(path.join(dir, file.name));
-        } else if (file.isSymbolicLink()) {
-          // console.debug(`ignore symbolic link: ${path_}`)
+  function walk(dir: string) {
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+    for (const file of files) {
+      const path_ = `${dir}/${file.name}`;
+      if (file.isFile()) {
+        const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path_)).digest("hex");
+        if (sha1s.has(sha1)) {
+          // assert.ok(fs.existsSync(`${dirSHA1}/${sha1}`));
+          // console.debug(`ln -s ${dirSHA1}/${sha1} ${path_}`);
+          // XXX: non atomic
+          fs.unlinkSync(path_);
+          fs.symlinkSync(`${dirSHA1}/${sha1}`, path_);
         } else {
-          throw new Error(`unexpected file type: ${file}`);
+          // assert.ok(!fs.existsSync(`${dirSHA1}/${sha1}`));
+          // console.debug(`[new sha1] ln -s ${dirSHA1}/${sha1} ${path_}`);
+          // XXX: non atomic
+          fs.renameSync(path_, `${dirSHA1}/${sha1}`);
+          fs.symlinkSync(`${dirSHA1}/${sha1}`, path_);
+          sha1s.add(sha1);
         }
-        "breakpoint".match(/breakpoint/);
+      } else if (file.isDirectory()) {
+        console.debug(`walk into ${path.join(dir, file.name)}`);
+        walk(path.join(dir, file.name));
+      } else if (file.isSymbolicLink()) {
+        // console.debug(`ignore symbolic link: ${path_}`)
+      } else {
+        throw new Error(`unexpected file type: ${file}`);
       }
       "breakpoint".match(/breakpoint/);
     }
+    "breakpoint".match(/breakpoint/);
+  }
 
-    walk(dir);
-    console.info("done");
-    return cliCommandExit(0);
+  walk(dir);
+  console.info("done");
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -1866,50 +1818,49 @@ program.command("fs-link-sym-async").description("fs-link-sym-async description"
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["fs-link-sym-async"] = async function (dir: string, dirSHA1: string, opts: {}) {
-  // TODO: dedent
-    fs.mkdirSync(dirSHA1, { recursive: true });
-    const sha1s = new Set(fs.readdirSync(dirSHA1));
+  fs.mkdirSync(dirSHA1, { recursive: true });
+  const sha1s = new Set(fs.readdirSync(dirSHA1));
 
-    async function walk(dir: string) {
-      const files = fs.readdirSync(dir, { withFileTypes: true });
-      for (const file of files) {
-        const path_ = `${dir}/${file.name}`;
-        if (file.isFile()) {
-          const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path_)).digest("hex");
-          if (sha1s.has(sha1)) {
-            // if (!fs.existsSync(`${dirSHA1}/${sha1}`)) {
-            //   console.warn(`not symlinked yet: ${dirSHA1}/${sha1}`);
-            // }
-            // XXX: non atomic
-            fsPromise.unlink(path_).then(() => {
-              // console.debug(`ln -s ${dirSHA1}/${sha1} ${path_}`);
-              fsPromise.symlink(`${dirSHA1}/${sha1}`, path_);
-            });
-          } else {
-            // assert.ok(!fs.existsSync(`${dirSHA1}/${sha1}`));
-            // XXX: non atomic
-            fsPromise.rename(path_, `${dirSHA1}/${sha1}`).then(() => {
-              // console.debug(`[new sha1] ln -s ${dirSHA1}/${sha1} ${path_}`);
-              fsPromise.symlink(`${dirSHA1}/${sha1}`, path_);
-            });
-            sha1s.add(sha1);
-          }
-        } else if (file.isDirectory()) {
-          console.debug(`walk into ${path.join(dir, file.name)}`);
-          await walk(path.join(dir, file.name));
-        } else if (file.isSymbolicLink()) {
-          // console.debug(`ignore symbolic link: ${path_}`)
+  async function walk(dir: string) {
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+    for (const file of files) {
+      const path_ = `${dir}/${file.name}`;
+      if (file.isFile()) {
+        const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path_)).digest("hex");
+        if (sha1s.has(sha1)) {
+          // if (!fs.existsSync(`${dirSHA1}/${sha1}`)) {
+          //   console.warn(`not symlinked yet: ${dirSHA1}/${sha1}`);
+          // }
+          // XXX: non atomic
+          fsPromise.unlink(path_).then(() => {
+            // console.debug(`ln -s ${dirSHA1}/${sha1} ${path_}`);
+            fsPromise.symlink(`${dirSHA1}/${sha1}`, path_);
+          });
         } else {
-          throw new Error(`unexpected file type: ${file}`);
+          // assert.ok(!fs.existsSync(`${dirSHA1}/${sha1}`));
+          // XXX: non atomic
+          fsPromise.rename(path_, `${dirSHA1}/${sha1}`).then(() => {
+            // console.debug(`[new sha1] ln -s ${dirSHA1}/${sha1} ${path_}`);
+            fsPromise.symlink(`${dirSHA1}/${sha1}`, path_);
+          });
+          sha1s.add(sha1);
         }
-        // await new Promise((resolve) => setTimeout(resolve, 0)); // slow
+      } else if (file.isDirectory()) {
+        console.debug(`walk into ${path.join(dir, file.name)}`);
+        await walk(path.join(dir, file.name));
+      } else if (file.isSymbolicLink()) {
+        // console.debug(`ignore symbolic link: ${path_}`)
+      } else {
+        throw new Error(`unexpected file type: ${file}`);
       }
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      // await new Promise((resolve) => setTimeout(resolve, 0)); // slow
     }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 
-    await walk(dir);
-    console.info("done");
-    return cliCommandExit(0);
+  await walk(dir);
+  console.info("done");
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -1921,21 +1872,20 @@ program.command("fs-md-code-blocks").description("fs-md-code-blocks description"
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["fs-md-code-blocks"] = async function (file: string | undefined, opts: {}) {
-  // TODO: dedent
-    const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    sh(`rm -frv /tmp/vscode_md/ && mkdir -p /tmp/vscode_md/`);
-    let i = 0;
-    let txtBody = "## test\n";
-    for (const match of txt.matchAll(/^```(?<l>.+)?(\r?\n)(?<b>[\s\S]+?)(\r?\n)```$/gm)) {
-      // const codeBlockLang = match.groups.l; // string?
-      // const body = match.groups.b; // string
-      // @ts-expect-error
-      logger.info(`/tmp/vscode_md/${i}.md\t${match.groups.l}\t${(match.groups.b.match(/\n/g) || []).length + 1} lines`);
-      txtBody += `\n${match[0]}\n`;
-      fs.writeFileSync(`/tmp/md/${i}.md`, txtBody);
-      i++;
-    }
-    return cliCommandExit(0);
+  const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  sh(`rm -frv /tmp/vscode_md/ && mkdir -p /tmp/vscode_md/`);
+  let i = 0;
+  let txtBody = "## test\n";
+  for (const match of txt.matchAll(/^```(?<l>.+)?(\r?\n)(?<b>[\s\S]+?)(\r?\n)```$/gm)) {
+    // const codeBlockLang = match.groups.l; // string?
+    // const body = match.groups.b; // string
+    // @ts-expect-error
+    logger.info(`/tmp/vscode_md/${i}.md\t${match.groups.l}\t${(match.groups.b.match(/\n/g) || []).length + 1} lines`);
+    txtBody += `\n${match[0]}\n`;
+    fs.writeFileSync(`/tmp/md/${i}.md`, txtBody);
+    i++;
+  }
+  return cliCommandExit(0);
 };
 
 
@@ -1948,16 +1898,113 @@ program.command("fs-sponge-if-changed").alias("sponge").description("fs-sponge-i
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["fs-sponge-if-changed"] = async function (file: string, opts: {}) {
-  // TODO: dedent
-    const txt = fs.readFileSync("/dev/stdin", "utf8");
-    if (fs.existsSync(file) && txt === fs.readFileSync(file, "utf8")) {
-      logger.debug(`no change: ${file}`);
-      return cliCommandExit(0);
-    }
-    logger.debug(`changed: ${file}`);
-    fs.writeFileSync(file, txt);
+  const txt = fs.readFileSync("/dev/stdin", "utf8");
+  if (fs.existsSync(file) && txt === fs.readFileSync(file, "utf8")) {
+    logger.debug(`no change: ${file}`);
     return cliCommandExit(0);
+  }
+  logger.debug(`changed: ${file}`);
+  fs.writeFileSync(file, txt);
+  return cliCommandExit(0);
 };
+
+// -----------------------------------------------------------------------------
+// command - filePcapMerge
+
+program.command("filePcapMerge").description("filePcapMerge description")
+  .addArgument(new commander.Argument("<pcap...>"))
+  .action((pcap, opts) => filePcapMerge(pcap, { _cli: true, ...opts }));
+
+async function  filePcapMerge(
+  pcap: string[],
+  opts: {
+    _cli?: boolean,
+  },
+) {
+  // @ts-expect-error @types/pcap-parser missing
+  // import * as pcapp from "pcap-parser";
+  const pcapp = await import("pcap-parser");
+
+  interface Packet {
+    header: {
+      timestampSeconds: number;
+      timestampMicroseconds: number;
+      capturedLength: number;
+      originalLength: number;
+    };
+    data: Buffer;
+  }
+
+  let packets = [] as ({ ts: number } & Packet) [];
+
+  const writePktDebounced = debounce(100, () => {
+    packets.sort((a, b) => (a.header.timestampSeconds + a.header.timestampMicroseconds) - (b.header.timestampSeconds + b.header.timestampMicroseconds));
+    let nWritten = 0;
+    for (const p of packets) {
+      const tsDeltaMs = performance.now() - p.ts;
+      if (tsDeltaMs < 500) {
+        break;
+      }
+      // pcap
+      // write:
+      // p.header.timestampSeconds; // 32bit
+      // p.header.timestampMicroseconds; // 32bit
+      // p.header.capturedLength; // 32bit
+      // p.header.originalLength; // 32bit
+      // p.data;
+      process.stdout.write(Buffer.from([
+        (p.header.timestampSeconds >> 24) & 0xff,
+        (p.header.timestampSeconds >> 16) & 0xff,
+        (p.header.timestampSeconds >> 8) & 0xff,
+        (p.header.timestampSeconds >> 0) & 0xff,
+        (p.header.timestampMicroseconds >> 24) & 0xff,
+        (p.header.timestampMicroseconds >> 16) & 0xff,
+        (p.header.timestampMicroseconds >> 8) & 0xff,
+        (p.header.timestampMicroseconds >> 0) & 0xff,
+        (p.header.capturedLength >> 24) & 0xff,
+        (p.header.capturedLength >> 16) & 0xff,
+        (p.header.capturedLength >> 8) & 0xff,
+        (p.header.capturedLength >> 0) & 0xff,
+        (p.header.originalLength >> 24) & 0xff,
+        (p.header.originalLength >> 16) & 0xff,
+        (p.header.originalLength >> 8) & 0xff,
+        (p.header.originalLength >> 0) & 0xff,
+      ]));
+      process.stdout.write(p.data);
+      nWritten++;
+    }
+    packets = packets.slice(nWritten);
+    if (packets.length > 0) {
+      writePktDebounced();
+    }
+  });
+
+  const parser = pcapp.parse("/tmp/tmp.pcap");
+  parser.on("packet", (packet: Packet) => {
+    packets.push({ ts: performance.now(), ...packet });
+    writePktDebounced();
+  });
+
+  const parser2 = pcapp.parse("/tmp/tmp.ge1.pcap");
+  parser2.on("packet", (packet: Packet) => {
+    packets.push({ ts: performance.now(), ...packet });
+    writePktDebounced();
+  });
+
+  // write pcap header
+  // https://www.ietf.org/archive/id/draft-gharris-opsawg-pcap-01.html
+  process.stdout.write(Buffer.from([
+    0xa1, 0xb2, 0xc3, 0xd4, // Magic Number, microseconds
+    0x00, 0x02, // Version Major
+    0x00, 0x04, // Version Minor
+    0x00, 0x00, 0x00, 0x00, // Reserved1
+    0x00, 0x00, 0x00, 0x00, // Reserved2
+    0x00, 0x04, 0x00, 0x00, // SnapLen 262144
+    0x00, 0x00, 0x00, 0x01, // FCS/LinkType 1 LINKTYPE_ETHERNET
+  ]));
+
+  return cliCommandExit(0);
+}
 
 // -----------------------------------------------------------------------------
 // command - http-clipboard-server
@@ -1968,36 +2015,35 @@ program.command("http-clipboard-server").description("http-clipboard-server desc
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["http-clipboard-server"] = async function (opts: { port: number }) {
-  // TODO: dedent
-    const express = (await import("express")).default;
-    const app = express();
-    app.use(express.text()); // var type = opts.type || 'text/plain'
-    app.get("/", async (req, res, next) => {
-      logger.debug(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)}`);
-      res.setHeader("Content-Type", "text/plain");
-      // sh(`clipnotify -s clipboard`);
-      res.send(sh(`xsel -b -o`));
-    });
-    // @ts-ignore
-    app.post("/", (req, res, next) => {
-      logger.debug(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)} | ${ie(req.body)}`);
-      res.setHeader("Content-Type", "text/plain");
-      if (typeof req.body !== "string") {
-        return res.status(422).send(`invalid request body (${ie(req.body)}); not text/plain?`);
-      }
-      if (req.body === sh(`xsel -b -o`)) {
-        // avoid infinite loop between us and them
-        res.send(`not_copied\r\n`);
-        return;
-      }
-      child_process.execSync(`xsel -b -i`, { input: req.body });
-      res.send(`copied ${req.body.length} bytes\r\n`);
-    });
-    app.listen(opts.port, () => {
-      logger.info(`listening on ${opts.port}`);
-    });
-    await sleepForever();
-    // return cliCommandExit(0);
+  const express = (await import("express")).default;
+  const app = express();
+  app.use(express.text()); // var type = opts.type || 'text/plain'
+  app.get("/", async (req, res, next) => {
+    logger.debug(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)}`);
+    res.setHeader("Content-Type", "text/plain");
+    // sh(`clipnotify -s clipboard`);
+    res.send(sh(`xsel -b -o`));
+  });
+  // @ts-ignore
+  app.post("/", (req, res, next) => {
+    logger.debug(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)} | ${ie(req.body)}`);
+    res.setHeader("Content-Type", "text/plain");
+    if (typeof req.body !== "string") {
+      return res.status(422).send(`invalid request body (${ie(req.body)}); not text/plain?`);
+    }
+    if (req.body === sh(`xsel -b -o`)) {
+      // avoid infinite loop between us and them
+      res.send(`not_copied\r\n`);
+      return;
+    }
+    child_process.execSync(`xsel -b -i`, { input: req.body });
+    res.send(`copied ${req.body.length} bytes\r\n`);
+  });
+  app.listen(opts.port, () => {
+    logger.info(`listening on ${opts.port}`);
+  });
+  await sleepForever();
+  // return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2010,34 +2056,33 @@ program.command("http-sse-proxy").description("http-sse-proxy description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["http-sse-proxy"] = async function (url: string, opts: { port: number }) {
-  // TODO: dedent
-    const express = (await import("express")).default;
-    const app = express();
-    app.get("/", async (req, res, next) => {
-      logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)}`);
-      res.setHeader("Content-Type", "text/event-stream");
-      const subprocess = child_process.spawn(`curl -fSs --no-buffer -X ${req.method} ${strEscapeShell(url)}`, { shell: true });
-      subprocess.stdout.on("data", (data) => {
-        logger.debug(`spawn(): stdout: ${strSnip(data.toString(), 100)}`);
-        // res.send(data);
-        if (!res.write(data)) { // TODO: res.on("close", ...)
-          subprocess.stdout.destroy(); // kill with SIGPIPE
-          subprocess.stderr.destroy();
-        }
-      });
-      subprocess.stderr.on("data", (data) => {
-        logger.error(`spawn(): stderr: ${data}`);
-        res.write(data);
-      });
-      subprocess.on("close", (code) => {
-        logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)} | closed (spawn close code: ${code})`);
-      });
+  const express = (await import("express")).default;
+  const app = express();
+  app.get("/", async (req, res, next) => {
+    logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)}`);
+    res.setHeader("Content-Type", "text/event-stream");
+    const subprocess = child_process.spawn(`curl -fSs --no-buffer -X ${req.method} ${strEscapeShell(url)}`, { shell: true });
+    subprocess.stdout.on("data", (data) => {
+      logger.debug(`spawn(): stdout: ${strSnip(data.toString(), 100)}`);
+      // res.send(data);
+      if (!res.write(data)) { // TODO: res.on("close", ...)
+        subprocess.stdout.destroy(); // kill with SIGPIPE
+        subprocess.stderr.destroy();
+      }
     });
-    app.listen(opts.port, () => {
-      logger.info(`listening on ${opts.port}`);
+    subprocess.stderr.on("data", (data) => {
+      logger.error(`spawn(): stderr: ${data}`);
+      res.write(data);
     });
-    await sleepForever();
-    // return cliCommandExit(0);
+    subprocess.on("close", (code) => {
+      logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)} | closed (spawn close code: ${code})`);
+    });
+  });
+  app.listen(opts.port, () => {
+    logger.info(`listening on ${opts.port}`);
+  });
+  await sleepForever();
+  // return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2050,34 +2095,33 @@ program.command("http-sse-tailf").description("http-sse-tailf description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["http-sse-tailf"] = async function (file: string | undefined, opts: { port: number }) {
-  // TODO: dedent
-    const express = (await import("express")).default;
-    const app = express();
-    app.get("/", async (req, res, next) => {
-      logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)}`);
-      res.setHeader("Content-Type", "text/event-stream");
-      const subprocess = child_process.spawn(`tail -F ${file ? strEscapeShell(file) : ""}`, { shell: true });
-      subprocess.stdout.on("data", (data) => {
-        logger.debug(`spawn(): stdout: ${strSnip(data.toString(), 100)}`);
-        // res.send(data);
-        if (!res.write(data)) {
-          subprocess.stdout.destroy(); // kill with SIGPIPE
-          subprocess.stderr.destroy();
-        }
-      });
-      subprocess.stderr.on("data", (data) => {
-        logger.error(`spawn(): stderr: ${data}`);
-        res.write(data);
-      });
-      subprocess.on("close", (code) => {
-        logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)} | closed (spawn close code: ${code})`);
-      });
+  const express = (await import("express")).default;
+  const app = express();
+  app.get("/", async (req, res, next) => {
+    logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)}`);
+    res.setHeader("Content-Type", "text/event-stream");
+    const subprocess = child_process.spawn(`tail -F ${file ? strEscapeShell(file) : ""}`, { shell: true });
+    subprocess.stdout.on("data", (data) => {
+      logger.debug(`spawn(): stdout: ${strSnip(data.toString(), 100)}`);
+      // res.send(data);
+      if (!res.write(data)) {
+        subprocess.stdout.destroy(); // kill with SIGPIPE
+        subprocess.stderr.destroy();
+      }
     });
-    app.listen(opts.port, () => {
-      logger.info(`listening on ${opts.port}`);
+    subprocess.stderr.on("data", (data) => {
+      logger.error(`spawn(): stderr: ${data}`);
+      res.write(data);
     });
-    await sleepForever();
-    // return cliCommandExit(0);
+    subprocess.on("close", (code) => {
+      logger.info(`${req.ip} -> ${req.headers.host} ${req.method} ${req.url} ${iie(req.headers)} | closed (spawn close code: ${code})`);
+    });
+  });
+  app.listen(opts.port, () => {
+    logger.info(`listening on ${opts.port}`);
+  });
+  await sleepForever();
+  // return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2198,46 +2242,45 @@ program.command("net-etc-hosts").description("net-etc-hosts description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["net-etc-hosts"] = async function (host: string[], opts: { connectUrl: string }) {
-  // TODO: dedent
-    for (const [i, h] of host.entries()) {
-      if (h.includes("/")) {
-        // http://www.example.com/foo/ -> www.example.com
-        try {
-          const url = new URL(h);
-          logger.debug(`${h} -> ${url.hostname}`);
-          host[i] = url.hostname;
-        } catch (e) {
-          if (!(e instanceof TypeError)) throw e;
-          throw new AppError(`invalid <host>: ${e.message}: ${h}`);
-        }
-        continue;
-      }
-      // host
+  for (const [i, h] of host.entries()) {
+    if (h.includes("/")) {
+      // http://www.example.com/foo/ -> www.example.com
       try {
-        new URL(`http://${h}`);
+        const url = new URL(h);
+        logger.debug(`${h} -> ${url.hostname}`);
+        host[i] = url.hostname;
       } catch (e) {
-        throw new AppError(`invalid <host>: ${h}`);
+        if (!(e instanceof TypeError)) throw e;
+        throw new AppError(`invalid <host>: ${e.message}: ${h}`);
       }
+      continue;
     }
-    // const lookupAddresses: dns.LookupAddress[] = await Promise.all(host.map((h) => util.promisify(dns.lookup)(h)));
-    const promises = [];
-    for (const h of host) {
-      // const lookupAddress: dns.LookupAddress = await util.promisify(dns.lookup)(h);
-      const promise = util.promisify(dns.lookup)(h, {all: true}).then((lookupAddresses) => {
-        for (const lookupAddress of lookupAddresses) {
-          switch (lookupAddress.family) {
-            // 0000:0000:0000:0000:0000:0000:0000:0000 39 chars
-            case 4: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## A; added by ${progname} net-etc-hosts\n`); break;
-            case 6: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## AAAA; added by ${progname} net-etc-hosts\n`); break;
-            default:
-              throw new AppError(`BUG: unexpected family: ${lookupAddress.family} (host: ${lookupAddress.address}, lookupAddress: ${util.inspect(lookupAddress)})`);
-          }
+    // host
+    try {
+      new URL(`http://${h}`);
+    } catch (e) {
+      throw new AppError(`invalid <host>: ${h}`);
+    }
+  }
+  // const lookupAddresses: dns.LookupAddress[] = await Promise.all(host.map((h) => util.promisify(dns.lookup)(h)));
+  const promises = [];
+  for (const h of host) {
+    // const lookupAddress: dns.LookupAddress = await util.promisify(dns.lookup)(h);
+    const promise = util.promisify(dns.lookup)(h, {all: true}).then((lookupAddresses) => {
+      for (const lookupAddress of lookupAddresses) {
+        switch (lookupAddress.family) {
+          // 0000:0000:0000:0000:0000:0000:0000:0000 39 chars
+          case 4: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## A; added by ${progname} net-etc-hosts\n`); break;
+          case 6: process.stdout.write(`${lookupAddress.address.padEnd(39)} ${h.padEnd(49)} ## AAAA; added by ${progname} net-etc-hosts\n`); break;
+          default:
+            throw new AppError(`BUG: unexpected family: ${lookupAddress.family} (host: ${lookupAddress.address}, lookupAddress: ${util.inspect(lookupAddress)})`);
         }
-      });
-      promises.push(promise);
-    }
-    await Promise.all(promises);
-    return cliCommandExit(0);
+      }
+    });
+    promises.push(promise);
+  }
+  await Promise.all(promises);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2249,75 +2292,74 @@ program.command("pty-cmd").description("pty-cmd description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["pty-cmd"] = async function (cmd: string[], opts: {}) {
-  // TODO: dedent
-    const pty = await import("node-pty");
+  const pty = await import("node-pty");
 
-    const exitCode = new Queue<number>();
+  const exitCode = new Queue<number>();
 
-    // Ubuntu 20.04: $TERM default is xterm?
-    // systemd-run --user -- (which c.js) pty-cmd -- env  # TERM=xterm
-    const ptyProcess = pty.spawn("sh", ["-c", strCommandsToShC(cmd)], {
-      cols: process.stdout.columns,
-      rows: process.stdout.rows,
-    });
+  // Ubuntu 20.04: $TERM default is xterm?
+  // systemd-run --user -- (which c.js) pty-cmd -- env  # TERM=xterm
+  const ptyProcess = pty.spawn("sh", ["-c", strCommandsToShC(cmd)], {
+    cols: process.stdout.columns,
+    rows: process.stdout.rows,
+  });
 
-    ptyProcess.onData((data) => {
-      // c.js pty-cmd -- /bin/echo -e 'a\x01z'  # [<- cmd](5) [ 'a', '\x01', 'z', '\r', '\n' ]   \x01: ^A
-      // c.js pty-cmd -- /bin/echo -e 'a\xffz'  # [<- cmd](5) [ 'a', '�', 'z', '\r', '\n' ]      \xff: invalid utf8 -> �
-      logger.debug(`[<- cmd](${data.length}) %O`, ...data);
-      process.stdout.write(data);
-    });
+  ptyProcess.onData((data) => {
+    // c.js pty-cmd -- /bin/echo -e 'a\x01z'  # [<- cmd](5) [ 'a', '\x01', 'z', '\r', '\n' ]   \x01: ^A
+    // c.js pty-cmd -- /bin/echo -e 'a\xffz'  # [<- cmd](5) [ 'a', '�', 'z', '\r', '\n' ]      \xff: invalid utf8 -> �
+    logger.debug(`[<- cmd](${data.length}) %O`, ...data);
+    process.stdout.write(data);
+  });
 
-    ptyProcess.onExit((e) => {
-      logger.info(`[cmd exit]`, e);
-      // should dispose .onData()/.onExit() ?
-      exitCode.push(e.exitCode);
-    });
+  ptyProcess.onExit((e) => {
+    logger.info(`[cmd exit]`, e);
+    // should dispose .onData()/.onExit() ?
+    exitCode.push(e.exitCode);
+  });
 
-    if (process.stdin.isTTY) {
-      process.stdin.setRawMode(true);
-    } else {
-      logger.info("stdin is not a tty; skip stdin.setRawMode(true)");
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(true);
+  } else {
+    logger.info("stdin is not a tty; skip stdin.setRawMode(true)");
+  }
+  let tilde = false;
+  process.stdin.on("data", (data: Buffer) => {
+    const byteArray = [...data];
+    logger.debug(`[-> cmd](${data.length}) ${ie([...data.toString()])}`);
+
+    switch (ptyCmdHandleEscape(ptyProcess, data, tilde)) {
+      case "in_tilde":
+        tilde = true;
+        return;
+      case "out_tilde":
+        tilde = false;
+        break;
+      case "exit":
+        exitCode.push(0);
+        // send EOF?
+        // dispose process.stdin.on() ?
+        return;
     }
-    let tilde = false;
-    process.stdin.on("data", (data: Buffer) => {
-      const byteArray = [...data];
-      logger.debug(`[-> cmd](${data.length}) ${ie([...data.toString()])}`);
 
-      switch (ptyCmdHandleEscape(ptyProcess, data, tilde)) {
-        case "in_tilde":
-          tilde = true;
-          return;
-        case "out_tilde":
-          tilde = false;
-          break;
-        case "exit":
-          exitCode.push(0);
-          // send EOF?
-          // dispose process.stdin.on() ?
-          return;
-      }
+    // // ^C
+    // if (byteArray[0] === 3) {
+    //   logger.warn("^C")
+    //   exitCode.push(0);
+    // }
 
-      // // ^C
-      // if (byteArray[0] === 3) {
-      //   logger.warn("^C")
-      //   exitCode.push(0);
-      // }
+    ptyProcess.write(data.toString());
+  });
 
-      ptyProcess.write(data.toString());
-    });
+  // // never fired in .setRawMode(trues)
+  // process.on("SIGINT", () => {
+  //   logger.warn("SIGINT");
+  // });
 
-    // // never fired in .setRawMode(trues)
-    // process.on("SIGINT", () => {
-    //   logger.warn("SIGINT");
-    // });
+  process.on("SIGWINCH", () => {
+    logger.debug(`SIGWINCH -> ${process.stdout.columns}x${process.stdout.rows}`);
+    ptyProcess.resize(process.stdout.columns, process.stdout.rows);
+  });
 
-    process.on("SIGWINCH", () => {
-      logger.debug(`SIGWINCH -> ${process.stdout.columns}x${process.stdout.rows}`);
-      ptyProcess.resize(process.stdout.columns, process.stdout.rows);
-    });
-
-    return cliCommandExit(await exitCode.pop());
+  return cliCommandExit(await exitCode.pop());
 };
 
 function ptyCmdHandleEscape(ptyProcess: pty_.IPty, data: Buffer, previousTilde: boolean): "in_tilde" | "out_tilde" | "exit" {
@@ -2353,19 +2395,18 @@ program.command("txt-color-complementary").description("txt-color-complementary 
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-color-complementary"] = async function (color: string | undefined, opts: {}) {
-  // TODO: dedent
-    const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
-    const match = /^(?<hash>#?)(?<r>[0-9a-f]{2})(?<g>[0-9a-f]{2})(?<b>[0-9a-f]{2})(\r?\n)?$/i.exec(txt);
-    if (match === null) {
-      throw new AppError(`invalid color code: ${txt}`);
-    }
-    const r = parseInt(match.groups!.r, 16);
-    const g = parseInt(match.groups!.g, 16);
-    const b = parseInt(match.groups!.b, 16);
-    // https://www.wave440.com/php/iro.php
-    const maxMin = Math.max(r, g, b) + Math.min(r, g, b);
-    process.stdout.write(`${match.groups!.hash}${(maxMin - r).toString(16).padStart(2, "0")}${(maxMin - g).toString(16).padStart(2, "0")}${(maxMin - b).toString(16).padStart(2, "0")}\n`);
-    return cliCommandExit(0);
+  const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
+  const match = /^(?<hash>#?)(?<r>[0-9a-f]{2})(?<g>[0-9a-f]{2})(?<b>[0-9a-f]{2})(\r?\n)?$/i.exec(txt);
+  if (match === null) {
+    throw new AppError(`invalid color code: ${txt}`);
+  }
+  const r = parseInt(match.groups!.r, 16);
+  const g = parseInt(match.groups!.g, 16);
+  const b = parseInt(match.groups!.b, 16);
+  // https://www.wave440.com/php/iro.php
+  const maxMin = Math.max(r, g, b) + Math.min(r, g, b);
+  process.stdout.write(`${match.groups!.hash}${(maxMin - r).toString(16).padStart(2, "0")}${(maxMin - g).toString(16).padStart(2, "0")}${(maxMin - b).toString(16).padStart(2, "0")}\n`);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2377,17 +2418,16 @@ program.command("txt-color-invert").description("txt-color-invert description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-color-invert"] = async function (color: string | undefined, opts: {}) {
-  // TODO: dedent
-    const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
-    const match = /^(?<hash>#?)(?<r>[0-9a-f]{2})(?<g>[0-9a-f]{2})(?<b>[0-9a-f]{2})(\r?\n)?$/i.exec(txt);
-    if (match === null) {
-      throw new AppError(`invalid color code: ${txt}`);
-    }
-    const r = parseInt(match.groups!.r, 16);
-    const g = parseInt(match.groups!.g, 16);
-    const b = parseInt(match.groups!.b, 16);
-    process.stdout.write(`${match.groups!.hash}${(255 - r).toString(16).padStart(2, "0")}${(255 - g).toString(16).padStart(2, "0")}${(255 - b).toString(16).padStart(2, "0")}\n`);
-    return cliCommandExit(0);
+  const txt = color ?? fs.readFileSync("/dev/stdin", "utf8");
+  const match = /^(?<hash>#?)(?<r>[0-9a-f]{2})(?<g>[0-9a-f]{2})(?<b>[0-9a-f]{2})(\r?\n)?$/i.exec(txt);
+  if (match === null) {
+    throw new AppError(`invalid color code: ${txt}`);
+  }
+  const r = parseInt(match.groups!.r, 16);
+  const g = parseInt(match.groups!.g, 16);
+  const b = parseInt(match.groups!.b, 16);
+  process.stdout.write(`${match.groups!.hash}${(255 - r).toString(16).padStart(2, "0")}${(255 - g).toString(16).padStart(2, "0")}${(255 - b).toString(16).padStart(2, "0")}\n`);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2399,80 +2439,79 @@ program.command("txt-confluence-html-format").description("txt-confluence-html-f
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-confluence-html-format"] = async function (file: string | undefined, opts: {}) {
-  // TODO: dedent
-    let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
 
-    txt = txtHTMLCDataB64(txt);
+  txt = txtHTMLCDataB64(txt);
 
-    // echo 'https://example.com/123456789012345678901234567890123456789'   | c.bash pandoc  # <p><a    href="https://example.com/123456789012345678901234567890123456789"  NL class="uri">https://example.com/123456789012345678901234567890123456789</a></p>
-    // echo 'https://example.com/1234567890123456789012345678901234567890'  | c.bash pandoc  # <p><a NL href="https://example.com/1234567890123456789012345678901234567890" NL class="uri">https://example.com/1234567890123456789012345678901234567890</a></p> --this process--> <p><a href...
-    // for (const match of txt.matchAll(/<a(\r?\n)(https?:\/\/[^\s]+)/g)) {
+  // echo 'https://example.com/123456789012345678901234567890123456789'   | c.bash pandoc  # <p><a    href="https://example.com/123456789012345678901234567890123456789"  NL class="uri">https://example.com/123456789012345678901234567890123456789</a></p>
+  // echo 'https://example.com/1234567890123456789012345678901234567890'  | c.bash pandoc  # <p><a NL href="https://example.com/1234567890123456789012345678901234567890" NL class="uri">https://example.com/1234567890123456789012345678901234567890</a></p> --this process--> <p><a href...
+  // for (const match of txt.matchAll(/<a(\r?\n)(https?:\/\/[^\s]+)/g)) {
 
-    // " -> &quot;
-    // preserving: <tag attr="value">
-    while ((reArr = />([^<]*)"/.exec(txt)) !== null) {
-      txt = txt.replace(reArr[0], `>${reArr[1]}&quot;`);
-    }
+  // " -> &quot;
+  // preserving: <tag attr="value">
+  while ((reArr = />([^<]*)"/.exec(txt)) !== null) {
+    txt = txt.replace(reArr[0], `>${reArr[1]}&quot;`);
+  }
 
-    // <ac:structured-macro ac:macro-id="00000000-0000-0000-0000-000000000001" ac:name="expand" ac:schema-version="1"><ac:parameter ac:name="title">TITLE</ac:parameter><ac:rich-text-body>
-    // ↓
-    // <ac:structured-macro ac:name="expand" ac:schema-version="1" ac:macro-id="00000000-0000-0000-0000-000000000001"><ac:parameter ac:name="title">TITLE</ac:parameter><ac:rich-text-body>
-    while ((reArr = /<ac:structured-macro ac:macro-id="(.+?)" ac:name="(expand|html)" ac:schema-version="1">/.exec(txt)) !== null) {
-      txt = txt.replace(reArr[0], `<ac:structured-macro ac:name="${reArr[2]}" ac:schema-version="1" ac:macro-id="${reArr[1]}">`);
-    }
+  // <ac:structured-macro ac:macro-id="00000000-0000-0000-0000-000000000001" ac:name="expand" ac:schema-version="1"><ac:parameter ac:name="title">TITLE</ac:parameter><ac:rich-text-body>
+  // ↓
+  // <ac:structured-macro ac:name="expand" ac:schema-version="1" ac:macro-id="00000000-0000-0000-0000-000000000001"><ac:parameter ac:name="title">TITLE</ac:parameter><ac:rich-text-body>
+  while ((reArr = /<ac:structured-macro ac:macro-id="(.+?)" ac:name="(expand|html)" ac:schema-version="1">/.exec(txt)) !== null) {
+    txt = txt.replace(reArr[0], `<ac:structured-macro ac:name="${reArr[2]}" ac:schema-version="1" ac:macro-id="${reArr[1]}">`);
+  }
 
-    // <ac:plain-text-body> \n <![CDATA[ → <ac:plain-text-body><![CDATA[
-    while ((reArr = /<ac:plain-text-body>\s+<!\[CDATA\[/.exec(txt)) !== null) {
-      txt = txt.replace(reArr[0], `<ac:plain-text-body><![CDATA[`);
-    }
+  // <ac:plain-text-body> \n <![CDATA[ → <ac:plain-text-body><![CDATA[
+  while ((reArr = /<ac:plain-text-body>\s+<!\[CDATA\[/.exec(txt)) !== null) {
+    txt = txt.replace(reArr[0], `<ac:plain-text-body><![CDATA[`);
+  }
 
-    // <ac:...> \n <ac:...> → <ac:...><ac:...>
-    // example:
-    // <ac:structured-macro ac:name="html" ac:schema-version="1" ac:macro-id="00000000-0000-0000-0000-000000000001">
-    //   <ac:plain-text-body>
-    // <![CDATA[
-    // ↓
-    // <ac:structured-macro ac:name="html" ac:schema-version="1" ac:macro-id="00000000-0000-0000-0000-000000000001"><ac:plain-text-body><![CDATA[
-    while ((reArr = /(<ac:[^>]+>)\s+<ac:/.exec(txt)) !== null) {
-      txt = txt.replace(reArr[0], `${reArr[1]}<ac:`);
-    }
+  // <ac:...> \n <ac:...> → <ac:...><ac:...>
+  // example:
+  // <ac:structured-macro ac:name="html" ac:schema-version="1" ac:macro-id="00000000-0000-0000-0000-000000000001">
+  //   <ac:plain-text-body>
+  // <![CDATA[
+  // ↓
+  // <ac:structured-macro ac:name="html" ac:schema-version="1" ac:macro-id="00000000-0000-0000-0000-000000000001"><ac:plain-text-body><![CDATA[
+  while ((reArr = /(<ac:[^>]+>)\s+<ac:/.exec(txt)) !== null) {
+    txt = txt.replace(reArr[0], `${reArr[1]}<ac:`);
+  }
 
-    // </ac:...> \n <ac:...> → </ac:...><ac:...>
-    // example:
-    // <p><ac:structured-macro ac:name="code" ...><ac:parameter ac:name="language">bash</ac:parameter> <ac:plain-text-body><![CDATA[
-    // ↓
-    // <p><ac:structured-macro ac:name="code" ...><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[
-    while ((reArr = /(<\/ac:[^>]+>)\s+<ac:/.exec(txt)) !== null) {
-      txt = txt.replace(reArr[0], `${reArr[1]}<ac:`);
-    }
+  // </ac:...> \n <ac:...> → </ac:...><ac:...>
+  // example:
+  // <p><ac:structured-macro ac:name="code" ...><ac:parameter ac:name="language">bash</ac:parameter> <ac:plain-text-body><![CDATA[
+  // ↓
+  // <p><ac:structured-macro ac:name="code" ...><ac:parameter ac:name="language">bash</ac:parameter><ac:plain-text-body><![CDATA[
+  while ((reArr = /(<\/ac:[^>]+>)\s+<ac:/.exec(txt)) !== null) {
+    txt = txt.replace(reArr[0], `${reArr[1]}<ac:`);
+  }
 
-    // </ac:...> \n </ac:...> → </ac:...></ac:...>
-    // example:
-    // </ac:plain-text-body> </ac:structured-macro></p>
-    // ↓
-    // </ac:plain-text-body></ac:structured-macro></p>
-    while ((reArr = /(<\/ac:[^>]+>)\s+<\/ac:/.exec(txt)) !== null) {
-      txt = txt.replace(reArr[0], `${reArr[1]}</ac:`);
-    }
+  // </ac:...> \n </ac:...> → </ac:...></ac:...>
+  // example:
+  // </ac:plain-text-body> </ac:structured-macro></p>
+  // ↓
+  // </ac:plain-text-body></ac:structured-macro></p>
+  while ((reArr = /(<\/ac:[^>]+>)\s+<\/ac:/.exec(txt)) !== null) {
+    txt = txt.replace(reArr[0], `${reArr[1]}</ac:`);
+  }
 
-    // exception:
-    //                     </ac:structured-macro> **\n** <ac:structured-macro ...
-    // </ac:rich-text-body></ac:structured-macro> **\n** </ac:rich-text-body></ac:structured-macro>
-    while ((reArr = /<\/ac:structured-macro>(<\/?ac:)/.exec(txt)) !== null) {
-      txt = txt.replace(reArr[0], `</ac:structured-macro>\n${reArr[1]}`);
-    }
+  // exception:
+  //                     </ac:structured-macro> **\n** <ac:structured-macro ...
+  // </ac:rich-text-body></ac:structured-macro> **\n** </ac:rich-text-body></ac:structured-macro>
+  while ((reArr = /<\/ac:structured-macro>(<\/?ac:)/.exec(txt)) !== null) {
+    txt = txt.replace(reArr[0], `</ac:structured-macro>\n${reArr[1]}`);
+  }
 
-    txt = txtHTMLCDataB64d(txt);
+  txt = txtHTMLCDataB64d(txt);
 
-    // ]]> </ac:plain-text-body></ac:structured-macro></p>
-    // ↓
-    // ]]></ac:plain-text-body></ac:structured-macro></p>
-    while ((reArr = /]]>\s+<\/ac:plain-text-body>/.exec(txt)) !== null) {
-      txt = txt.replace(reArr[0], `]]></ac:plain-text-body>`);
-    }
+  // ]]> </ac:plain-text-body></ac:structured-macro></p>
+  // ↓
+  // ]]></ac:plain-text-body></ac:structured-macro></p>
+  while ((reArr = /]]>\s+<\/ac:plain-text-body>/.exec(txt)) !== null) {
+    txt = txt.replace(reArr[0], `]]></ac:plain-text-body>`);
+  }
 
-    process.stdout.write(txt);
-    return cliCommandExit(0);
+  process.stdout.write(txt);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2505,12 +2544,11 @@ program.command("txt-emoji").description("txt-emoji description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-emoji"] = async function (file: string | undefined, opts: {}) {
-  // TODO: dedent
-    const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    for (const emoji of txt.match(emojiRegex) ?? []) {
-      process.stdout.write(`${emoji}\n`);
-    }
-    return cliCommandExit(0);
+  const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  for (const emoji of txt.match(emojiRegex) ?? []) {
+    process.stdout.write(`${emoji}\n`);
+  }
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2522,19 +2560,18 @@ program.command("txt-emoji-count").description("txt-emoji-count description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-emoji-count"] = async function (file: string | undefined, opts: {}) {
-  // TODO: dedent
-    const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    const counts: { [key: string]: number } = {};
-    for (const emoji of txt.match(emojiRegex) ?? []) {
-      counts[emoji] = (counts[emoji] ?? 0) + 1;
-    }
-    // for (const [emoji, count] of Object.entries(counts))
-    //   process.stdout.write(`${count} ${emoji}\n`);
-    let i = 0;
-    for (const [emoji, count] of Object.entries(counts).sort((a, b) => b[1] - a[1])) {
-      process.stdout.write(`${++i}\t${count}\t${emoji}\n`);
-    }
-    return cliCommandExit(0);
+  const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  const counts: { [key: string]: number } = {};
+  for (const emoji of txt.match(emojiRegex) ?? []) {
+    counts[emoji] = (counts[emoji] ?? 0) + 1;
+  }
+  // for (const [emoji, count] of Object.entries(counts))
+  //   process.stdout.write(`${count} ${emoji}\n`);
+  let i = 0;
+  for (const [emoji, count] of Object.entries(counts).sort((a, b) => b[1] - a[1])) {
+    process.stdout.write(`${++i}\t${count}\t${emoji}\n`);
+  }
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2561,25 +2598,24 @@ program.command("txt-extrace-prettify")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-extrace-prettify"] = async function (file: string | undefined, opts: {}) {
-  // TODO: dedent
-    let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    {
-      const matches = [...txt.matchAll(/^(?<date>.+?)(?<spacePID>\s+\d+)\+ (?<cmd>.+)\n.+?\k<spacePID>- .+? exited status=(?<status>\d+) time=(?<time>.+?)s$/gm)]
-      for (const match of matches) {
-        txt = txt.replace(match[0], regExpReplacerEscape(`${match.groups?.date}${match.groups?.spacePID}[${match.groups?.status} ${match.groups?.time}s] ${match.groups?.cmd}`));
-      }
+  let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  {
+    const matches = [...txt.matchAll(/^(?<date>.+?)(?<spacePID>\s+\d+)\+ (?<cmd>.+)\n.+?\k<spacePID>- .+? exited status=(?<status>\d+) time=(?<time>.+?)s$/gm)]
+    for (const match of matches) {
+      txt = txt.replace(match[0], regExpReplacerEscape(`${match.groups?.date}${match.groups?.spacePID}[${match.groups?.status} ${match.groups?.time}s] ${match.groups?.cmd}`));
     }
-    {
-      const matches = [...txt.matchAll(/^(?<date>.+?)(?<spacePID>\s+\d+)\+ (?<cmd>.+)$/gm)]
-      for (const match of matches) {
-        const reArr = new RegExp(String.raw`^(?<date>.+?)${match.groups?.spacePID}- (?<cmd>.+) exited status=(?<status>\d+) time=(?<time>0.00\d)s\n`, "gm").exec(txt);
-        if (reArr === null) continue;
-        txt = txt.replace(match[0], regExpReplacerEscape(`${match.groups?.date}${match.groups?.spacePID}[${reArr.groups?.status} ${reArr.groups?.time}s] ${match.groups?.cmd}`));
-        txt = txt.replace(reArr[0], "");
-      }
+  }
+  {
+    const matches = [...txt.matchAll(/^(?<date>.+?)(?<spacePID>\s+\d+)\+ (?<cmd>.+)$/gm)]
+    for (const match of matches) {
+      const reArr = new RegExp(String.raw`^(?<date>.+?)${match.groups?.spacePID}- (?<cmd>.+) exited status=(?<status>\d+) time=(?<time>0.00\d)s\n`, "gm").exec(txt);
+      if (reArr === null) continue;
+      txt = txt.replace(match[0], regExpReplacerEscape(`${match.groups?.date}${match.groups?.spacePID}[${reArr.groups?.status} ${reArr.groups?.time}s] ${match.groups?.cmd}`));
+      txt = txt.replace(reArr[0], "");
     }
-    process.stdout.write(txt);
-    return cliCommandExit(0);
+  }
+  process.stdout.write(txt);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2591,34 +2627,33 @@ program.command("txt-file-backup-sha1-hash-analyze").description("txt-file-backu
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-file-backup-sha1-hash-analyze"] = async function (file: string | undefined, opts: { grep?: string, merge?: string, sortLen: boolean }) {
-  // TODO: dedent
-    const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    const sha1Paths: { [key: string]: string[] } = {};
-    for (const line of txt.split(/\r?\n/)) {
-      const match = /^([^-].*)  ([0-9a-f]{16})$/.exec(line);
-      if (match === null) {
-        if (!line.startsWith("-") && line.trim() !== "") {
-          console.warn(`ignore line: ${line}`);
-        }
-        continue;
-      }
-      sha1Paths[match[2]] = sha1Paths[match[2]] ?? [];
-      sha1Paths[match[2]].push(match[1]);
-    }
-    for (const line of txt.split(/\r?\n/)) {
-      if (!line.startsWith("-")) continue;
-      const match = /^-(.+)  ([0-9a-f]{16})$/.exec(line);
-      if (match === null) {
+  const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  const sha1Paths: { [key: string]: string[] } = {};
+  for (const line of txt.split(/\r?\n/)) {
+    const match = /^([^-].*)  ([0-9a-f]{16})$/.exec(line);
+    if (match === null) {
+      if (!line.startsWith("-") && line.trim() !== "") {
         console.warn(`ignore line: ${line}`);
-        continue;
       }
-      if (match[2] in sha1Paths) {
-        console.log(`${line} -> ${sha1Paths[match[2]].join(", ")}`);
-      } else {
-        console.log(`${line} -> __REAL_REMOVED__`);
-      }
+      continue;
     }
-    return cliCommandExit(0);
+    sha1Paths[match[2]] = sha1Paths[match[2]] ?? [];
+    sha1Paths[match[2]].push(match[1]);
+  }
+  for (const line of txt.split(/\r?\n/)) {
+    if (!line.startsWith("-")) continue;
+    const match = /^-(.+)  ([0-9a-f]{16})$/.exec(line);
+    if (match === null) {
+      console.warn(`ignore line: ${line}`);
+      continue;
+    }
+    if (match[2] in sha1Paths) {
+      console.log(`${line} -> ${sha1Paths[match[2]].join(", ")}`);
+    } else {
+      console.log(`${line} -> __REAL_REMOVED__`);
+    }
+  }
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -2815,9 +2850,8 @@ program.command("txt-html-break").description("txt-html-break description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-html-break"] = async function (file: string | undefined, opts: { zTest: boolean }) {
-  // TODO: dedent
-    if (opts.zTest) {
-      const testCase = `\
+  if (opts.zTest) {
+    const testCase = `\
  <div> <div> x <pre><![CDATA[line 1<>
 line 2<>]]> </pre> y </div> </div>
  $
@@ -2868,14 +2902,14 @@ line 2<>]]></pre>y</div> </div>
 line 2<>]]></pre>y</div>
 </div>
  $`;
-      testCase.replaceAll(/\$$/gm, "").split("\n----------\n").map((s) => s.split("\n↓\n")).forEach(([in_, expected]) => {
-        const actual = txtHTMLBreak(in_);
-        assert.strictEqual(actual, expected);
-      });
-      return cliCommandExit(0);
-    }
-    process.stdout.write(txtHTMLBreak(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+    testCase.replaceAll(/\$$/gm, "").split("\n----------\n").map((s) => s.split("\n↓\n")).forEach(([in_, expected]) => {
+      const actual = txtHTMLBreak(in_);
+      assert.strictEqual(actual, expected);
+    });
     return cliCommandExit(0);
+  }
+  process.stdout.write(txtHTMLBreak(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+  return cliCommandExit(0);
 };
 
 function txtHTMLBreak(html: string): string {
@@ -2957,25 +2991,24 @@ program.command("txt-html-cdata-b64").description("txt-html-cdata-b64 descriptio
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-html-cdata-b64"] = async function (file: string | undefined, opts: { zTest: boolean }) {
-  // TODO: dedent
-    if (opts.zTest) {
-      const in_ = `\
+  if (opts.zTest) {
+    const in_ = `\
 <div>
   <pre><![CDATA[foo
 bar
 ]]></pre>
 </div>
 `;
-      const out = `\
+    const out = `\
 <div>
   <pre><CDATA>PCFbQ0RBVEFbZm9vCmJhcgpdXT4=</CDATA></pre>
 </div>
 `;
-      assert.strictEqual(txtHTMLCDataB64(in_), out);
-      return cliCommandExit(0);
-    }
-    process.stdout.write(txtHTMLCDataB64(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+    assert.strictEqual(txtHTMLCDataB64(in_), out);
     return cliCommandExit(0);
+  }
+  process.stdout.write(txtHTMLCDataB64(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+  return cliCommandExit(0);
 };
 
 export function txtHTMLCDataB64(html: string): string {
@@ -2995,9 +3028,8 @@ program.command("txt-html-cdata-b64d").description("txt-html-cdata-b64d descript
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-html-cdata-b64d"] = async function (file: string | undefined, opts: { zTest: boolean }) {
-  // TODO: dedent
-    if (opts.zTest) {
-      const in_ = `\
+  if (opts.zTest) {
+    const in_ = `\
 <div>
   <pre><CDATA>PCFbQ0RBVEFbZm9vCmJhcgpdXT4=</CDATA></pre>
 </div>
@@ -3009,12 +3041,12 @@ bar
 ]]></pre>
 </div>
 `;
-      assert.strictEqual(txtHTMLCDataB64d(in_), out);
-      assert.strictEqual(out, txtHTMLCDataB64d(txtHTMLCDataB64(out)));
-      return cliCommandExit(0);
-    }
-    process.stdout.write(txtHTMLCDataB64d(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+    assert.strictEqual(txtHTMLCDataB64d(in_), out);
+    assert.strictEqual(out, txtHTMLCDataB64d(txtHTMLCDataB64(out)));
     return cliCommandExit(0);
+  }
+  process.stdout.write(txtHTMLCDataB64d(fs.readFileSync(file ?? "/dev/stdin", "utf8")));
+  return cliCommandExit(0);
 };
 
 export function txtHTMLCDataB64d(html: string): string {
@@ -3034,10 +3066,9 @@ program.command("txt-json-flatten").description("txt-json-flatten description")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-json-flatten"] = async function (file: string | undefined, opts: { width: number }) {
-  // TODO: dedent
-    const flat = strJSONFlat("", JSON.parse(fs.readFileSync(file ?? "/dev/stdin", "utf8")), { width: opts.width });
-    process.stdout.write(`${flat.join("\n")}\n`);
-    return cliCommandExit(0);
+  const flat = strJSONFlat("", JSON.parse(fs.readFileSync(file ?? "/dev/stdin", "utf8")), { width: opts.width });
+  process.stdout.write(`${flat.join("\n")}\n`);
+  return cliCommandExit(0);
 };
 
 function strJSONFlat(key: string, j: unknown, opts: { width: number }): string[] {
@@ -3172,23 +3203,22 @@ program.command("txt-markdown-h2-sec").description("txt-markdown-h2-sec descript
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-markdown-h2-sec"] = async function (section: string, file: string | undefined, opts: { zTest: boolean }) {
-  // TODO: dedent
-    if (opts.zTest) {
-      section = "SEC";
-      file = `${DIR_TMP}/test-txt-markdown-h2-sec.txt`;
-      fs.writeFileSync(file, txtMarkdownH2SecTestIn);
-    }
-    let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    txt = txtMarkdownCodeB64(txt);
-    const matches = [...txt.matchAll(new RegExp(`(?<=(^|\\r?\\n))(?<txt>## .*@sec:${section}\\b[\\s\\S]+?)(?=\r?\n## |\\$)`, "g"))];
-    txt = matches.map((match) => match.groups?.txt).join("\n");
-    txt = txtMarkdownCodeB64d(txt);
-    if (opts.zTest) {
-      assert.strictEqual(txt, txtMarkdownH2SecTestOut);
-      return cliCommandExit(0);
-    }
-    process.stdout.write(txt);
+  if (opts.zTest) {
+    section = "SEC";
+    file = `${DIR_TMP}/test-txt-markdown-h2-sec.txt`;
+    fs.writeFileSync(file, txtMarkdownH2SecTestIn);
+  }
+  let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  txt = txtMarkdownCodeB64(txt);
+  const matches = [...txt.matchAll(new RegExp(`(?<=(^|\\r?\\n))(?<txt>## .*@sec:${section}\\b[\\s\\S]+?)(?=\r?\n## |\\$)`, "g"))];
+  txt = matches.map((match) => match.groups?.txt).join("\n");
+  txt = txtMarkdownCodeB64d(txt);
+  if (opts.zTest) {
+    assert.strictEqual(txt, txtMarkdownH2SecTestOut);
     return cliCommandExit(0);
+  }
+  process.stdout.write(txt);
+  return cliCommandExit(0);
 };
 
 const txtMarkdownH2SecTestIn = `\
@@ -3261,31 +3291,30 @@ cliCmds["txtMarkdownH2SectionReduce"] = async function (file: string | undefined
 }
 
 export function txtMarkdownH2SectionReduce(txt: string): string {
-  // TODO: dedent
-    const nCommonElementsFromTheBeginning = (arr1: string[], arr2: string[]) => [...arr1, "\0dummy\0"].findIndex((tok, i) => tok !== arr2[i]);
-    let tokensStack: string[] = []; // ## z1 - z2 - z3 -> ["z1", "z2", "z3"]
-    let txt2 = "";
-    let xxx_workAround_seemsExtraLineAdded_testsNeeded = false;
-    for (const line of txt.split(/\r?\n/)) {
-      if (!line.startsWith("## ")) {
-        txt2 += `${line}\n`;
-        continue;
-      }
-      const tokens = line.slice("## ".length).split(" - ");
-      const nAlreadyPrintedTokens = nCommonElementsFromTheBeginning(tokensStack, tokens);
-      for (let level = nAlreadyPrintedTokens; level < tokens.length; level++) {
-        txt2 += `##${"#".repeat(level)} ${tokens[level]}\n`;
-        if (level !== tokens.length - 1) {
-          xxx_workAround_seemsExtraLineAdded_testsNeeded = true;
-          txt2 += "\n";
-        }
-      }
-      tokensStack = tokens;
+  const nCommonElementsFromTheBeginning = (arr1: string[], arr2: string[]) => [...arr1, "\0dummy\0"].findIndex((tok, i) => tok !== arr2[i]);
+  let tokensStack: string[] = []; // ## z1 - z2 - z3 -> ["z1", "z2", "z3"]
+  let txt2 = "";
+  let xxx_workAround_seemsExtraLineAdded_testsNeeded = false;
+  for (const line of txt.split(/\r?\n/)) {
+    if (!line.startsWith("## ")) {
+      txt2 += `${line}\n`;
+      continue;
     }
-    if (xxx_workAround_seemsExtraLineAdded_testsNeeded) {
-      txt2 = txt2.slice(0, -1);
+    const tokens = line.slice("## ".length).split(" - ");
+    const nAlreadyPrintedTokens = nCommonElementsFromTheBeginning(tokensStack, tokens);
+    for (let level = nAlreadyPrintedTokens; level < tokens.length; level++) {
+      txt2 += `##${"#".repeat(level)} ${tokens[level]}\n`;
+      if (level !== tokens.length - 1) {
+        xxx_workAround_seemsExtraLineAdded_testsNeeded = true;
+        txt2 += "\n";
+      }
     }
-    return txt2;
+    tokensStack = tokens;
+  }
+  if (xxx_workAround_seemsExtraLineAdded_testsNeeded) {
+    txt2 = txt2.slice(0, -1);
+  }
+  return txt2;
 };
 
 // -----------------------------------------------------------------------------
@@ -3297,80 +3326,79 @@ program.command("txt-markdown-headers").description("txt-markdown-headers descri
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-markdown-headers"] = async function (file: string | undefined, opts: {}) {
-  // TODO: dedent
-    const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    // without maxBuffer or maxBuffer: 2**21 (2Mi): ENOBUFS; 2**26: 64Mi
-    const json = JSON.parse(child_process.execSync(`/home/linuxbrew/.linuxbrew/bin/pandoc --from=commonmark+sourcepos --to=json`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26 }));
+  const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  // without maxBuffer or maxBuffer: 2**21 (2Mi): ENOBUFS; 2**26: 64Mi
+  const json = JSON.parse(child_process.execSync(`/home/linuxbrew/.linuxbrew/bin/pandoc --from=commonmark+sourcepos --to=json`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26 }));
 
-    // https://hackage.haskell.org/package/pandoc-types/docs/Text-Pandoc-Definition.html
-    // data Block
-    const Block = (block: any) => {
-      const c = block.c;
-      switch (block.t) {
-        case "Plain": c.forEach(Inline); break; // Plain [Inline]
-        case "Para": c.forEach(Inline); break; // Para [Inline]
-        case "LineBlock": throw new Error("TODO"); break; // LineBlock [[Inline]]
-        case "CodeBlock": break; // CodeBlock Attr Text
-        case "RawBlock": break; // RawBlock Format Text
-        case "BlockQuote": c.forEach(Block); break; // BlockQuote [Block]
-        case "OrderedList": c[1].forEach((x: any) => x.forEach(Block)); break; // OrderedList ListAttributes [[Block]]
-        case "BulletList": c.forEach((x: any) => Block); break; // BulletList [[Block]]
-        case "DefinitionList": throw new Error("TODO"); break; // DefinitionList [([Inline], [[Block]])]
-        case "Header": attrs.push(...c[1][2]); c[2].forEach(Inline); break; // Header Int Attr [Inline]
-        case "HorizontalRule": break; // HorizontalRule
-        case "Table": throw new Error("TODO"); break; // Table Attr Caption [ColSpec] TableHead [TableBody] TableFoot
-        case "Figure": c[2].forEach(Block);; break; // Figure Attr Caption [Block]
-        case "Div": c[1].forEach(Block); break; // Div Attr [Block]
-        default: unreachable();
-      }
-      return;
+  // https://hackage.haskell.org/package/pandoc-types/docs/Text-Pandoc-Definition.html
+  // data Block
+  const Block = (block: any) => {
+    const c = block.c;
+    switch (block.t) {
+      case "Plain": c.forEach(Inline); break; // Plain [Inline]
+      case "Para": c.forEach(Inline); break; // Para [Inline]
+      case "LineBlock": throw new Error("TODO"); break; // LineBlock [[Inline]]
+      case "CodeBlock": break; // CodeBlock Attr Text
+      case "RawBlock": break; // RawBlock Format Text
+      case "BlockQuote": c.forEach(Block); break; // BlockQuote [Block]
+      case "OrderedList": c[1].forEach((x: any) => x.forEach(Block)); break; // OrderedList ListAttributes [[Block]]
+      case "BulletList": c.forEach((x: any) => Block); break; // BulletList [[Block]]
+      case "DefinitionList": throw new Error("TODO"); break; // DefinitionList [([Inline], [[Block]])]
+      case "Header": attrs.push(...c[1][2]); c[2].forEach(Inline); break; // Header Int Attr [Inline]
+      case "HorizontalRule": break; // HorizontalRule
+      case "Table": throw new Error("TODO"); break; // Table Attr Caption [ColSpec] TableHead [TableBody] TableFoot
+      case "Figure": c[2].forEach(Block);; break; // Figure Attr Caption [Block]
+      case "Div": c[1].forEach(Block); break; // Div Attr [Block]
+      default: unreachable();
     }
-    // data Inline
-    const Inline = (inline: any) => {
-      const c = inline.c;
-      switch (inline.t) {
-        case "Str": break; // Str Text
-        case "Emph": c.forEach(Inline); break; // Emph [Inline]
-        case "Underline": c.forEach(Inline); break; // Underline [Inline]
-        case "Strong": c.forEach(Inline); break; // Strong [Inline]
-        case "Strikeout": c.forEach(Inline); break; // Strikeout [Inline]
-        case "Superscript": c.forEach(Inline); break; // Superscript [Inline]
-        case "Subscript": c.forEach(Inline); break; // Subscript [Inline]
-        case "SmallCaps": c.forEach(Inline); break; // SmallCaps [Inline]
-        case "Quoted": c[1].forEach(Inline); break; // Quoted QuoteType [Inline]
-        case "Cite": c[1].forEach(Inline); break; // Cite [Citation] [Inline]
-        case "Code": break; // Code Attr Text
-        case "Space": break; // Space
-        case "SoftBreak": break; // SoftBreak
-        case "LineBreak": break; // LineBreak
-        case "Math": throw new Error("TODO"); break; // Math MathType Text
-        case "RawInline": break; // RawInline Format Text
-        case "Link": c[1].forEach(Inline); break; // Link Attr [Inline] Target
-        case "Image": c[1].forEach(Inline); break; // Image Attr [Inline] Target
-        case "Note": c.forEach(Block); break; // Note [Block]
-        case "Span": c[1].forEach(Inline); break; // Span Attr [Inline]
-        default: unreachable();
-      }
-      return;
+    return;
+  }
+  // data Inline
+  const Inline = (inline: any) => {
+    const c = inline.c;
+    switch (inline.t) {
+      case "Str": break; // Str Text
+      case "Emph": c.forEach(Inline); break; // Emph [Inline]
+      case "Underline": c.forEach(Inline); break; // Underline [Inline]
+      case "Strong": c.forEach(Inline); break; // Strong [Inline]
+      case "Strikeout": c.forEach(Inline); break; // Strikeout [Inline]
+      case "Superscript": c.forEach(Inline); break; // Superscript [Inline]
+      case "Subscript": c.forEach(Inline); break; // Subscript [Inline]
+      case "SmallCaps": c.forEach(Inline); break; // SmallCaps [Inline]
+      case "Quoted": c[1].forEach(Inline); break; // Quoted QuoteType [Inline]
+      case "Cite": c[1].forEach(Inline); break; // Cite [Citation] [Inline]
+      case "Code": break; // Code Attr Text
+      case "Space": break; // Space
+      case "SoftBreak": break; // SoftBreak
+      case "LineBreak": break; // LineBreak
+      case "Math": throw new Error("TODO"); break; // Math MathType Text
+      case "RawInline": break; // RawInline Format Text
+      case "Link": c[1].forEach(Inline); break; // Link Attr [Inline] Target
+      case "Image": c[1].forEach(Inline); break; // Image Attr [Inline] Target
+      case "Note": c.forEach(Block); break; // Note [Block]
+      case "Span": c[1].forEach(Inline); break; // Span Attr [Inline]
+      default: unreachable();
     }
+    return;
+  }
 
-    const attrs: [string, string][] = [];
-    json.blocks.forEach(Block);
-    const lineNums = attrs.filter(([k, v]) => k === "data-pos").map(([k, v]) => v).map((v) => {
-      // 0 = "1:1-2:1"
-      // 1 = "10:1-11:1"
-      // 2 = "22:1-23:1"
-      const reArr = /^(\d+):1-(\d+):1$/.exec(v);
-      if (reArr === null) throw new Error(`invalid data-pos: ${v}`);
-      const line1 = parseInt(reArr[1]);
-      const line2 = parseInt(reArr[2]);
-      assert.deepStrictEqual(line1 + 1, line2);
-      return line1;
-    });
-    child_process.execSync(`sed -n 1,2p`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26 });
-    child_process.execSync(`sed -n -e ${lineNums.join("p -e ")}p`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26, stdio: ["pipe", "inherit", "inherit"] });
+  const attrs: [string, string][] = [];
+  json.blocks.forEach(Block);
+  const lineNums = attrs.filter(([k, v]) => k === "data-pos").map(([k, v]) => v).map((v) => {
+    // 0 = "1:1-2:1"
+    // 1 = "10:1-11:1"
+    // 2 = "22:1-23:1"
+    const reArr = /^(\d+):1-(\d+):1$/.exec(v);
+    if (reArr === null) throw new Error(`invalid data-pos: ${v}`);
+    const line1 = parseInt(reArr[1]);
+    const line2 = parseInt(reArr[2]);
+    assert.deepStrictEqual(line1 + 1, line2);
+    return line1;
+  });
+  child_process.execSync(`sed -n 1,2p`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26 });
+  child_process.execSync(`sed -n -e ${lineNums.join("p -e ")}p`, { encoding: "utf8", input: txt, maxBuffer: 2 ** 26, stdio: ["pipe", "inherit", "inherit"] });
 
-    return cliCommandExit(0);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -3450,21 +3478,20 @@ program.command("txt-regexp-search").alias("re").description("txt-regexp-search 
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-regexp-search"] = async function (pattern: string, file: string | undefined, opts: { flags: string }) {
-  // TODO: dedent
-    const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    const re = new RegExp(pattern, opts.flags.includes("g") ? opts.flags : `g${opts.flags}`);
-    const matches = [...txt.matchAll(re)];
-    if (matches.length === 0) {
-      logger.info(`not match with ${re}`);
-      return cliCommandExit(1);
-    }
-    const matchesObj = matches.map((match) => {
-      if (match.groups === undefined) return [...match];
-      return match.groups;
-      // ({ ...[...match], ...match.groups }) // { 0: match[0], 1: match[1], ..., ...match.groups }
-    });
-    process.stdout.write(`${JSON.stringify(matchesObj)}\n`);
-    return cliCommandExit(0);
+  const txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  const re = new RegExp(pattern, opts.flags.includes("g") ? opts.flags : `g${opts.flags}`);
+  const matches = [...txt.matchAll(re)];
+  if (matches.length === 0) {
+    logger.info(`not match with ${re}`);
+    return cliCommandExit(1);
+  }
+  const matchesObj = matches.map((match) => {
+    if (match.groups === undefined) return [...match];
+    return match.groups;
+    // ({ ...[...match], ...match.groups }) // { 0: match[0], 1: match[1], ..., ...match.groups }
+  });
+  process.stdout.write(`${JSON.stringify(matchesObj)}\n`);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -3481,17 +3508,16 @@ program.command("txt-replace").alias("rep").description("txt-replace description
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["txt-replace"] = async function (from: string, to: string, file: string | undefined, opts: { maxCount?: number, regexp: boolean, regexpFlags: string }) {
-  // TODO: dedent
-    let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
-    const from2 = opts.regexp ? new RegExp(from, opts.regexpFlags) : from;
-    opts.maxCount ??= Infinity;
-    txt = txt.replaceAll(from2, (substring, ...args) => {
-      // @ts-expect-error
-      if (opts.maxCount-- <= 0) return substring;
-      return to;
-    });
-    process.stdout.write(txt);
-    return cliCommandExit(0);
+  let txt = fs.readFileSync(file ?? "/dev/stdin", "utf8");
+  const from2 = opts.regexp ? new RegExp(from, opts.regexpFlags) : from;
+  opts.maxCount ??= Infinity;
+  txt = txt.replaceAll(from2, (substring, ...args) => {
+    // @ts-expect-error
+    if (opts.maxCount-- <= 0) return substring;
+    return to;
+  });
+  process.stdout.write(txt);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
@@ -3577,18 +3603,13 @@ program.command("z-meta-command-list")
   .action((...args) => cliCmds[args.at(-1).name()](...args));
 
 cliCmds["z-meta-command-list"] = async function (opts: {}) {
-  // TODO: dedent
-    const names = program.commands.map((command) => command.name());
-    process.stdout.write(`${names.join("\n")}\n`);
-    return cliCommandExit(0);
+  const names = program.commands.map((command) => command.name());
+  process.stdout.write(`${names.join("\n")}\n`);
+  return cliCommandExit(0);
 };
 
 // -----------------------------------------------------------------------------
-// main
-
-if (esMain(import.meta) && !process.env.CTS_TEST_CLI) {
-  await cliMain();
-}
+// EOF
 
 // import whyIsNodeRunning from "why-is-node-running";
 // whyIsNodeRunning();

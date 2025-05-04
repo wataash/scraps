@@ -173,7 +173,6 @@ if (0) {
 export function streamShouldColorize(stream: NodeJS.WriteStream): boolean {
   // https://github.com/nodejs/node/blob/v22.13.0/lib/util.js styleText()
   // https://github.com/nodejs/node/blob/v22.13.0/lib/internal/util/colors.js shouldColorize()
-  // @ts-expect-error util.d.ts is wrong
   return util.styleText("reset", "", { stream }) !== "";
 }
 
