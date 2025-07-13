@@ -218,7 +218,7 @@ async function cflmd(
   let txt = fs.readFileSync(file, "utf8");
   cflmdWrite(txts, "0.original.md", txt, false);
 
-  const match = reExecThrowAppError(/^<!--(\r?\n)\[(?<title>[^\]]+)]\((?<url>.+)\)/, txt);
+  const match = reExecThrowAppError(/^<!--(\r?\n)\[(?<title>.+?)]\((?<url>.+)\)(\r?\n)/, txt);
   const { title, url } = match.groups!;
   const cflmdFile: CflmdFile = { path: file, title, url: cflmdParseURL(url) };
 

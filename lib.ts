@@ -475,6 +475,7 @@ if (0) {
 }
 
 /**
+ * _.pick()
  * @param keys obj must have all keys
  */
 export function objectOnlyKey(obj: object, keys: string[], keyOrder: "obj" | "keys" = "obj"): Partial<typeof obj> {

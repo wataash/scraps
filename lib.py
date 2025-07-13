@@ -12,6 +12,7 @@ import asyncio
 import base64
 import codecs
 import collections
+import contextlib
 import dataclasses
 import datetime
 import difflib
@@ -23,6 +24,7 @@ import hashlib
 import heapq
 import inspect
 import io
+import ipaddress
 import itertools
 import json
 import logging
@@ -35,10 +37,12 @@ import select
 import selectors
 import shlex
 import shutil
+import signal
 import socket
 import subprocess
 import sys
 import tempfile
+import termios
 import textwrap
 import threading
 import time
@@ -219,6 +223,24 @@ class MyException(Exception):
 
 
 class CLI:
+    @dataclasses.dataclass(frozen=True, kw_only=True)
+    class ArgsGlobal:
+        parser: argparse.ArgumentParser
+        quiet: int
+
+    args_global: ArgsGlobal
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-q', '--quiet', action='count', default=0, help='-q to suppress debug; -qq to suppress info; -qqq to suppress warn, -qqqq to suppress error')
+    subparsers = parser.add_subparsers(required=True)
+
+    class Cmd:
+        classes = []
+
+        def __init_subclass__(cls, **kwargs):
+            cls.classes.append(cls)
+            cls.add_parser()
+
     class ArgumentDefaultsRawTextHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
         pass
 
@@ -413,3 +435,69 @@ class Str:
         width1 = ((width - len('...') + 1) // 2)
         width2 = ((width - len('...')) // 2)
         return s[:width1] + '...' + s[len(s) - width2:]
+
+
+@contextlib.contextmanager
+def pty_fork(cmd: list[str], ref_exitcode: list[int]) -> typing.Generator[tuple[int, int], None, None]:
+        if len(ref_exitcode) != 0:
+            raise ValueError('ref_exitcode must be empty list')
+        child_pid, ptmx_fd = pty.fork()
+        if child_pid == 0:
+            os.execvp(cmd[0], cmd)
+        try:
+            yield child_pid, ptmx_fd
+        finally:
+            # logger.debug(f'close {ptmx_fd=}')
+            os.close(ptmx_fd)
+            time.sleep(0.1)
+            # logger.info(f'waitpid {child_pid=}')
+            pid_waitstatus = os.waitpid(child_pid, os.WNOHANG)
+            if pid_waitstatus[0] == 0:
+                # TODO: implement waitpid_with_timeout(); timeout まで wait, sleep 1ms, wait, sleep 2ms, wait, sleep 4ms, ...
+                # logger.info(f'SIGTERM waitpid {child_pid=}')
+                os.kill(child_pid, signal.SIGTERM)
+                time.sleep(0.5)
+                pid_waitstatus = os.waitpid(child_pid, os.WNOHANG)
+                if pid_waitstatus[0] == 0:
+                    # logger.info(f'SIGKILL waitpid {child_pid=}')
+                    os.kill(child_pid, signal.SIGKILL)
+                    time.sleep(0.5)
+                    pid_waitstatus = os.waitpid(child_pid, 0)
+            assert pid_waitstatus[0] == child_pid
+            child_exitcode = os.waitstatus_to_exitcode(pid_waitstatus[1])
+            # logger.debug(f'{child_exitcode=}')
+            if child_exitcode < 0:
+                child_exitcode = 128 + -child_exitcode  # convert signal to exit code
+                # logger.debug(f'{child_exitcode=}')
+        # ref_exitcode.clear()
+        ref_exitcode.append(child_exitcode)
+        # return child_exitcode  # contextlib.py: 返り値は捨てられる
+        return
+
+
+@contextlib.contextmanager
+def tty_raw(io: typing.IO = sys.stdin) -> typing.Generator[None, None, None]:
+    if not io.isatty():
+        raise ValueError('io must be a TTY')
+
+    old_tcattr = termios.tcgetattr(io.fileno())
+    tty.setraw(io.fileno())
+
+    # ONLCR (\n -> \r\n)
+    # tty raw の場合効かないっぽい
+    # # ai-generated
+    # tmp = termios.tcgetattr(io.fileno())
+    # tmp[1] |= termios.ONLCR
+    # termios.tcsetattr(io.fileno(), termios.TCSANOW, tmp)
+    # stty でも同様
+    # subprocess.run('stty onlcr', shell=True, check=True, text=True)
+    # stty sane で raw mode が解除されて ONLCR になる
+
+    try:
+        yield
+    finally:
+        termios.tcsetattr(io.fileno(), termios.TCSADRAIN, old_tcattr)
+
+
+def unreachable() -> typing.Never:
+    raise Exception('NOTREACHED')
