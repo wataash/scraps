@@ -45,13 +45,13 @@ import fetchSync from "sync-fetch";
 const fetchSync_ = fetchSync; // avoid unused-removal
 import * as tmp from "tmp";
 
-import { Logger } from "./logger.js";
-import * as libNode from "./lib-node.js";
 import * as lib from "./lib.js";
+import * as libNode from "./lib-node.js";
 import { CLI } from "./lib-node.js";
+import { Logger } from "./logger.js";
 
 const __filename = url.fileURLToPath(import.meta.url);
-const progname = path.basename(__filename);
+export const progname = path.basename(__filename);
 export const logger = new Logger();
 export const program = new commander.Command();
 
@@ -334,7 +334,7 @@ export function regExpReplacerEscape(replacerString: string): string {
 // c.js aTemplate --z-dangerous-eval 'child_process.execSync(`NODE_OPTIONS=--inspect-wait c.js aTemplate`, { stdio: ["pipe", "inherit", "inherit"] })'
 // c.js aTemplate --z-dangerous-eval 'child_process.execSync(`NODE_OPTIONS=--inspect-wait c.js aTemplate`, { input: "xxx" })'
 // echo xxx | c.js aTemplate --z-dangerous-eval 'child_process.execSync(`NODE_OPTIONS=--inspect-wait c.js aTemplate`, { stdio: "inherit" })'
-async function readStdin(): Promise<string> {
+export async function readStdin(): Promise<string> {
   if (0) {
     return fs.readFileSync(`/dev/stdin`, "utf8");
     // on Linux, this throws ENXIO when executed from child_process with fd0:pipe:

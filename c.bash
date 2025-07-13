@@ -3258,6 +3258,30 @@ if false; then
   # remove trailing spaces (bad)
   foo="  foo  " && echo "|${foo% }|"            # |  foo | 1個しか消せない
   foo="  foo  " && echo "|${foo%[[:space:]]}|"  # |  foo | 1個しか消せない
+
+  # remove trailing slashes
+  false && {
+    s=""             && while [[ $s != "${s%/}" ]]; do s="${s%/}"; done && declare -p s  # declare -- s=""
+    s="/"            && while [[ $s != "${s%/}" ]]; do s="${s%/}"; done && declare -p s  # declare -- s=""  (!)
+    s="//"           && while [[ $s != "${s%/}" ]]; do s="${s%/}"; done && declare -p s  # declare -- s=""  (!)
+    s="/etc"         && while [[ $s != "${s%/}" ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/etc"
+    s="/etc/"        && while [[ $s != "${s%/}" ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/etc"
+    s="/etc//"       && while [[ $s != "${s%/}" ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/etc"
+    s="/usr/local"   && while [[ $s != "${s%/}" ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/usr/local"
+    s="/usr/local/"  && while [[ $s != "${s%/}" ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/usr/local"
+    s="/usr/local//" && while [[ $s != "${s%/}" ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/usr/local"
+    # leave "/"
+    s=""             && while [[ $s != "${s%/}" && $s != / ]]; do s="${s%/}"; done && declare -p s  # declare -- s=""
+    s="/"            && while [[ $s != "${s%/}" && $s != / ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/"  (!)
+    s="//"           && while [[ $s != "${s%/}" && $s != / ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/"  (!)
+    s="/etc"         && while [[ $s != "${s%/}" && $s != / ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/etc"
+    s="/etc/"        && while [[ $s != "${s%/}" && $s != / ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/etc"
+    s="/etc//"       && while [[ $s != "${s%/}" && $s != / ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/etc"
+    s="/usr/local"   && while [[ $s != "${s%/}" && $s != / ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/usr/local"
+    s="/usr/local/"  && while [[ $s != "${s%/}" && $s != / ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/usr/local"
+    s="/usr/local//" && while [[ $s != "${s%/}" && $s != / ]]; do s="${s%/}"; done && declare -p s  # declare -- s="/usr/local"
+  }
+
   # set
   set -- "a/b/c"
   echo "${1#a}"    #  /b/c  removes: ^a
@@ -3301,6 +3325,7 @@ if false; then
   false ${parameter@u} # The expansion is a string that is the value of parameter with the first character converted to uppercase, if it is alphabetic.
   false ${parameter@L} # The expansion is a string that is the value of parameter with uppercase alphabetic characters converted to lowercase.
   false ${parameter@Q} # The expansion is a string that is the value of parameter quoted in a format that can be reused as input.
+    # find also: %q
   false ${parameter@E} # The expansion is a string that is the value of parameter with backslash escape sequences expanded as with the $'…' quoting mechanism.
   false ${parameter@P} # The expansion is a string that is the result of expanding the value of parameter as if it were a prompt string (see Controlling the Prompt).
   false ${parameter@A} # The expansion is a string in the form of an assignment statement or declare command that, if evaluated, will recreate parameter with its attributes and value.
@@ -4494,6 +4519,27 @@ sh -c "${shell_arguments[*]@Q}"
 sh -c "${*@Q}"  # not tested
 sh -c "${@@Q}"  # not tested
 
+echo "$(printf " %q" "$@")"  # '"' "foo bar" ->  \" foo\ bar
+
+# ------------------------------------------------------------------------------
+# z scraps - arguments - shell-arguments array to sh -c - script re-exec
+
+if [ -z "$C_BASH_IN_SCRIPT" ]; then
+  echo -e "\e[32m$(date +"%F %T") $0$([ "$#" -gt 0 ] && printf " %q" "$@")\e[0m"  "[tty:$(tty)] script"
+  export C_BASH_IN_SCRIPT=1
+  mkdir -pv /tmp/$USER/c.bash.d/
+  (set -x; script -efq -c "$0$(BASH_XTRACEFD=$fd_devnull set +x; [ "$#" -gt 0 ] && printf " %q" "$@")" /tmp/$USER/c.bash.d/script.out) {fd_devnull}>/dev/null
+  exit $?
+fi
+echo -e "\e[32m$(date +"%F %T") $0$([ "$#" -gt 0 ] && printf " %q" "$@")\e[0m"  "[tty:$(tty)] in script, logging to /tmp/$USER/c.bash.d/script.out"
+
+: <<'TESTS'
+key.bash     # + script -efq -c /home/wsh/sh/key.bash /tmp/$USER/c.bash.d/script.out
+key.bash ""  # + script -efq -c '/home/wsh/sh/key.bash '\'''\''' /tmp/$USER/c.bash.d/script.out
+key.bash ' !"#$%&'\''()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
+TESTS
+# print_argv.bash "$@"
+
 # ------------------------------------------------------------------------------
 # z scraps - bash - argv - print argv (declare -p tmp=($@) "${@}")
 
@@ -5013,6 +5059,31 @@ done
 if [ "$(uname -s)" = 'Darwin' ]; then
   :
 fi
+
+# ------------------------------------------------------------------------------
+# z scraps - pipe stderr
+
+# pipe stderr
+# pipe to stderr
+# stderr pipe
+# stderr to pipe
+# tee sed
+
+cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[31m[foo] /" -e "s/\$/\x1b[0m/") | cat
+cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[32m[foo] /" -e "s/\$/\x1b[0m/") | cat
+cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[33m[foo] /" -e "s/\$/\x1b[0m/") | cat
+cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[34m[foo] /" -e "s/\$/\x1b[0m/") | cat
+cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[35m[foo] /" -e "s/\$/\x1b[0m/") | cat
+cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[36m[foo] /" -e "s/\$/\x1b[0m/") | cat
+cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[37m[foo] /" -e "s/\$/\x1b[0m/") | cat
+cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[31m[foo] \1\x1b[m/') | cat
+cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[32m[foo] \1\x1b[m/') | cat
+cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[33m[foo] \1\x1b[m/') | cat
+cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[34m[foo] \1\x1b[m/') | cat
+cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[35m[foo] \1\x1b[m/') | cat
+cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[36m[foo] \1\x1b[m/') | cat
+cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[37m[foo] \1\x1b[m/') | cat
+cat | tee /dev/stderr 2> >(sed -Ez 's/\n/ NL /'g >&2; echo >&2)        | cat
 
 # ------------------------------------------------------------------------------
 # z scraps - self path
