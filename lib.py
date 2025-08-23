@@ -245,6 +245,50 @@ class CLI:
         pass
 
     @staticmethod
+    def env_required(env_name: str) -> dict[str, Any]:
+        # str を継承しておくことで 'default': DefaultValueStr('name') によって 'type': type_fn を呼び出せる
+        class DefaultValueStr(str):
+            def __repr__(self):
+                return f'DefaultValueStr({env_name!r})'
+
+            def __str__(self):
+                return f'[env: {env_name}]'
+
+        # print(f'{DefaultValueStr(env_name)} | {DefaultValueStr(env_name)=}')  # [env: PASS] | DefaultValueStr(env_name)=DefaultValueStr('PASS')
+
+        def type_fn(x: str | DefaultValueStr) -> str:
+            # 'required': env_name not in os.environ により、--opt も env も与えられない場合ここに到達しない
+            if isinstance(x, DefaultValueStr):
+                # --opt is not given
+                assert env_name in os.environ
+                return os.environ[env_name]
+            # --opt=x
+            return x
+
+        return {'default': DefaultValueStr(), 'type': type_fn, 'required': env_name not in os.environ}
+
+    @staticmethod
+    def env_optional(env_name: str) -> dict[str, Any]:
+        # str を継承しておくことで 'default': DefaultValueStr('name') によって 'type': type_fn を呼び出せる
+        class DefaultValueStr(str):
+            def __repr__(self):
+                return f'DefaultValueStr({env_name!r})'
+
+            def __str__(self):
+                return f'[env: {env_name}]'
+
+        # print(f'{DefaultValueStr(env_name)} | {DefaultValueStr(env_name)=}')  # [env: PASS] | DefaultValueStr(env_name)=DefaultValueStr('PASS')
+
+        def type_fn(x: str | DefaultValueStr) -> str | None:
+            if isinstance(x, DefaultValueStr):
+                # --opt is not given
+                return os.environ.get(env_name, None)
+            # --opt=x
+            return x
+
+        return {'default': DefaultValueStr(), 'type': type_fn, 'required': False}
+
+    @staticmethod
     def validator[T](typer: Callable[[str], T], validate: Callable[[T], bool], errmsg: str) -> Callable[[str], T]:
         r"""
         https://docs.python.org/ja/3/library/argparse.html

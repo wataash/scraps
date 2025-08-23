@@ -2827,64 +2827,51 @@ fi
 
 # coproc [NAME] command [redirections]
 # coproc NAME { command; }
-coproc sleep_coproc { sleep 3; }
-jobs  # coproc sleep_coproc { sleep 10; } &
-args "${sleep_coproc[@]}" "$sleep_coproc_PID"  # 63 60 202953
-wait "$sleep_coproc_PID"
+jobs
+kill $(jobs -p)
 
-# read/write
-coproc color_coproc { sed -u -e 's/^/\x1b[32m/' -e 's/$/\x1b[0m/'; }
+coproc sleep_coproc { sleep 3; }
+jobs  # coproc sleep_coproc { sleep 3; } &
+declare -p sleep_coproc sleep_coproc_PID  # declare -a sleep_coproc=([0]="63" [1]="60")  declare -- sleep_coproc_PID="202953"
+wait "$sleep_coproc_PID"
+# 終了するとunsetされる
+declare -p sleep_coproc sleep_coproc_PID  # sleep_coproc: not found  sleep_coproc_PID: not found
+
+type args  # args is /home/wsh/bin/args
+args "${sleep_coproc[@]}" "$sleep_coproc_PID"  # 63 60 202953
+
+# write/read(cat)
+coproc color_coproc { timeout 1 sed -Eu -e 's/^/\x1b[32m/' -e 's/$/\x1b[0m/'; }
 echo "line1" >&"${color_coproc[1]}"
 echo "line2" >&"${color_coproc[1]}"
-# cat <&"${color_coproc[0]}"  # line1 line2 (block)
-read -r -u "${color_coproc[0]}" line
-echo "$line"
-read -r -u "${color_coproc[0]}" line
-echo "$line"
-read -r -u "${color_coproc[0]}" line  # block
+cat <&"${color_coproc[0]}"  # line1 line2 (block; timeout 1 がないとデッドロック)
+
+# read(cat &)/write できない
+coproc color_coproc { sed -Eu -e 's/^/\x1b[32m/' -e 's/$/\x1b[0m/'; }
+cat <&"${color_coproc[0]}" &  # bash: "${color_coproc[0]}": Bad file descriptor  https://stackoverflow.com/questions/10867153/background-process-redirect-to-coproc
+echo "line1" >&"${color_coproc[1]}"
+echo "line2" >&"${color_coproc[1]}"
+cat <&"${color_coproc[0]}" &  # bash: "${color_coproc[0]}": Bad file descriptor
+timeout 1 cat <&"${color_coproc[0]}"  # line1 line2  & なしなら行ける
+exec {color_coproc[1]}>&-  # close write end
+
+false && {
+  # read fd: -u fd
+  read -r -u "${color_coproc[0]}" line
+}
 
 # wait すると read/write 不可
-coproc cp_echo { echo line1; echo line2; }
-wait
+coproc cp_echo { echo line1; echo line2; sleep 1; }
+wait "${cp_echo_PID}"
+# declare -p cp_echo cp_echo_PID  # bash: declare: cp_echo: not found  bash: declare: cp_echo_PID: not found
 echo "line1" >&"${cp_echo[1]}"  # bash: "${cp_echo[1]}": Bad file descriptor
 read -r -u "${cp_echo[0]}" line  # bash: read: : invalid file descriptor specification
 cat <&"${cp_echo[0]}"  # bash: "${cp_echo[0]}": Bad file descriptor
 
-# exit 後は read 1回のみ
-coproc cp_echo { echo line1; echo line2; }
-sleep 0.1
-# echo "line1" >&"${cp_echo[1]}"  # bash: "${cp_echo[1]}": Bad file descriptor; bashのBUG?で141でbashが終了する
-read -r -u "${cp_echo[0]}" line  # [1]+  Done                    coproc cp_echo { echo line1; echo line2; }
-echo "$line"  # line1
-read -r -u "${cp_echo[0]}" line  # bash: read: : invalid file descriptor specification
-cat <&"${cp_echo[0]}"  # bash: "${cp_echo[0]}": Bad file descriptor
-
-# exit 後の出力は cat でまとめて取る
-coproc cp_echo { echo line1; echo line2; }
-sleep 0.1
-cat <&"${cp_echo[0]}"  # line 1 line 2
-#[1]+  Done                    coproc cp_echo { echo line1; echo line2; }
-
-# while read ができない？ これは致命的だ
-coproc cp_echo { echo line1; echo line2; }
-sleep 0.1
-while IFS= read -r -u "${cp_echo[0]}" line; do  # 1発目の read で EBADF?
-  echo "$line"  # NOTREACHED?
-done
-#[1] 1430293
-#[1]+  Done                    coproc cp_echo { echo line1; echo line2; }
-#bash: read: : invalid file descriptor specification
-
-cat <&"${cp_echo[0]}"  # line 1 line 2
-#[1]+  Done                    coproc cp_echo { echo line1; echo line2; }
-
 # without NAME -> COPROC (これは使わない)
-coproc sleep 9999
-jobs  # coproc COPROC sleep 9999 &
-args "${COPROC[@]}" "$COPROC_PID"  # 63 60 202953
-# COPROC 上書き
-coproc sleep 9998  # bash: warning: execute_coproc: coproc [202953:COPROC] still exists
-args "${COPROC[@]}" "$COPROC_PID"  # 63 60 202953
+coproc sleep 3
+jobs  # coproc COPROC sleep 3 &
+declare -p COPROC COPROC_PID  # declare -a COPROC=([0]="63" [1]="60")  declare -- COPROC_PID="202953"
 
 # 3.2.7 GNU Parallel
 
@@ -4520,6 +4507,9 @@ sh -c "${*@Q}"  # not tested
 sh -c "${@@Q}"  # not tested
 
 echo "$(printf " %q" "$@")"  # '"' "foo bar" ->  \" foo\ bar
+
+ssh localhost "$(printf " %q" /home/wsh/bin/args "arg 1" "" "'arg3'" ' !"#$%&'\''()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~')"
+ssh localhost "$(printf " %q" printf " %q" "arg 1" "" "'arg3'" ' !"#$%&'\''()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~')"
 
 # ------------------------------------------------------------------------------
 # z scraps - arguments - shell-arguments array to sh -c - script re-exec

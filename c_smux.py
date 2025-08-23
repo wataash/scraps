@@ -609,3 +609,6 @@ class smux_server(CLI.Cmd):
         assert os.waitstatus_to_exitcode(pid_waitstatus[1]) == 128 + signal.SIGHUP  # 129
 
         breakpoint_ = 1
+
+# -----------------------------------------------------------------------------
+# EOF
