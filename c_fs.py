@@ -347,8 +347,8 @@ class fs_sha1(CLI.Cmd):
                 logger.debug(f'skip directory: {m['path']=}')
                 del line, m
                 continue
-            if not m['path'].startswith('home/wsh/'):
-                logger.warning(f'{args.files_txt}: not start with "home/wsh/": {m['path']=}')
+            if not m['path'].startswith('home/'):
+                logger.warning(f'{args.files_txt}: not start with "home/": {m['path']=}')
                 del line, m
                 continue
 

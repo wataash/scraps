@@ -112,6 +112,114 @@ import c_fs
 
 
 # -----------------------------------------------------------------------------
+# command: git_commit_msg_similarities
+
+# noinspection PyPep8Naming
+class git_commit_msg_similarities(CLI.Cmd):
+    @dataclasses.dataclass(frozen=True, kw_only=True)
+    class Args:
+        dir: str
+        branch_a: str
+        branch_b: str
+        n: int
+
+    @classmethod
+    def add_parser(cls):
+        subparser = CLI.subparsers.add_parser('git_commit_msg_similarities', help='', formatter_class=CLI.ArgumentDefaultsRawTextHelpFormatter)
+        subparser.add_argument('--dir', required=True)
+        subparser.add_argument('--branch_a', required=True)
+        subparser.add_argument('--branch_b', required=True)
+        subparser.add_argument('--n', '--print-topmost', type=int, default=5, help='number of top similar commits to show')
+        subparser.set_defaults(func=lambda args: cls(**args))
+
+    def __init__(self, **kwargs):
+        self.args = self.Args(**kwargs)
+        self.__class__.main(self.args)
+
+    @dataclasses.dataclass(frozen=True, kw_only=True)
+    class Commit:
+        sha: str
+        merge: str | None
+        author: str | None
+        date: str
+        msg: str
+
+    @staticmethod
+    def main(args: 'git_commit_msg_similarities.Args') -> None:
+        logger.debug(f'{args=}')
+
+        cmd = f'git -C {shlex.quote(args.dir)} log {shlex.quote(args.branch_a)}'
+        logger.debug(cmd)
+        completed_process = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, text=True)
+        completed_process.stdout += '\n'
+        matches = [*re.finditer(r'''
+^commit\ (?P<sha>[0-9a-f]+)(\r?\n)
+(?P<merge>Merge: .+(\r?\n))?
+Author:\ (?P<author>.+)(\r?\n)
+Date:\ +(?P<date>.+)(\r?\n)
+(\r?\n)
+(?P<msg>(^\ {4}.*(\r?\n))+)
+(\r?\n)
+(?=^commit|\Z)
+''', completed_process.stdout, re.MULTILINE | re.VERBOSE)]
+        for i, m in [*enumerate(matches)][1:]:
+            assert matches[i - 1].end() == m.start(), f'\n{matches[i - 1]=}\n{m=}'
+        assert len(completed_process.stdout) == sum(len(m[0]) for m in matches), f'\n{len(completed_process.stdout)=}\n{sum(len(m[0]) for m in matches)=}\nmatches:\n{'==='.join(m[0] for m in matches)}'
+
+        commits_a = [
+            git_commit_msg_similarities.Commit(
+                sha=m['sha'],
+                merge=m['merge'] if m['merge'] else None,
+                author=m['author'] if m['author'] else None,
+                date=m['date'],
+                msg=re.sub(r'^ {4}', '', m['msg'], flags=re.MULTILINE),  # dedent
+            )
+            for m in matches
+        ]
+
+        cmd = f'git -C {shlex.quote(args.dir)} log {shlex.quote(args.branch_b)}'
+        logger.debug(cmd)
+        completed_process = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, text=True)
+        completed_process.stdout += '\n'
+        matches = [*re.finditer(r'''
+^commit\ (?P<sha>[0-9a-f]+)(\r?\n)
+(?P<merge>Merge: .+(\r?\n))?
+Author:\ (?P<author>.+)(\r?\n)
+Date:\ +(?P<date>.+)(\r?\n)
+(\r?\n)
+(?P<msg>(^\ {4}.*(\r?\n))+)
+(\r?\n)
+(?=^commit|\Z)
+''', completed_process.stdout, re.MULTILINE | re.VERBOSE)]
+        for m1, m2 in itertools.pairwise(matches):
+            assert m1.end() == m2.start(), f'\n{m1=}\n{m2=}'
+        assert len(completed_process.stdout) == sum(len(m[0]) for m in matches), f'\n{len(completed_process.stdout)=}\n{sum(len(m[0]) for m in matches)=}\nmatches:\n{'==='.join(m[0] for m in matches)}'
+
+        commits_b = [
+            git_commit_msg_similarities.Commit(
+                sha=m['sha'],
+                merge=m['merge'] if m['merge'] else None,
+                author=m['author'] if m['author'] else None,
+                date=m['date'],
+                msg=re.sub(r'^ {4}', '', m['msg'], flags=re.MULTILINE),  # dedent
+            )
+            for m in matches
+        ]
+
+        for i_a, com_a in enumerate(commits_a):
+            logger.info(f'[{i_a}/{len(commits_a)=}] {com_a.sha=} {com_a.msg=}')
+            tuples_ratio_im_comm = []
+            for i_b, com_b in enumerate(commits_b):
+                seq_matcher = difflib.SequenceMatcher(None, com_a.msg, com_b.msg)
+                tuples_ratio_im_comm.append((seq_matcher.ratio(), i_b, com_b))
+            tuples_ratio_im_comm.sort(reverse=True, key=lambda x: x[0])
+            for (ratio, i_b, com_b) in tuples_ratio_im_comm[:args.n]:
+                logger.debug(f'[{i_b}/{len(commits_b)=}] {ratio=} {com_b.sha=} {com_b.msg=}')
+
+        sys.exit(0)
+
+
+# -----------------------------------------------------------------------------
 # command: smux
 
 import c_smux
