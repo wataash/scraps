@@ -1047,7 +1047,7 @@ async function cflmdProcess3HTMLPostProcess(args: CflmdProcessArgs): Promise<str
 function cflmdProcess3HTMLPostProcessCode(txt: string): string {
   // <p>@__cflmd:codeBlock:none:Y29kZV9ibG9ja19mZW5jZWQgISIjJCUmJygpKissLS4vOjs8PT4/QFtcXV5fYHt8fT0KY29kZV9ibG9ja19mZW5jZWQgbGluZSAy</p>
   let match;
-  while ((match = txt.match(/<p>@__cflmd:codeBlock:(?<lang>[^:]+):(?<code>.+?)<\/p>/)) !== null) {
+  while ((match = txt.match(/<p>@__cflmd:codeBlock:(?<lang>[^:]+):(?<code>.*?)<\/p>/)) !== null) {
     assert.ok(match.groups !== undefined);
 
     const cflLang = {
