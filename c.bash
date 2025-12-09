@@ -5059,21 +5059,22 @@ fi
 # stderr to pipe
 # tee sed
 
-cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[31m[foo] /" -e "s/\$/\x1b[0m/") | cat
-cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[32m[foo] /" -e "s/\$/\x1b[0m/") | cat
-cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[33m[foo] /" -e "s/\$/\x1b[0m/") | cat
-cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[34m[foo] /" -e "s/\$/\x1b[0m/") | cat
-cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[35m[foo] /" -e "s/\$/\x1b[0m/") | cat
-cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[36m[foo] /" -e "s/\$/\x1b[0m/") | cat
-cat | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[37m[foo] /" -e "s/\$/\x1b[0m/") | cat
-cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[31m[foo] \1\x1b[m/') | cat
-cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[32m[foo] \1\x1b[m/') | cat
-cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[33m[foo] \1\x1b[m/') | cat
-cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[34m[foo] \1\x1b[m/') | cat
-cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[35m[foo] \1\x1b[m/') | cat
-cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[36m[foo] \1\x1b[m/') | cat
-cat | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[37m[foo] \1\x1b[m/') | cat
-cat | tee /dev/stderr 2> >(sed -Ez 's/\n/ NL /'g >&2; echo >&2)        | cat
+echo 123 | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[31m[foo] /" -e "s/\$/\x1b[0m/" >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[32m[foo] /" -e "s/\$/\x1b[0m/" >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[33m[foo] /" -e "s/\$/\x1b[0m/" >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[34m[foo] /" -e "s/\$/\x1b[0m/" >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[35m[foo] /" -e "s/\$/\x1b[0m/" >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[36m[foo] /" -e "s/\$/\x1b[0m/" >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu -e "s/^/\x1b[37m[foo] /" -e "s/\$/\x1b[0m/" >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[31m[foo] \1\x1b[m/' >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[32m[foo] \1\x1b[m/' >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[33m[foo] \1\x1b[m/' >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[34m[foo] \1\x1b[m/' >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[35m[foo] \1\x1b[m/' >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[36m[foo] \1\x1b[m/' >&2) | sed -E 's/^/[stdout] /'
+echo 123 | tee /dev/stderr 2> >(sed -Eu 's/^(.*)$/\x1b[37m[foo] \1\x1b[m/' >&2) | sed -E 's/^/[stdout] /'
+echo $'123\n456' | tee /dev/stderr 2> >(sed -Ez 's/\n/ NL /'g >&2; echo >&2) | sed -E 's/^/[stdout] /'
+echo $'123\n456' | tee /dev/stderr 2> >(sed -Ez 's/\n/\\n/g' >&2; echo >&2) | sed -E 's/^/[stdout] /'
 
 # ------------------------------------------------------------------------------
 # z scraps - self path

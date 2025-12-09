@@ -149,7 +149,7 @@ def make_int_range_parser(name: str, min_val: int, max_val: int):
 def main() -> None:
     parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsRawTextHelpFormatter)
     parser.add_argument('--title')
-    parser.add_argument('--key', choices=('C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'))
+    parser.add_argument('--key', choices=('C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'))
     parser.add_argument('--intervs', nargs='+', choices=pairs_interv_index.keys(), help=intervs_help)
     parser.add_argument('--fret_count', type=lambda v: make_int_range_parser('fret_count', 1, 25)(v), help='XXX: inaccurate')
     parser.add_argument('--fret_width', type=lambda v: make_int_range_parser('fret_width', 40, 120)(v), help='XXX: inaccurate')
@@ -200,16 +200,20 @@ def main2(playwright: Playwright, args: argparse.Namespace) -> None:
         page.locator('div.tab_title').get_by_text('Scales/Arpeggios', exact=True).click(timeout=1000)
         key_num = {
             'C': '3',
+            'C#': '4',
             'Db': '4',
             'D': '5',
+            'D#': '6',
             'Eb': '6',
             'E': '7',
             'F': '8',
             'F#': '9',
             'Gb': '9',
             'G': '10',
+            'G#': '11',
             'Ab': '11',
             'A': '0',
+            'A#': '1',
             'Bb': '1',
             'B': '2',
         }[args.key]
@@ -278,14 +282,14 @@ def main2(playwright: Playwright, args: argparse.Namespace) -> None:
         # page.locator('input#fretWidth').fill(str(args.fret_width), timeout=1000)  # not work; needs drag
         # Trigger UI update by simulating a drag that reflects the actual value
         box = page.locator('input#fretWidth').bounding_box()
-        if box:
-            # Calculate drag position based on fret_width value (range: 40-120)
-            min_, max_ = 40, 120
-            ratio = (args.fret_width - min_) / (max_ - min_)
-            page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
-            page.mouse.down()
-            page.mouse.move(box['x'] + box['width'] * ratio, box['y'] + box['height'] / 2)  # XXX: inaccurate
-            page.mouse.up()
+        assert box is not None
+        # Calculate drag position based on fret_width value (range: 40-120)
+        min_, max_ = 40, 120
+        ratio = (args.fret_width - min_) / (max_ - min_)
+        page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+        page.mouse.down()
+        page.mouse.move(box['x'] + box['width'] * ratio, box['y'] + box['height'] / 2)  # XXX: inaccurate
+        page.mouse.up()
 
     # OPTIONS > Appearance > FRETBOARD STYLES: 3
     page.locator('div.tab_title').get_by_text('Appearance', exact=True).click(timeout=1000)
