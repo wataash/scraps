@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2025 Wataru Ashihara <wataash0607@gmail.com>
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 Wataru Ashihara <wataash0607@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
+r"""
 """
+
+epilog = r'''
 usage:
 pip install playwright
 playwright install
@@ -34,7 +37,7 @@ python /home/wsh/qpy/tespy/tespy/pw/pw_guitar.py --title='A♭m7' --key=Ab --int
 python /home/wsh/qpy/tespy/tespy/pw/pw_guitar.py --title='A♭Ø' --key=Ab --intervs .1 ♭9 9 .♭3 3 11 .♭5 5 ♭13 13 .♭7 Δ7 --out=/tmp/abhdim.png
 python /home/wsh/qpy/tespy/tespy/pw/pw_guitar.py --title='A♭o' --key=Ab --intervs .1 ♭9 9 .♭3 3 11 .♭5 5 ♭13 .𝄫7 ♭7 Δ7 --out=/tmp/abdim.png
 python /home/wsh/qpy/tespy/tespy/pw/pw_guitar.py --title='A♭alt.' --key=Ab --intervs .1 .♭9 9 .♯9 .3 11 .♯11 5 .♭13 13 .♯13 Δ7 --out=/tmp/abalt.png
-"""
+'''
 
 import argparse
 import asyncio
@@ -61,6 +64,7 @@ import random
 import re
 import select
 import selectors
+import signal
 import shlex
 import shutil
 import subprocess
@@ -146,7 +150,10 @@ def make_int_range_parser(name: str, min_val: int, max_val: int):
     return parser
 
 
-def main() -> None:
+def main() -> int:
+    parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsRawTextHelpFormatter, epilog=epilog)
+    subparsers = parser.add_subparsers(dest='subcommand_name', required=True)
+
     parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsRawTextHelpFormatter)
     parser.add_argument('--title')
     parser.add_argument('--key', choices=('C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'))
@@ -154,13 +161,14 @@ def main() -> None:
     parser.add_argument('--fret_count', type=lambda v: make_int_range_parser('fret_count', 1, 25)(v), help='XXX: inaccurate')
     parser.add_argument('--fret_width', type=lambda v: make_int_range_parser('fret_width', 40, 120)(v), help='XXX: inaccurate')
     parser.add_argument('--out', help='output png file path')
+
     args = parser.parse_args()
-
+    logger.debug(f'{args=}')
     with sync_playwright() as playwright:
-        main2(playwright, args)
+        return main2(playwright, args)
 
 
-def main2(playwright: Playwright, args: argparse.Namespace) -> None:
+def main2(playwright: Playwright, args: argparse.Namespace) -> int:
     browser = playwright.chromium.connect_over_cdp('http://localhost:59222')
     assert len(browser.contexts) == 1
     context = browser.contexts[0]
@@ -172,7 +180,7 @@ def main2(playwright: Playwright, args: argparse.Namespace) -> None:
     else:
         raise Exception('tab https://www.editor.guitarscientist.com/new not found')
 
-    # page.pause(); sys.exit(0)
+    # page.pause(); return 0
 
     # open NOTATION
     if 'selected' not in page.locator('div[open_id="automatic_notation"]').get_attribute('class'):
@@ -308,7 +316,8 @@ def main2(playwright: Playwright, args: argparse.Namespace) -> None:
         # page.locator('div.fretboard').locator('..').highlight()
         page.locator('div.fretboard').locator('..').screenshot(path=args.out, timeout=1000)
 
+    return 0
+
 
 if __name__ == '__main__':
-    main()
-    sys.exit(0)
+    raise SystemExit(main())

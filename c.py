@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025 Wataru Ashihara <wataash0607@gmail.com>
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026 Wataru Ashihara <wataash0607@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -109,6 +109,7 @@ class a_template(CLI.Cmd):
 # command: fs
 
 import c_fs
+import c_.fs_sha1
 
 
 # -----------------------------------------------------------------------------
