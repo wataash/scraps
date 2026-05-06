@@ -7,7 +7,7 @@ r"""
 
 epilog = r'''
 usage:
-pip install playwright
+pip install -U playwright
 playwright install
 google-chrome --remote-debugging-port=59222 --user-data-dir=/var/tmp/pw.59222/ https://www.editor.guitarscientist.com/new
 python /home/wsh/qpy/tespy/tespy/pw/pw_guitar.py --help
