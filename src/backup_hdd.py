@@ -1,4 +1,4 @@
-#!/home/wsh/opt_/pyvenv2/bin/python
+#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 Wataru Ashihara <wataash0607@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
@@ -80,10 +80,12 @@ EXCLUDES = [
     '/home/*/.cache/',
     '/home/*/.cargo/registry/',
     '/home/*/.ccache/',
+    '/home/*/.codex/tmp/arg0/',
     '/home/*/.config/code-oss-dev/',
     '/home/*/.config/Code/',
     '/home/*/.config/google-chrome/',
     '/home/*/.config/JetBrains/',  # home/wsh/.config/JetBrains/WebStorm2024.2/settingsSync/.git/objects/ce/534c63d654de85acee9af5cfbac56d0067d802
+    '/home/*/.dropbox/',
     '/home/*/.gradle/',
     '/home/*/.gradle/caches/',
     '/home/*/.java/',
@@ -208,12 +210,12 @@ def build_backup_commands(
     hostname_target = f'{hostname}.{target}'
     match hostname_target:
         case 'wsh24.e14' | 'wsh24.e15':
-            target_r = f'{target}/w24r'
+            target_r = f'{target}/r1/r2/w24r'
             logger.info(f'{hostname} -> {target_r}/')
-            # no -S  : du -h /mnt.e14/w24r/home/wsh/20240907_x24_sda.dd  # 239G	/mnt.e14/w24r/home/wsh/20240907_x24_sda.dd
-            # -S     : du -h /mnt.e14/w24r/home/wsh/20240907_x24_sda.dd  # 239G	/mnt.e14/w24r/home/wsh/20240907_x24_sda.dd
-            # rm, -S : du -h /mnt.e14/w24r/home/wsh/20240907_x24_sda.dd  # 33G	/mnt.e14/w24r/home/wsh/20240907_x24_sda.dd
-            #          du -h ~/20240907_x24_sda.dd                       # 22G	/home/wsh/20240907_x24_sda.dd  # zfs の方が sparse file の効率いいのかな
+            # no -S  : du -h /mnt.e14/r1/r2/w24r/home/wsh/20240907_x24_sda.dd  # 239G	/mnt.e14/r1/r2/w24r/home/wsh/20240907_x24_sda.dd
+            # -S     : du -h /mnt.e14/r1/r2/w24r/home/wsh/20240907_x24_sda.dd  # 239G	/mnt.e14/r1/r2/w24r/home/wsh/20240907_x24_sda.dd
+            # rm, -S : du -h /mnt.e14/r1/r2/w24r/home/wsh/20240907_x24_sda.dd  # 33G	/mnt.e14/r1/r2/w24r/home/wsh/20240907_x24_sda.dd
+            #          du -h ~/20240907_x24_sda.dd                             # 22G	/home/wsh/20240907_x24_sda.dd  # zfs の方が sparse file の効率いいのかな
             commands_by_op = {
                 1: rsync_cmd(target=target, target_r=target_r, checksum=checksum, bwlimit=bwlimit, rsync_opts=['--delete', *exclude_opts(EXCLUDES_GENERIC), *include_opts(IMPORTANT_FILES), '--exclude=*']),
                 2: rsync_cmd(target=target, target_r=target_r, checksum=checksum, bwlimit=bwlimit, rsync_opts=['--delete', '--delete-excluded', *exclude_opts(EXCLUDES), *exclude_opts(EXCLUDES_GENERIC)]),

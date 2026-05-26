@@ -1051,34 +1051,6 @@ function  aTxtParseTemplate(txt: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// command - countdown
-
-program.command("countdown").description("countdown description")
-  .addArgument(new commander.Argument("<duration>", "e.g. 300, 3hour 4min 5sec (GNU date(1) style)").argParser(CLI.parseDuration))
-  // @ts-expect-error
-  .action((...args) => cliCmds[args.at(-1).name()](...args));
-
-cliCmds["countdown"] = async function countdown(
-  duration: number,
-  opts: {
-  },
-) {
-  let someOutputted = false;
-  while (duration > 0) {
-    if (duration === 1) {
-      process.stdout.write("1");
-    } else {
-      process.stdout.write(`${duration} `);
-    }
-    someOutputted = true;
-    duration--;
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  someOutputted && process.stdout.write("\n");
-  return cliCommandExit(0);
-}
-
-// -----------------------------------------------------------------------------
 // command - exec-gdbproxy
 
 program.command("exec-gdbproxy").description("exec-gdbproxy description")

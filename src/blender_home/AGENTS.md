@@ -1,0 +1,5 @@
+- Blender は /snap/bin/blender。Blender MCP で操作できる。
+- このコードのバグ等で、Blender が落ちることがある。mcp で疎通が取れなくなったら、プロセスが落ちていることを疑い、必要に応じて /snap/bin/blender を再起動せよ。
+- bpy コードには対応する GUI 操作をコメントせよ。例: `D.collections.new(...)  # M > New Collection`
+- PyCharm でコードジャンプできるように、fake-bpy-module をインストール済み
+- PyCharm デバッガでステップ中に GUI が更新されない場合は、Watches に `__import__('bpy').ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)` を登録する。pydevd が breakpoint でメインスレッドを止めると Blender のイベントループも止まるため、この operator で同期的に 1 描画サイクルを走らせる必要がある。手動でいいときは Alt+F8 (Evaluate Expression) に同じ式を貼る。`blender_home_.py` の `_redraw()` ヘルパーでも可。

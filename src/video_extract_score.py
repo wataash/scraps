@@ -1,4 +1,4 @@
-#!/home/wsh/opt_/pyvenv2/bin/python
+#!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
@@ -41,7 +41,7 @@ class MyFormatter(logging.Formatter):
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logger_handler = logging.StreamHandler()
 logger_handler.setFormatter(MyFormatter())
 logger.addHandler(logger_handler)

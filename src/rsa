@@ -1,0 +1,112 @@
+#!/home/wsh/opt_/pyvenv2/bin/python
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 Wataru Ashihara <wataash0607@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+epilog = r'''
+rsa 172.31.5.200 /a/b
+rsa 172.31.5.200 /a/b/
+rsa -d 172.31.5.200 /a/b
+rsa -r 172.31.5.200 /a/b
+rsa -n 172.31.5.200 a/b
+'''[1:]
+
+import argparse
+import logging
+import os
+from pathlib import Path
+import shlex
+import subprocess
+
+
+class MyFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        color = {
+            logging.CRITICAL: '\x1b[31m',
+            logging.ERROR: '\x1b[31m',
+            logging.WARNING: '\x1b[33m',
+            logging.INFO: '\x1b[34m',
+            logging.DEBUG: '\x1b[37m',
+        }[record.levelno]
+        fn = '' if record.funcName == '<module>' else f' {record.funcName}()'
+        fmt = f'{color}[%(levelname)1.1s %(asctime)s %(filename)s:%(lineno)d{fn}] %(message)s\x1b[m'
+        return logging.Formatter(fmt=fmt, datefmt='%T').format(record)
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger_handler = logging.StreamHandler()
+logger_handler.setFormatter(MyFormatter())
+logger.addHandler(logger_handler)
+
+
+class ArgumentDefaultsRawTextHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
+    pass
+
+
+def shell_join(argv: list[str]) -> str:
+    return ' '.join(shlex.quote(arg) for arg in argv)
+
+
+def has_trailing_slash(path: str) -> bool:
+    return path.endswith('/')
+
+
+def mirror_path(path: str) -> str:
+    trailing_slash = has_trailing_slash(path)
+
+    if path == './':
+        return f'{Path.cwd()}/'
+
+    if os.path.isabs(path):
+        mirrored = path
+    elif path == '..' or path.startswith('../'):
+        mirrored = os.path.realpath(path)
+        if trailing_slash:
+            mirrored += '/'
+    elif path == '.':
+        mirrored = str(Path.cwd())
+    elif path.startswith('./'):
+        mirrored = str(Path.cwd() / path[2:])
+    else:
+        mirrored = str(Path.cwd() / path)
+
+    if trailing_slash and not mirrored.endswith('/'):
+        mirrored += '/'
+
+    return mirrored
+
+
+def build_rsync_command(args: argparse.Namespace) -> list[str]:
+    mirrored_path = mirror_path(args.path)
+    options = ['--mkpath'] if args.make_dest_dirs else []
+    command = ['rsync', *options, '-ahPSv']
+
+    if args.reverse:
+        command.extend([f'{args.host}:{mirrored_path}', mirrored_path])
+    else:
+        command.extend([mirrored_path, f'{args.host}:{mirrored_path}'])
+
+    return command
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsRawTextHelpFormatter, epilog=epilog)
+    parser.add_argument('-d', '--make_dest_dirs', action='store_true', help='pass --mkpath to rsync')
+    parser.add_argument('-r', '--reverse', action='store_true', help='copy from host:path to the local mirrored path')
+    parser.add_argument('-n', '--dry_run', action='store_true', help='print the rsync command without executing it')
+    parser.add_argument('host', help='remote rsync host, for example 172.31.5.200')
+    parser.add_argument('path', help='file or directory path to mirror at the same absolute path')
+
+    args = parser.parse_args()
+    command = build_rsync_command(args)
+
+    if args.dry_run:
+        print(shell_join(command))
+        return 0
+
+    logger.info(shell_join(command))
+    completed = subprocess.run(command, check=False)
+    return completed.returncode
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

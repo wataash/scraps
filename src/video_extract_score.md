@@ -6,6 +6,27 @@
 
 主な用途は、演奏動画の上部に表示される五線譜や TAB 譜を画像として抜き出すこと。
 
+## 使用例
+
+```sh
+yt-dlp 'https://www.youtube.com/watch?v=YOUTUBEID'
+ln -fs 'YOUTUBE_TITLE [YOUTUBEID].webm' in.webm
+# video_crop_gui.py select --time 00:00:08 in.webm  # 手動で crop 範囲を探す場合
+
+<<'AI_PROMPT'
+in.webm の五線譜を score/*.webp に保存して、score/*.webp を A4 PDF にまとめる。
+- score/*.webp の生成には video_extract_score.py extract を使え。
+  - TABは不要。コード表記と五線譜だけで良い。
+- PDF の生成には images_to_a4_pdf.py build を使え。
+AI_PROMPT
+
+video_extract_score.py extract in.webm score/ --crop 1892:200:16:59 --start 0 --end 00:00:08
+video_extract_score.py extract in.webm score/ --crop 1818:200:0:2 --start 00:00:08 --end last --no-clean
+images_to_a4_pdf.py build 'score/*.webp' score.pdf
+```
+
+タイムスタンプ指定で1フレームずつ切り出す場合は [video_snap_frames.py](video_snap_frames.py) を使う。
+
 ## 基本的な使い方
 
 ```bash
