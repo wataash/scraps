@@ -1,5 +1,7 @@
 # gnome_display_layout.py
 
+[gnome_display_layout.py](gnome_display_layout.py)
+
 このスクリプトは、GNOME Wayland 環境におけるマルチモニターの配置設定を動的かつ一発で適用するためのツールです。同じ型番（シリアル番号違い）のディスプレイを接続し直した際に、配置が初期設定にリセットされてしまう GNOME の制限を解消します。
 
 ## 目的 (Purpose)
@@ -22,6 +24,7 @@
 | :--- | :--- | :--- | :--- |
 | **`pc`** | `0x419f` (eDP-1, Samsung SDC) | PC 内蔵液晶ディスプレイ (常にメイン) | **常に存在** |
 | **`portable`** | `DP-FF164S-B` (YCT) | ポータブルディスプレイ | **存在することが多い** (持ち運び用) |
+| **`ext4k1440p`** | `EX-LD4K271D` (IO-DATA) | 4K 外部モニター (1440p で運用) | — |
 | **`etc`** | *任意* | コワーキングスペース等の据え置き外部モニター | 場所により異なる (機種は様々、wildcard) |
 
 `pc` / `portable` の製品コードはスクリプト内の `ROLE_PRODUCTS` に固定。それ以外に検出されたモニターは自動的に `etc` ロールに割り当てられます。
@@ -56,7 +59,7 @@ pc portable
 
 ### シナリオ 2: `pc+etc` (2画面)
 
-#### `not_tested_yet.etcU` (default)
+#### `etcU` (default)
 ```text
 etc
 pc
@@ -66,7 +69,7 @@ pc
 | **etc** | 上 | 任意の外部モニター |
 | **pc** | 下 (メイン, scale 1.5) | 0x419f |
 
-#### `not_tested_yet.etcL`
+#### `etcL`
 ```text
 etc pc
 ```
@@ -75,7 +78,7 @@ etc pc
 | **etc** | 左 | 任意の外部モニター |
 | **pc** | 右 (メイン, scale 1.5) | 0x419f |
 
-#### `not_tested_yet.etcR`
+#### `etcR`
 ```text
 pc etc
 ```
@@ -132,6 +135,25 @@ etc pc portable
 
 ---
 
+### シナリオ 4: `pc+portable+ext4k1440p` (3画面)
+
+EX-LD4K271D を `ext4k1440p` 固定ロールとして検出したときの専用シナリオ。`pc+portable+etc` (wildcard) より優先して一致する。
+
+#### `pL` (default)
+```text
+       ext4k1440p
+portable pc
+```
+| ロール | 配置 | 製品コード |
+| :--- | :--- | :--- |
+| **ext4k1440p** | 上 右寄り (mode 強制: 2560x1440) | EX-LD4K271D |
+| **portable** | 左下 | DP-FF164S-B |
+| **pc** | 右下 (メイン, scale 1.5) | 0x419f |
+
+*※ ext4k1440p はネイティブ 4K より 1440p を優先したいので layout タプル6要素目の `mode_spec` (= `"2560x1440"`) で解像度を強制している*
+
+---
+
 ## 使用例 (Usage Example)
 
 ### シナリオを自動判定 + 各シナリオの default variant を適用
@@ -151,40 +173,8 @@ etc pc portable
 
 ### ドライラン (実際に適用せず、生成される D-Bus コマンドを表示)
 ```bash
-~/d/s/gnome_display_layout.py -n apply -p not_tested_yet.etcL
+~/d/s/gnome_display_layout.py -n apply -p etcL
 ```
-
----
-
-## プロファイルの追加・編集方法
-
-スクリプト (`gnome_display_layout.py`) の `PROFILES` 辞書を編集します。各エントリは「シナリオ」で、`roles` (必要なロール集合) と `variants` (具体的なレイアウトの選択肢) を持ちます。
-
-```python
-PROFILES = {
-    "シナリオ名": {
-        "roles": ["pc", "portable"],          # 検出 role がこの集合と完全一致するときに該当
-        "default": "variant名",               # -p 未指定時の variant
-        "variants": {
-            "variant名": {
-                "description": "配置の説明",
-                # layout は role 名でキー指定: (X, Y, scale, rot, primary)
-                "layout": {
-                    "portable": (   0, 0, 1.0, 0, False),
-                    "pc":       (1920, 0, 1.5, 0, True),
-                },
-            },
-            # ...追加の variant
-        },
-    },
-}
-```
-
-新しい固定モニター (例: 外付けキーボード一体型ディスプレイなど) を role 化したい場合は `ROLE_PRODUCTS` に追加します。第3モニター枠 (`etc`) は wildcard なので、製品コードを登録する必要はありません。
-
-*※ 接続されているモニターの正確な「製品コード (Product)」を調べるには、`~/d/s/gnome_display_layout.py apply` を実行し、ログの `Connected monitors (products): ['...', '...']` を確認してください。*
-
----
 
 ## オプション (Options)
 
@@ -204,7 +194,8 @@ PROFILES = {
 ```md
 - pc: 0x419f
 - portable: DP-FF164S-B
-- etc: その他
+- ext4k1440p: EX-LD4K271D (1440p で固定運用)
+- etc: その他 (wildcard)
 
 **pc + portable**
 
@@ -215,14 +206,14 @@ portable pc
 pc portable
 
 **pc + etc**
-`-p not_tested_yet.etcU` (default):
+`-p etcU` (default):
 etc
 pc
 
-`-p not_tested_yet.etcL`:
+`-p etcL`:
 etc pc
 
-`-p not_tested_yet.etcR`:
+`-p etcR`:
 pc etc
 
 **pc + portable + etc**
@@ -240,4 +231,10 @@ portable pc etc
 
 `-p etc_pc_p`:
 etc pc portable
+
+**pc + portable + ext4k1440p**
+
+`-p pL` (default):
+       ext4k1440p
+portable pc
 ```

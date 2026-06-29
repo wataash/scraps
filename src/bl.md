@@ -1,5 +1,7 @@
 # bl
 
+[bl](bl)
+
 Small helper for scaffolding a Next.js page in a personal blog repo.
 
 ## Purpose

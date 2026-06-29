@@ -1,5 +1,7 @@
 # score_remove_overlay.py
 
+[score_remove_overlay.py](score_remove_overlay.py)
+
 ## Purpose
 
 Remove colored playback overlays from score screenshots while keeping black score notation, chord text, staff lines, and measure bars.

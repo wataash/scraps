@@ -12,20 +12,32 @@ GDK_BACKEND=x11 python title.py 'good morning' --font-size 96
 
 import argparse
 import logging
+import sys
 import tkinter as tk
+
+
+try:
+    from _colorize import get_colors  # Python 3.13+ (private API)
+except ImportError:
+    class _NoColors:
+        RED = YELLOW = BLUE = WHITE = RESET = ""
+
+    def get_colors(colorize=False, *, file=None):  # type: ignore[misc]
+        return _NoColors
 
 
 class MyFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        c = get_colors(file=sys.stderr)
         color = {
-            logging.CRITICAL: '\x1b[31m',
-            logging.ERROR: '\x1b[31m',
-            logging.WARNING: '\x1b[33m',
-            logging.INFO: '\x1b[34m',
-            logging.DEBUG: '\x1b[37m',
+            logging.CRITICAL: c.RED,
+            logging.ERROR: c.RED,
+            logging.WARNING: c.YELLOW,
+            logging.INFO: c.BLUE,
+            logging.DEBUG: c.WHITE,
         }[record.levelno]
         fn = '' if record.funcName == '<module>' else f' {record.funcName}()'
-        fmt = f'{color}[%(levelname)1.1s %(asctime)s %(filename)s:%(lineno)d{fn}] %(message)s\x1b[m'
+        fmt = f'{color}[%(levelname)1.1s %(asctime)s %(filename)s:%(lineno)d{fn}] %(message)s{c.RESET}'
         return logging.Formatter(fmt=fmt, datefmt='%T').format(record)
 
 
@@ -42,10 +54,13 @@ class ArgumentDefaultsRawTextHelpFormatter(argparse.ArgumentDefaultsHelpFormatte
 
 def main() -> int:
     parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsRawTextHelpFormatter, epilog=epilog)
+    parser.add_argument('-q', '--quiet', action='count', default=0,
+                        help='decrease verbosity; default: debug, -q: info, -qq: warning, -qqq: error')
     parser.add_argument('text', help='window content text')
     parser.add_argument('--font-size', type=int, default=48)
     parser.add_argument('--title', default='title.py', help='window title')
     args = parser.parse_args()
+    logger.setLevel({0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}.get(args.quiet, logging.ERROR))
     logger.debug(f'{args=}')
     return show(args)
 
@@ -57,7 +72,29 @@ def show(args: argparse.Namespace) -> int:
         root.attributes('-type', 'utility')
     except tk.TclError as e:
         logger.warning(f'-type utility not applied (non-X11?): {e}')
-    tk.Label(root, text=args.text, font=('Sans', args.font_size)).pack(padx=40, pady=40)
+    font = ('Sans', args.font_size)
+    label = tk.Label(root, text=args.text, font=font)
+    entry = tk.Entry(root, font=font, borderwidth=0, highlightthickness=0, justify='center')
+    label.pack(padx=40, pady=40)
+
+    def to_edit(_event: tk.Event) -> None:
+        entry.delete(0, tk.END)
+        entry.insert(0, label.cget('text'))
+        label.pack_forget()
+        entry.pack(padx=40, pady=40)
+        entry.focus_set()
+        entry.select_range(0, tk.END)
+
+    def to_label(_event: tk.Event) -> None:
+        label.config(text=entry.get())
+        entry.pack_forget()
+        label.pack(padx=40, pady=40)
+
+    label.bind('<Button-1>', to_edit)
+    entry.bind('<Return>', to_label)
+    entry.bind('<Escape>', to_label)
+    entry.bind('<FocusOut>', to_label)
+
     root.mainloop()
     return 0
 

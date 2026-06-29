@@ -1,5 +1,7 @@
 # claude_session_tree
 
+[claude_session_tree.py](claude_session_tree.py)
+
 Claude Code のセッション履歴をツリー表示する CLI。
 
 `~/.claude/projects/<エンコード済みパス>/<session-id>.jsonl` を読み、resume によって枝分かれしたセッション群の関係を復元し、ユーザープロンプトのツリーとして出力する。

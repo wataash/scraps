@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import pathlib
+import sys
 import typing as t
 
 
@@ -15,17 +16,28 @@ ff_vmaf_plot.py plot encoded/crf18.mp4.vmaf.json encoded/crf23.mp4.vmaf.json -o 
 '''[1:]
 
 
+try:
+    from _colorize import get_colors  # Python 3.13+ (private API)
+except ImportError:
+    class _NoColors:
+        RED = YELLOW = BLUE = WHITE = RESET = ""
+
+    def get_colors(colorize=False, *, file=None):  # type: ignore[misc]
+        return _NoColors
+
+
 class MyFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        c = get_colors(file=sys.stderr)
         color = {
-            logging.CRITICAL: '\x1b[31m',
-            logging.ERROR: '\x1b[31m',
-            logging.WARNING: '\x1b[33m',
-            logging.INFO: '\x1b[34m',
-            logging.DEBUG: '\x1b[37m',
+            logging.CRITICAL: c.RED,
+            logging.ERROR: c.RED,
+            logging.WARNING: c.YELLOW,
+            logging.INFO: c.BLUE,
+            logging.DEBUG: c.WHITE,
         }[record.levelno]
         fn = '' if record.funcName == '<module>' else f' {record.funcName}()'
-        fmt = f'{color}[%(levelname)1.1s %(asctime)s %(filename)s:%(lineno)d{fn}] %(message)s\x1b[m'
+        fmt = f'{color}[%(levelname)1.1s %(asctime)s %(filename)s:%(lineno)d{fn}] %(message)s{c.RESET}'
         return logging.Formatter(fmt=fmt, datefmt='%T').format(record)
 
 
@@ -80,7 +92,10 @@ def main() -> int:
         default=150,
         help='output image DPI',
     )
+    parser.add_argument('-q', '--quiet', action='count', default=0,
+                        help='decrease verbosity; default: debug, -q: info, -qq: warning, -qqq: error')
     args = parser.parse_args()
+    logger.setLevel({0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}.get(args.quiet, logging.ERROR))
     return args.func(args)
 
 

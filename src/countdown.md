@@ -1,5 +1,7 @@
 # countdown.py
 
+[countdown.py](countdown.py)
+
 Counts down from the given duration to 1, printing each remaining second on the
 same line (`5 4 3 2 1`) with a 1-second sleep between updates, then a trailing
 newline.

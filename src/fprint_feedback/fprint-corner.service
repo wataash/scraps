@@ -1,0 +1,14 @@
+[Unit]
+Description=Fingerprint corner-blink feedback (flash screen corners on fprintd VerifyStatus)
+Documentation=file:///home/wsh/d/s/fprint_feedback/fprint_feedback.md
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+# Runs as your user, so running straight from the repo is fine (no escalation).
+ExecStart=/usr/bin/python3 /home/wsh/d/s/fprint_feedback/fprint_feedback.py -qq corner
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,5 +1,7 @@
 # score_barlines.py
 
+[score_barlines.py](score_barlines.py)
+
 Detect bar-line x coordinates in a single horizontal staff image, split the image into measure slices, and lay those slices out into an A4 PDF.
 
 The detector finds the five staff lines, extracts long vertical ink components inside the staff region, rejects likely note stems by checking a small set of geometric and neighborhood properties, then groups close accepted strokes as one barline.

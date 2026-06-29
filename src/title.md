@@ -1,12 +1,15 @@
 # title.py
 
+[title.py](title.py)
+
 Shows a small always-visible window displaying the given text. Intended as a
 per-workspace label: GNOME has 9 workspaces in this environment and it is easy
 to lose track of what each one is for, so placing a `title.py HELLO` window on a
 workspace acts as a sticky note ("this workspace is HELLO").
 
-The window is not meant to be interacted with, so it is shown as
-`_NET_WM_WINDOW_TYPE_UTILITY` to keep it out of the Alt+Tab list.
+The window is shown as `_NET_WM_WINDOW_TYPE_UTILITY` to keep it out of the
+Alt+Tab list. Click the text to edit it inline; press Enter/Escape or click
+elsewhere to commit the change.
 
 ## Usage
 

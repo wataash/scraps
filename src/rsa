@@ -7,6 +7,7 @@ rsa 172.31.5.200 /a/b/
 rsa -d 172.31.5.200 /a/b
 rsa -r 172.31.5.200 /a/b
 rsa -n 172.31.5.200 a/b
+rsa -p 2222 172.31.5.200 /a/b
 '''[1:]
 
 import argparse
@@ -78,7 +79,9 @@ def mirror_path(path: str) -> str:
 def build_rsync_command(args: argparse.Namespace) -> list[str]:
     mirrored_path = mirror_path(args.path)
     options = ['--mkpath'] if args.make_dest_dirs else []
-    command = ['rsync', *options, '-ahPSv']
+    if args.port is not None:
+        options.extend(['-e', f'ssh -p {args.port}'])
+    command = ['rsync', *options, '-aAHSX', '-hPv', '--info=progress2']
 
     if args.reverse:
         command.extend([f'{args.host}:{mirrored_path}', mirrored_path])
@@ -93,6 +96,7 @@ def main() -> int:
     parser.add_argument('-d', '--make_dest_dirs', action='store_true', help='pass --mkpath to rsync')
     parser.add_argument('-r', '--reverse', action='store_true', help='copy from host:path to the local mirrored path')
     parser.add_argument('-n', '--dry_run', action='store_true', help='print the rsync command without executing it')
+    parser.add_argument('-p', '--port', type=int, help='ssh port for the remote host')
     parser.add_argument('host', help='remote rsync host, for example 172.31.5.200')
     parser.add_argument('path', help='file or directory path to mirror at the same absolute path')
 

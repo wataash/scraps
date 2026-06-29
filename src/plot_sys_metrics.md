@@ -1,5 +1,7 @@
 # plot_sys_metrics
 
+[plot_sys_metrics.py](plot_sys_metrics.py)
+
 `/proc/loadavg`、`/proc/pressure/cpu`、`/proc/stat`、および `iostat` /
 `vmstat` の出力を定期的にログに採取し（`collect`）、その生ログをパースして
 任意のメトリックを時系列プロットする（`plot`）。

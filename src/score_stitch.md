@@ -1,5 +1,7 @@
 # score_stitch.py
 
+[score_stitch.py](score_stitch.py)
+
 ## Purpose
 
 Stitch a series of horizontally-overlapping score image fragments into a single

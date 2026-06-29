@@ -25,11 +25,15 @@ import sys
 ROLE_PRODUCTS = {
     "pc": "0x419f",            # PC内蔵液晶 (常に存在、メイン)
     "portable": "DP-FF164S-B", # ポータブルディスプレイ
+    "ext4k1440p": "EX-LD4K271D",    # 4K 外部モニター (IO-DATA)
 }
 
 # プロファイル = (シナリオ × variant)。
 #   シナリオは "roles" (必要なロール集合) で判定。"etc" は wildcard で任意の第3モニター。
-#   variant の layout は (X座標, Y座標, スケール, 回転, プライマリ) を role 名でキー指定。
+#   variant の layout は (X, Y, scale, rot, primary, mode_spec)。
+#   mode_spec:
+#     "WIDTHxHEIGHT" : available_modes 内の該当解像度
+#     None           : 自動 (current か preferred を採用)。
 PROFILES = {
     "pc+portable": {
         "roles": ["pc", "portable"],
@@ -38,42 +42,42 @@ PROFILES = {
             "not_tested_yet.pL": {
                 "description": "portable | pc (pc=メイン)",
                 "layout": {
-                    "portable": (   0, 0, 1.0, 0, False),
-                    "pc":       (1920, 0, 1.5, 0, True),
+                    "portable": (   0, 0, 1.0, 0, False, None),
+                    "pc":       (1920, 0, 1.5, 0, True,  None),
                 },
             },
             "not_tested_yet.pR": {
                 "description": "pc | portable (pc=メイン)",
                 "layout": {
-                    "pc":       (   0, 0, 1.5, 0, True),
-                    "portable": (1920, 0, 1.0, 0, False),
+                    "pc":       (   0, 0, 1.5, 0, True,  None),
+                    "portable": (1920, 0, 1.0, 0, False, None),
                 },
             },
         },
     },
     "pc+etc": {
         "roles": ["pc", "etc"],
-        "default": "not_tested_yet.etcU",
+        "default": "etcU",
         "variants": {
-            "not_tested_yet.etcU": {
+            "etcU": {
                 "description": "etc / pc 縦並び (pc=メイン下)",
                 "layout": {
-                    "etc": (0,    0, 1.0, 0, False),
-                    "pc":  (0, 1080, 1.5, 0, True),
+                    "etc": (0,    0, 1.0, 0, False, None),
+                    "pc":  (0, 1080, 1.5, 0, True,  None),
                 },
             },
-            "not_tested_yet.etcL": {
+            "etcL": {
                 "description": "etc | pc (pc=メイン)",
                 "layout": {
-                    "etc": (   0, 0, 1.0, 0, False),
-                    "pc":  (1920, 0, 1.5, 0, True),
+                    "etc": (   0, 0, 1.0, 0, False, None),
+                    "pc":  (1920, 0, 1.5, 0, True,  None),
                 },
             },
-            "not_tested_yet.etcR": {
+            "etcR": {
                 "description": "pc | etc (pc=メイン)",
                 "layout": {
-                    "pc":  (   0, 0, 1.5, 0, True),
-                    "etc": (1920, 0, 1.0, 0, False),
+                    "pc":  (   0, 0, 1.5, 0, True,  None),
+                    "etc": (1920, 0, 1.0, 0, False, None),
                 },
             },
         },
@@ -85,33 +89,47 @@ PROFILES = {
             "pL": {
                 "description": "etc 右上 / portable pc 下段 (pc=メイン右下)",
                 "layout": {
-                    "etc":      (1920,    0, 1.0, 0, False),
-                    "portable": (   0, 1080, 1.0, 0, False),
-                    "pc":       (1920, 1080, 1.5, 0, True),
+                    "etc":      (1920,    0, 1.0, 0, False, None),
+                    "portable": (   0, 1080, 1.0, 0, False, None),
+                    "pc":       (1920, 1080, 1.5, 0, True,  None),
                 },
             },
             "pR": {
                 "description": "etc 左上 / pc portable 下段 (pc=メイン左下)",
                 "layout": {
-                    "etc":      (   0,    0, 1.0, 0, False),
-                    "pc":       (   0, 1080, 1.5, 0, True),
-                    "portable": (1920, 1080, 1.0, 0, False),
+                    "etc":      (   0,    0, 1.0, 0, False, None),
+                    "pc":       (   0, 1080, 1.5, 0, True,  None),
+                    "portable": (1920, 1080, 1.0, 0, False, None),
                 },
             },
             "p_pc_etc": {
                 "description": "portable pc etc 横一列 (pc=メイン中央)",
                 "layout": {
-                    "portable": (   0, 0, 1.0, 0, False),
-                    "pc":       (1920, 0, 1.5, 0, True),
-                    "etc":      (3840, 0, 1.0, 0, False),
+                    "portable": (   0, 0, 1.0, 0, False, None),
+                    "pc":       (1920, 0, 1.5, 0, True,  None),
+                    "etc":      (3840, 0, 1.0, 0, False, None),
                 },
             },
             "etc_pc_p": {
                 "description": "etc pc portable 横一列 (pc=メイン中央)",
                 "layout": {
-                    "etc":      (   0, 0, 1.0, 0, False),
-                    "pc":       (1920, 0, 1.5, 0, True),
-                    "portable": (3840, 0, 1.0, 0, False),
+                    "etc":      (   0, 0, 1.0, 0, False, None),
+                    "pc":       (1920, 0, 1.5, 0, True,  None),
+                    "portable": (3840, 0, 1.0, 0, False, None),
+                },
+            },
+        },
+    },
+    "pc+portable+ext4k1440p": {
+        "roles": ["pc", "portable", "ext4k1440p"],
+        "default": "pL",
+        "variants": {
+            "pL": {
+                "description": "ext4k1440p 上中央 (1440p) / portable 左下 pc 右下 (pc=メイン)",
+                "layout": {
+                    "ext4k1440p":    (1516,    0, 1.0, 0, False, "2560x1440"),
+                    "portable": (   0, 1440, 1.0, 0, False, None),
+                    "pc":       (1920, 1440, 1.5, 0, True,  None),
                 },
             },
         },
@@ -119,17 +137,28 @@ PROFILES = {
 }
 
 
+try:
+    from _colorize import get_colors  # Python 3.13+ (private API)
+except ImportError:
+    class _NoColors:
+        RED = YELLOW = BLUE = WHITE = RESET = ""
+
+    def get_colors(colorize=False, *, file=None):  # type: ignore[misc]
+        return _NoColors
+
+
 class MyFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        c = get_colors(file=sys.stderr)
         color = {
-            logging.CRITICAL: '\x1b[31m',
-            logging.ERROR: '\x1b[31m',
-            logging.WARNING: '\x1b[33m',
-            logging.INFO: '\x1b[34m',
-            logging.DEBUG: '\x1b[37m',
+            logging.CRITICAL: c.RED,
+            logging.ERROR: c.RED,
+            logging.WARNING: c.YELLOW,
+            logging.INFO: c.BLUE,
+            logging.DEBUG: c.WHITE,
         }[record.levelno]
         fn = '' if record.funcName == '<module>' else f' {record.funcName}()'
-        fmt = f'{color}[%(levelname)1.1s %(asctime)s %(filename)s:%(lineno)d{fn}] %(message)s\x1b[m'
+        fmt = f'{color}[%(levelname)1.1s %(asctime)s %(filename)s:%(lineno)d{fn}] %(message)s{c.RESET}'
         return logging.Formatter(fmt=fmt, datefmt='%T').format(record)
 
 
@@ -145,12 +174,21 @@ class ArgumentDefaultsRawTextHelpFormatter(argparse.ArgumentDefaultsHelpFormatte
 
 
 class DetectedMonitor:
-    def __init__(self, connector: str, vendor: str, product: str, serial: str, best_mode: str):
+    def __init__(self, connector: str, vendor: str, product: str, serial: str, best_mode: str, available_modes: list):
         self.connector = connector
         self.vendor = vendor
         self.product = product
         self.serial = serial
         self.best_mode = best_mode
+        # available_modes: list of (mode_id, width, height, refresh)
+        self.available_modes = available_modes
+
+    def resolve_mode(self, spec: str) -> str:
+        """spec ('WxH') に一致する available_modes 中で最大リフレッシュのモード ID を返す。"""
+        matching = [m for m in self.available_modes if m[0].startswith(f"{spec}@")]
+        if not matching:
+            raise ValueError(f"{self.connector}: no mode matches resolution '{spec}'. Available: {[m[0] for m in self.available_modes]}")
+        return max(matching, key=lambda m: m[3])[0]
 
 
 def get_current_state() -> list:
@@ -191,19 +229,22 @@ def apply(args: argparse.Namespace) -> int:
         
         preferred_mode = None
         current_mode = None
+        available_modes = []
         for mode in modes:
             mode_id = mode[0]
+            width, height, refresh = mode[1], mode[2], mode[3]
+            available_modes.append((mode_id, width, height, refresh))
             props = mode[6] if len(mode) > 6 else {}
             is_current = props.get("is-current", {}).get("data", False)
             is_preferred = props.get("is-preferred", {}).get("data", False)
-            
+
             if is_current:
                 current_mode = mode_id
             if is_preferred:
                 preferred_mode = mode_id
-                
+
         best_mode = current_mode or preferred_mode or (modes[0][0] if modes else None)
-        detected_monitors.append(DetectedMonitor(connector, vendor, product, serial, best_mode))
+        detected_monitors.append(DetectedMonitor(connector, vendor, product, serial, best_mode, available_modes))
 
     logger.info(f"Connected monitors (products): {detected_products}")
 
@@ -245,10 +286,11 @@ def apply(args: argparse.Namespace) -> int:
     # variant に従って logical_monitors 構造体を組み立て
     logical_monitors = []
     for role, layout_conf in variant["layout"].items():
-        x, y, scale, transform, primary = layout_conf
+        x, y, scale, transform, primary, mode_spec = layout_conf
         tgt_mon = role_to_monitor[role]
+        mode_id = tgt_mon.resolve_mode(mode_spec) if mode_spec else tgt_mon.best_mode
         logical_monitors.append(
-            (x, y, scale, transform, primary, [(tgt_mon.connector, tgt_mon.best_mode, {})])
+            (x, y, scale, transform, primary, [(tgt_mon.connector, mode_id, {})])
         )
 
     # gdbus コマンド用引数のシリアライズ
@@ -301,14 +343,18 @@ def list_profiles(args: argparse.Namespace) -> int:
         for vname, variant in scen['variants'].items():
             tag = f' {YELLOW}(default){RESET}' if vname == scen['default'] else ''
             print(f'      {GREEN}●{RESET} {BOLD}{BLUE}{vname}{RESET}{tag}  {DIM}—{RESET} {variant["description"]}')
-            for role, (x, y, scale, transform, primary) in variant['layout'].items():
+            for role, layout_conf in variant['layout'].items():
+                x, y, scale, transform, primary, mode_spec = layout_conf
                 primary_tag = f' {YELLOW}★primary{RESET}' if primary else ''
-                print(f'          {MAGENTA}{role:<10}{RESET} {DIM}@{RESET} ({x:>4}, {y:>4})  scale={scale}  rot={transform}{primary_tag}')
+                mode_tag = f'  mode={mode_spec}' if mode_spec else ''
+                print(f'          {MAGENTA}{role:<10}{RESET} {DIM}@{RESET} ({x:>4}, {y:>4})  scale={scale}  rot={transform}{primary_tag}{mode_tag}')
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsRawTextHelpFormatter, epilog=epilog)
+    parser.add_argument('-q', '--quiet', action='count', default=0,
+                        help='decrease verbosity; default: debug, -q: info, -qq: warning, -qqq: error')
     parser.add_argument('-n', '--dry_run', action='store_true', help='dry-run mode (print command without executing)')
     
     subparsers = parser.add_subparsers(dest='subcommand_name', required=True)
@@ -321,6 +367,7 @@ def main() -> int:
     subparser_list.set_defaults(func=list_profiles)
     
     args = parser.parse_args()
+    logger.setLevel({0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}.get(args.quiet, logging.ERROR))
     logger.debug(f'{args=}')
     return args.func(args)
 

@@ -1,8 +1,10 @@
 # br.py
 
+[br.py](br.py)
+
 `pnpm`'s `minimumReleaseAge` for Homebrew formulae: install a formula only if
 its latest version has been published on `homebrew-core` for at least N hours
-(default 168h = 1 week). Acts as a small supply-chain safety net against a
+(default 72h = 3 days). Acts as a small supply-chain safety net against a
 freshly compromised formula bump.
 
 ## How it determines "release age"
@@ -47,4 +49,4 @@ br.py -n upgrade --min_age_hours 24
 | Option                  | Description                                                        |
 | ----------------------- | ------------------------------------------------------------------ |
 | `-n`, `--dry_run`       | Print the `brew install` command instead of executing it.          |
-| `--min_age_hours HOURS` | Minimum hours since the last commit to the formula. Default `168` (1 week). |
+| `--min_age_hours HOURS` | Minimum hours since the last commit to the formula. Default `72` (3 days). |

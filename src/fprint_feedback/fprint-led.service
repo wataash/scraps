@@ -1,0 +1,32 @@
+[Unit]
+Description=Fingerprint LED feedback (blink LEDs on fprintd VerifyStatus)
+Documentation=file:///home/wsh/d/s/fprint_feedback/fprint_feedback.md
+After=dbus.service
+Wants=dbus.service
+
+[Service]
+# IMPORTANT: ExecStart must point at a root-owned copy, NOT the repo under
+# /home/wsh (which is user-writable -> would be a privilege-escalation path).
+ExecStart=/usr/bin/python3 /usr/local/bin/fprint_feedback -q led
+Restart=on-failure
+RestartSec=2
+# hardening: this service only needs to read fprintd signals and write LED sysfs
+# ProtectHome=tmpfs (not =true): =true covers /home with an "inaccessible" mount
+# that shadows the BindReadOnlyPaths= below, so the re-exposed source dir stays
+# hidden. =tmpfs lays a tmpfs over /home onto which BindReadOnlyPaths= can mount
+# the source dir back in. (Documented combination in systemd.exec(5).)
+ProtectHome=tmpfs
+ProtectSystem=strict
+ReadWritePaths=/sys/class/leds
+# Re-expose just the repo source dir through ProtectHome, read-only, so the
+# z_install self-check (injected at the top of /usr/local/bin/fprint_feedback)
+# can hash-verify its source instead of warning "source not found".
+# NOTE: must be BindReadOnlyPaths=, not ReadOnlyPaths=. ReadOnlyPaths= only
+# re-mounts already-visible paths read-only; it cannot un-hide a path that
+# ProtectHome= covered. BindReadOnlyPaths= bind-mounts from the host, punching
+# back through ProtectHome.
+BindReadOnlyPaths=/home/wsh/d/s/fprint_feedback
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

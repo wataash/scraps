@@ -62,10 +62,10 @@ fi
 git show --format= --no-ext-diff "$old_head" -- "$@" >"$old_patch"
 
 for path in "$@"; do
-  if git cat-file -e "${parent}:${path}" 2>/dev/null; then
+  if git cat-file -e "${parent}:./${path}" 2>/dev/null; then
     git restore --source="$parent" --staged -- "$path"
   else
-    git rm --cached --quiet -- "$path"
+    git rm -r --cached --quiet -- "$path"
     git add -N -- "$path"
   fi
 done
